@@ -1,0 +1,55 @@
+import 'dart:convert';
+
+import 'package:rust_net_core/rust_net_core.dart';
+
+import '../dto/native_http_request_dto.dart';
+
+final class NativeHttpRequestMapper {
+  const NativeHttpRequestMapper._();
+
+  static NativeHttpRequestDto toDto({
+    required RustNetClientConfig clientConfig,
+    required RustNetRequest request,
+  }) {
+    final resolvedUri = _resolveUri(clientConfig.baseUrl, request.uri);
+    final headers = <String, String>{
+      ...clientConfig.defaultHeaders,
+      ...request.headers,
+    };
+    final userAgent = clientConfig.userAgent;
+    if (userAgent != null &&
+        userAgent.isNotEmpty &&
+        !_containsHeader(headers, 'user-agent')) {
+      headers['user-agent'] = userAgent;
+    }
+
+    return NativeHttpRequestDto(
+      method: request.method.wireValue,
+      url: resolvedUri.toString(),
+      headers: headers,
+      bodyBase64:
+          request.bodyBytes == null ? null : base64Encode(request.bodyBytes!),
+      timeoutMs:
+          request.timeout?.inMilliseconds ?? clientConfig.timeout?.inMilliseconds,
+    );
+  }
+
+  static Uri _resolveUri(Uri? baseUrl, Uri requestUri) {
+    if (requestUri.hasScheme) {
+      return requestUri;
+    }
+    if (baseUrl == null) {
+      throw RustNetException(
+        code: 'invalid_request',
+        message: 'Relative request URI requires RustNetClientConfig.baseUrl.',
+        uri: requestUri,
+      );
+    }
+    return baseUrl.resolveUri(requestUri);
+  }
+
+  static bool _containsHeader(Map<String, String> headers, String name) {
+    final lowerCaseName = name.toLowerCase();
+    return headers.keys.any((key) => key.toLowerCase() == lowerCaseName);
+  }
+}

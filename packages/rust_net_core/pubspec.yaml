@@ -1,0 +1,16 @@
+name: rust_net_core
+description: Core domain contracts and immutable models for rust_net.
+version: 0.1.0
+homepage: https://github.com/iamdennisme/rust_net
+
+environment:
+  sdk: ^3.6.2
+
+dependencies:
+  freezed_annotation: ^2.4.4
+
+dev_dependencies:
+  build_runner: ^2.4.14
+  freezed: ^2.5.8
+  lints: ^5.1.1
+  test: ^1.25.15

@@ -1,0 +1,363 @@
+group = 'me.iamdennis.rust_net'
+version = '1.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath('com.android.tools.build:gradle:8.1.0')
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+def rustPackageRoot = projectDir.parentFile
+def rustManifestPath = new File(rustPackageRoot, 'native/rust_net_native/Cargo.toml')
+def rustSources = files(
+    rustManifestPath,
+    new File(rustPackageRoot, 'native/rust_net_native/Cargo.lock'),
+    fileTree(new File(rustPackageRoot, 'native/rust_net_native/src')),
+)
+def rustAndroidTargets = [
+    [
+        triple: 'aarch64-linux-android',
+        abi: 'arm64-v8a',
+        linker: 'aarch64-linux-android21-clang',
+    ],
+    [
+        triple: 'armv7-linux-androideabi',
+        abi: 'armeabi-v7a',
+        linker: 'armv7a-linux-androideabi21-clang',
+    ],
+    [
+        triple: 'x86_64-linux-android',
+        abi: 'x86_64',
+        linker: 'x86_64-linux-android21-clang',
+    ],
+]
+def rustNetAndroidJniLibsDir = new File(projectDir, 'src/main/jniLibs')
+def rustNetForceSourceBuild = (System.getenv('RUST_NET_ANDROID_FORCE_SOURCE_BUILD') ?: 'false')
+    .toString()
+    .toBoolean()
+def rustNetRequiredAndroidSymbols = [
+    'rust_net_client_create',
+    'rust_net_client_execute',
+    'rust_net_client_execute_binary',
+    'rust_net_binary_result_free',
+]
+
+def latestRustSourceTimestamp = {
+    rustSources.files.collect { it.lastModified() }.max() ?: 0L
+}
+
+def libraryExportsRequiredSymbols = { File library ->
+    if (!library.exists()) {
+        return false
+    }
+
+    def commands = [
+        ['nm', '-D', library.absolutePath],
+        ['llvm-nm', '-D', library.absolutePath],
+    ]
+
+    for (command in commands) {
+        try {
+            def stdout = new ByteArrayOutputStream()
+            exec {
+                commandLine command
+                standardOutput = stdout
+                errorOutput = new ByteArrayOutputStream()
+                ignoreExitValue = true
+            }
+
+            def output = stdout.toString()
+            if (rustNetRequiredAndroidSymbols.every { symbol -> output.contains(symbol) }) {
+                return true
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    return false
+}
+
+def collectPrebuiltAndroidLibraryIssues = {
+    def newestSourceTimestamp = latestRustSourceTimestamp()
+    rustAndroidTargets.collectMany { target ->
+        def library = new File(rustNetAndroidJniLibsDir, "${target.abi}/librust_net_native.so")
+        def issues = []
+        if (!library.exists()) {
+            issues << "${target.abi}: missing jniLib"
+        } else {
+            if (library.lastModified() < newestSourceTimestamp) {
+                issues << "${target.abi}: stale jniLib"
+            }
+            if (!libraryExportsRequiredSymbols(library)) {
+                issues << "${target.abi}: missing required symbols"
+            }
+        }
+        return issues
+    }
+}
+
+def hasAllPrebuiltAndroidLibraries = {
+    collectPrebuiltAndroidLibraryIssues().isEmpty()
+}
+
+android {
+    namespace = 'me.iamdennis.rust_net'
+    compileSdk = 35
+    ndkVersion = android.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    defaultConfig {
+        minSdk = 21
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+}
+
+def resolveAndroidNdkDir = {
+    for (candidate in [System.getenv('ANDROID_NDK_HOME'), System.getenv('ANDROID_NDK_ROOT')]) {
+        if (candidate != null && !candidate.trim().isEmpty()) {
+            def ndkDir = file(candidate)
+            if (ndkDir.exists()) {
+                return ndkDir
+            }
+        }
+    }
+
+    def sdkRoot = System.getenv('ANDROID_SDK_ROOT') ?: System.getenv('ANDROID_HOME')
+    if (sdkRoot != null && !sdkRoot.trim().isEmpty()) {
+        def ndkRoot = new File(sdkRoot, 'ndk')
+        if (ndkRoot.exists()) {
+            def installed = ndkRoot.listFiles()?.findAll { it.isDirectory() }?.sort { a, b ->
+                b.name <=> a.name
+            }
+            if (installed != null && !installed.isEmpty()) {
+                return installed.first()
+            }
+        }
+    }
+
+    if (android.ndkDirectory != null && android.ndkDirectory.exists()) {
+        return android.ndkDirectory
+    }
+
+    throw new GradleException(
+        'Unable to locate Android NDK for rust_net. ' +
+        'Set ANDROID_NDK_HOME/ANDROID_NDK_ROOT or install an NDK under the Android SDK.',
+    )
+}
+
+def resolveRustToolExecutable = { String toolName ->
+    def executableName = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('win')
+        ? "${toolName}.exe"
+        : toolName
+    def cargoHome = System.getenv('CARGO_HOME')
+    def candidates = [
+        new File(System.getProperty('user.home'), ".asdf/shims/${executableName}"),
+        cargoHome != null && !cargoHome.trim().isEmpty()
+            ? new File(cargoHome, "bin/${executableName}")
+            : null,
+        new File(System.getProperty('user.home'), ".cargo/bin/${executableName}"),
+    ].findAll { it != null }
+
+    for (candidate in candidates) {
+        if (candidate.exists()) {
+            return candidate.absolutePath
+        }
+    }
+
+    return executableName
+}
+
+def resolveActiveRustToolchain = { String rustupExecutable ->
+    def stdout = new ByteArrayOutputStream()
+    exec {
+        commandLine rustupExecutable, 'show', 'active-toolchain'
+        standardOutput = stdout
+    }
+
+    def output = stdout.toString().trim()
+    if (output.isEmpty()) {
+        throw new GradleException('Unable to resolve active Rust toolchain for rust_net Android build.')
+    }
+
+    return output.tokenize(' ').first()
+}
+
+def resolveNdkPrebuiltDir = { File ndkDir ->
+    def prebuiltRoot = new File(ndkDir, 'toolchains/llvm/prebuilt')
+    if (!prebuiltRoot.exists()) {
+        throw new GradleException("Android NDK toolchain directory not found: ${prebuiltRoot}")
+    }
+
+    def hostPrefix
+    def osName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    if (osName.contains('mac')) {
+        hostPrefix = 'darwin'
+    } else if (osName.contains('win')) {
+        hostPrefix = 'windows'
+    } else {
+        hostPrefix = 'linux'
+    }
+
+    def candidates = prebuiltRoot.listFiles()?.findAll { file ->
+        file.isDirectory() && file.name.startsWith(hostPrefix)
+    }
+
+    if (candidates == null || candidates.isEmpty()) {
+        throw new GradleException(
+            "No Android NDK prebuilt LLVM toolchain found for host prefix ${hostPrefix} in ${prebuiltRoot}",
+        )
+    }
+
+    return candidates.first()
+}
+
+def registerRustAndroidTask = { String buildType, String cargoProfile ->
+    def taskName = "prepareRustNetAndroidNative${buildType.capitalize()}"
+    tasks.register(taskName) {
+        inputs.files(rustSources)
+        outputs.dir(rustNetAndroidJniLibsDir)
+
+        doLast {
+            def prebuiltIssues = collectPrebuiltAndroidLibraryIssues()
+            if (!rustNetForceSourceBuild && prebuiltIssues.isEmpty()) {
+                logger.lifecycle(
+                    'rust_net: using prebuilt Android jniLibs from ' +
+                    rustNetAndroidJniLibsDir.absolutePath,
+                )
+                return
+            }
+
+            if (!prebuiltIssues.isEmpty()) {
+                logger.lifecycle(
+                    'rust_net: rebuilding Android jniLibs because ' +
+                    prebuiltIssues.join(', '),
+                )
+            }
+
+            def ndkDir = resolveAndroidNdkDir()
+            def prebuiltDir = resolveNdkPrebuiltDir(ndkDir)
+            def llvmAr = new File(prebuiltDir, 'bin/llvm-ar')
+            if (!llvmAr.exists()) {
+                throw new GradleException("llvm-ar not found in ${prebuiltDir}")
+            }
+            def llvmStrip = new File(prebuiltDir, 'bin/llvm-strip')
+            if (!llvmStrip.exists()) {
+                throw new GradleException("llvm-strip not found in ${prebuiltDir}")
+            }
+            def rustupExecutable = resolveRustToolExecutable('rustup')
+            def cargoExecutable = resolveRustToolExecutable('cargo')
+            def activeToolchain = resolveActiveRustToolchain(rustupExecutable)
+            def rustUserHome = System.getProperty('user.home')
+            def cargoHome = System.getenv('CARGO_HOME') ?: "${rustUserHome}/.cargo"
+            def rustupHome = System.getenv('RUSTUP_HOME') ?: "${rustUserHome}/.rustup"
+            def buildEnvironment = [
+                HOME          : rustUserHome,
+                CARGO_HOME    : cargoHome,
+                RUSTUP_HOME   : rustupHome,
+                RUSTUP_TOOLCHAIN: activeToolchain,
+            ]
+
+            exec {
+                workingDir rustPackageRoot
+                environment buildEnvironment
+                commandLine rustupExecutable, 'target', 'add', '--toolchain', activeToolchain, *rustAndroidTargets.collect { it.triple }
+            }
+
+            rustAndroidTargets.each { target ->
+                def linker = new File(prebuiltDir, "bin/${target.linker}")
+                if (!linker.exists()) {
+                    throw new GradleException("Android linker not found: ${linker}")
+                }
+
+                def cargoTargetEnv = target.triple.replace('-', '_').toUpperCase(Locale.ROOT)
+                def ccEnv = "CC_${target.triple.replace('-', '_')}"
+                def arEnv = "AR_${target.triple.replace('-', '_')}"
+                def cargoArgs = [
+                    'build',
+                    '--manifest-path',
+                    rustManifestPath.absolutePath,
+                    '--target',
+                    target.triple,
+                ]
+                if (cargoProfile == 'release') {
+                    cargoArgs << '--release'
+                }
+
+                exec {
+                    workingDir rustPackageRoot
+                    environment buildEnvironment
+                    environment "CARGO_TARGET_${cargoTargetEnv}_LINKER", linker.absolutePath
+                    environment ccEnv, linker.absolutePath
+                    environment arEnv, llvmAr.absolutePath
+                    commandLine cargoExecutable, "+${activeToolchain}", *cargoArgs
+                }
+
+                def builtLibrary = new File(
+                    rustPackageRoot,
+                    "native/rust_net_native/target/${target.triple}/${cargoProfile}/librust_net_native.so",
+                )
+                if (!builtLibrary.exists()) {
+                    throw new GradleException("Expected Rust Android library not found: ${builtLibrary}")
+                }
+                if (!libraryExportsRequiredSymbols(builtLibrary)) {
+                    throw new GradleException(
+                        "Rust Android library is missing required symbols: ${builtLibrary}",
+                    )
+                }
+
+                copy {
+                    from builtLibrary
+                    into new File(rustNetAndroidJniLibsDir, target.abi)
+                }
+
+                def copiedLibrary = new File(
+                    rustNetAndroidJniLibsDir,
+                    "${target.abi}/librust_net_native.so",
+                )
+                exec {
+                    commandLine llvmStrip.absolutePath, '--strip-unneeded', copiedLibrary.absolutePath
+                }
+            }
+        }
+    }
+}
+
+registerRustAndroidTask('debug', 'debug')
+registerRustAndroidTask('profile', 'release')
+registerRustAndroidTask('release', 'release')
+
+afterEvaluate {
+    [
+        'debug',
+        'profile',
+        'release',
+    ].each { buildType ->
+        def preBuildTask = tasks.findByName("pre${buildType.capitalize()}Build")
+        if (preBuildTask != null) {
+            preBuildTask.dependsOn tasks.named("prepareRustNetAndroidNative${buildType.capitalize()}")
+        }
+    }
+}

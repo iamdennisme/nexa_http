@@ -1,0 +1,10 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: rust_net_nginx
+    ports:
+      - "8081:8081"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/nginx.conf:ro
