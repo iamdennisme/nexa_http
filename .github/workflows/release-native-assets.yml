@@ -10,13 +10,13 @@ permissions:
   contents: write
 
 jobs:
-  build-macos-arm64-ios:
+  build-macos:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+          targets: aarch64-apple-darwin,x86_64-apple-darwin,aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
       - name: Build macOS arm64 dylib
         run: |
           cargo build \
@@ -26,6 +26,15 @@ jobs:
           mkdir -p dist/native-assets
           cp packages/rust_net/native/rust_net_native/target/aarch64-apple-darwin/release/librust_net_native.dylib \
             dist/native-assets/rust_net-native-macos-arm64.dylib
+      - name: Build macOS x64 dylib
+        run: |
+          cargo build \
+            --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml \
+            --target x86_64-apple-darwin \
+            --release
+          mkdir -p dist/native-assets
+          cp packages/rust_net/native/rust_net_native/target/x86_64-apple-darwin/release/librust_net_native.dylib \
+            dist/native-assets/rust_net-native-macos-x64.dylib
       - name: Build iOS dylibs
         run: ./scripts/build_native_ios.sh release
       - name: Stage iOS assets
@@ -38,28 +47,7 @@ jobs:
             dist/native-assets/rust_net-native-ios-sim-x64.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: native-assets-macos-arm64-ios
-          path: dist/native-assets/*
-
-  build-macos-x64:
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin
-      - name: Build macOS x64 dylib
-        run: |
-          cargo build \
-            --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml \
-            --target x86_64-apple-darwin \
-            --release
-          mkdir -p dist/native-assets
-          cp packages/rust_net/native/rust_net_native/target/x86_64-apple-darwin/release/librust_net_native.dylib \
-            dist/native-assets/rust_net-native-macos-x64.dylib
-      - uses: actions/upload-artifact@v4
-        with:
-          name: native-assets-macos-x64
+          name: native-assets-macos
           path: dist/native-assets/*
 
   build-linux-android:
@@ -121,8 +109,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     needs:
-      - build-macos-arm64-ios
-      - build-macos-x64
+      - build-macos
       - build-linux-android
       - build-windows
     steps:
