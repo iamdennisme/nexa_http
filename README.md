@@ -2,62 +2,45 @@
 
 [中文文档](./README.zh-CN.md)
 
+## Overview
 
-### Project Overview
+`rust_net` is a multi-package Flutter/Dart workspace for HTTP transport backed
+by a Rust `reqwest` core. Public request/response APIs stay in Dart, native
+library delivery is handled by `hook/build.dart` + `code_assets`, and the
+request execute path keeps an internal RINF-style async channel between Dart
+and Rust.
 
-`rust_net` is a Flutter/Dart HTTP SDK workspace that keeps business-facing APIs
-in Dart while delegating transport execution to a Rust `reqwest` core.
+This repository contains:
 
-This repository is designed for:
+- `packages/rust_net_core`: pure Dart domain contracts and models
+- `packages/rust_net`: the transport package, build hook, and Dio adapter
+- `packages/rust_net/native/rust_net_native`: the Rust `cdylib`
+- `fixture_server/`: local fixture and proxy test tooling
+- `scripts/`: native build and release helper scripts
 
-- shared domain contracts (`rust_net_core`)
-- FFI transport implementation (`rust_net`)
-- native Rust transport runtime and Release-backed code-asset packaging
-- local fixture/proxy tools for integration testing
+## Package Roles
 
-### Repository Contents
+### `rust_net_core`
 
-- `packages/rust_net_core`: domain entities, exceptions, and repository contracts
-- `packages/rust_net`: Dart FFI package, build hook, and Dio adapter
-- `packages/rust_net/native/rust_net_native`: Rust `cdylib` based on `reqwest`
-- `fixture_server/`: local HTTP fixture server and proxy smoke-test tooling
-- `scripts/`: multi-platform native build scripts
+Use this package when you want the shared request/response types without
+bringing in the Rust transport runtime. It defines `RustNetRequest`,
+`RustNetResponse`, `RustNetException`, and `HttpExecutor`.
 
-### Package Details
+### `rust_net`
 
-- `packages/rust_net_core`: Pure Dart domain contracts and models (`RustNetRequest`, `RustNetResponse`, `RustNetException`, `HttpExecutor`, etc.).
-- `packages/rust_net`: Dart FFI transport implementation backed by Rust `reqwest`, plus `Dio` adapter integration.
+Use this package when you want the Rust-backed transport itself. It exposes:
 
-### Local development
+- `RustNetClient`
+- `RustNetDioAdapter`
+- the native asset build hook used during application builds
 
-```bash
-dart pub get
-dart run melos bootstrap
-dart run melos analyze
-dart run melos test
-```
+Detailed package-level usage lives in
+[`packages/rust_net/README.md`](./packages/rust_net/README.md).
 
-### Build Native Libraries
+## Install From Git
 
-When Rust native code changes, maintainers still build platform binaries
-locally for validation:
-
-```bash
-cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
-./scripts/build_native_macos.sh release
-./scripts/build_native_android.sh release
-./scripts/build_native_ios.sh release
-./scripts/build_native_linux.sh release
-./scripts/build_native_windows.sh release
-```
-
-Tag releases publish immutable per-platform binaries and a manifest to GitHub
-Release assets. Consumer builds fetch the matching native asset through
-`hook/build.dart`; binaries are no longer meant to be committed to the repo.
-
-### Use In Flutter
-
-`pubspec.yaml` for a private git dependency:
+If your app only imports `package:rust_net/...`, declare `rust_net`. Add
+`rust_net_core` only when your app imports it directly.
 
 ```yaml
 dependencies:
@@ -74,84 +57,66 @@ dependencies:
       path: packages/rust_net_core
 ```
 
-Use as a Dio adapter:
+## Release Model
 
-```dart
-import 'package:dio/dio.dart';
-import 'package:rust_net/rust_net_dio.dart';
+Releases are tag-driven.
 
-final dio = Dio()
-  ..httpClientAdapter = RustNetDioAdapter.client(
-    config: RustNetClientConfig(
-      baseUrl: Uri.parse('https://api.example.com/'),
-      timeout: const Duration(seconds: 10),
-    ),
-  );
+1. A maintainer pushes a tag such as `v2.0.0`.
+2. GitHub Actions builds the configured platform binaries.
+3. The workflow publishes those binaries, a manifest, and `SHA256SUMS` to the
+   GitHub Release.
+4. Consumer builds run `packages/rust_net/hook/build.dart`, which resolves the
+   correct native asset for the target OS and architecture.
+
+Current build-hook resolution order:
+
+1. explicit manifest override via hook user-defines
+2. local maintainer fallback from `native/rust_net_native/target/*`
+3. migration fallback from legacy packaged artifacts if they still exist in a
+   checkout
+4. GitHub Release manifest plus per-platform asset download
+
+Prebuilt native binaries are no longer intended to be committed to the repo.
+
+## Local Development
+
+The repository is pinned to `Flutter 3.41.5` / `Dart 3.11.3` through
+`.fvmrc`.
+
+Workspace checks:
+
+```bash
+dart pub get
+dart run melos bootstrap
+dart run melos analyze
+dart run melos test
 ```
 
-Use the core client directly:
+Maintain the Rust crate locally:
 
-```dart
-import 'package:rust_net/rust_net.dart';
-
-final client = RustNetClient(
-  config: RustNetClientConfig(baseUrl: Uri.parse('https://api.example.com/')),
-);
-final response = await client.execute(
-  RustNetRequest.get(uri: Uri(path: '/healthz')),
-);
-await client.close();
+```bash
+cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
+cargo test --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
 ```
 
-### Proxy Behavior
+Platform-specific validation helpers remain under `scripts/`:
 
-- Proxy selection runs in Rust for every request.
-- If the proxy snapshot changes, `rust_net` rebuilds the underlying `reqwest::Client`.
-- If no proxy is detected, requests go direct.
-- Priority is: platform system proxy first, then env fallback.
-- Env fallback keys: `HTTP_PROXY`/`http_proxy`, `HTTPS_PROXY`/`https_proxy`, `ALL_PROXY`/`all_proxy`, `NO_PROXY`/`no_proxy`.
+```bash
+./scripts/build_native_macos.sh release
+./scripts/build_native_android.sh release
+./scripts/build_native_ios.sh release
+./scripts/build_native_linux.sh release
+./scripts/build_native_windows.sh release
+```
 
-Platform proxy sources:
+## Test Tooling
 
-- Android: `getprop` (`http.proxyHost`, `https.proxyHost`, `socksProxyHost`, `*.nonProxyHosts`)
-- iOS/macOS: Apple `SystemConfiguration`
-- Linux: GNOME `gsettings` with KDE `kreadconfig` fallback
-- Windows: `Internet Settings` registry
-- Other targets: env fallback only
-- Current scope is manual HTTP/HTTPS/SOCKS proxy settings; PAC is not evaluated yet
-
-### Network Test Tooling
-
-All local network test utilities are grouped under `fixture_server/`:
+Local network fixtures live under `fixture_server/`:
 
 - `fixture_server/http_fixture_server.dart`
 - `fixture_server/proxy_smoke_test.sh`
 - `fixture_server/docker-compose.yml`
 - `fixture_server/nginx/`
 
-To run only Rust crate compile locally:
-
-```bash
-cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
-```
-
-### Native Asset Distribution
-
-`packages/rust_net` uses `hook/build.dart` plus `code_assets` to bundle the
-correct Rust dynamic library for the target OS/architecture. The build hook
-resolves native binaries in this order:
-
-1. explicit manifest override via hook user-defines
-2. local maintainer fallback from `native/rust_net_native/target/*`
-3. migration fallback from legacy packaged artifacts if still present
-4. GitHub Release manifest + per-platform asset download
-
-For local maintainer verification, build the host Rust crate first:
-
-```bash
-cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
-```
-
-### rust_net_core integration
-
-`rust_net_core` remains a separate package under `packages/rust_net_core`. Consumers can reference both packages from this monorepo using git `path` dependencies (as Kino does).
+Use the fixture server when validating request methods, redirects, timeouts, or
+proxy behavior end to end.
