@@ -6,24 +6,7 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
-typedef _PostCObjectInner = Int8 Function(Int64, Pointer<Dart_CObject>);
-typedef _PostCObjectPtr = Pointer<NativeFunction<_PostCObjectInner>>;
-typedef _PrepareIsolateNative = Void Function(_PostCObjectPtr, Int64);
-typedef _PrepareIsolateDart = void Function(_PostCObjectPtr, int);
-typedef _VoidNative = Void Function();
-typedef _VoidDart = void Function();
-typedef _SendSignalNative = Void Function(
-  Pointer<Uint8>,
-  UintPtr,
-  Pointer<Uint8>,
-  UintPtr,
-);
-typedef _SendSignalDart = void Function(
-  Pointer<Uint8>,
-  int,
-  Pointer<Uint8>,
-  int,
-);
+import '../native/rust_net_native_ffi.dart';
 
 final class RustNetRinfSignal {
   const RustNetRinfSignal({
@@ -40,52 +23,31 @@ final class RustNetRinfSignal {
 }
 
 final class RustNetRinfRuntime {
-  RustNetRinfRuntime._({
-    required this.libraryPath,
-    required DynamicLibrary library,
-  }) : _library = library {
-    _prepareIsolate =
-        _library.lookupFunction<_PrepareIsolateNative, _PrepareIsolateDart>(
-      'rinf_prepare_isolate_extern',
-    );
-    _startRustLogic = _library.lookupFunction<_VoidNative, _VoidDart>(
-      'rinf_start_rust_logic_extern',
-    );
-    _stopRustLogic = _library.lookupFunction<_VoidNative, _VoidDart>(
-      'rinf_stop_rust_logic_extern',
-    );
-
+  RustNetRinfRuntime._() {
     _rustSignalPort.listen(_onRustSignal);
-    _prepareIsolate(NativeApi.postCObject, _rustSignalPort.sendPort.nativePort);
-    _startRustLogic();
+    rinfPrepareIsolate(
+      NativeApi.postCObject,
+      _rustSignalPort.sendPort.nativePort,
+    );
+    rinfStartRustLogic();
   }
 
   static RustNetRinfRuntime? _instance;
 
-  static RustNetRinfRuntime shared({required String libraryPath}) {
+  static RustNetRinfRuntime shared() {
     final existing = _instance;
     if (existing != null) {
       return existing;
     }
 
-    final runtime = RustNetRinfRuntime._(
-      libraryPath: libraryPath,
-      library: DynamicLibrary.open(libraryPath),
-    );
+    final runtime = RustNetRinfRuntime._();
     _instance = runtime;
     return runtime;
   }
 
-  final String libraryPath;
-  final DynamicLibrary _library;
   final ReceivePort _rustSignalPort = ReceivePort();
   final _signalStreamController =
       StreamController<RustNetRinfSignal>.broadcast();
-  final _sendSignalFunctions = <String, _SendSignalDart>{};
-
-  late final _PrepareIsolateDart _prepareIsolate;
-  late final _VoidDart _startRustLogic;
-  late final _VoidDart _stopRustLogic;
 
   Stream<RustNetRinfSignal> signalsFor(String endpoint) {
     return _signalStreamController.stream.where(
@@ -105,18 +67,19 @@ final class RustNetRinfRuntime {
       messageMemory.asTypedList(messageBytes.length).setAll(0, messageBytes);
       binaryMemory.asTypedList(binary.length).setAll(0, binary);
 
-      final sender = _sendSignalFunctions.putIfAbsent(
-        endpointSymbol,
-        () => _library.lookupFunction<_SendSignalNative, _SendSignalDart>(
-          endpointSymbol,
-        ),
-      );
-      sender(
-        messageMemory,
-        messageBytes.length,
-        binaryMemory,
-        binary.length,
-      );
+      switch (endpointSymbol) {
+        case 'rinf_send_dart_signal_rust_net_execute_request':
+          rinfSendRustNetExecuteRequest(
+            messageMemory,
+            messageBytes.length,
+            binaryMemory,
+            binary.length,
+          );
+        default:
+          throw UnsupportedError(
+            'Unsupported Rust signal endpoint: $endpointSymbol',
+          );
+      }
     } finally {
       malloc.free(messageMemory);
       malloc.free(binaryMemory);
@@ -124,7 +87,7 @@ final class RustNetRinfRuntime {
   }
 
   void dispose() {
-    _stopRustLogic();
+    rinfStopRustLogic();
     _rustSignalPort.close();
     _signalStreamController.close();
   }

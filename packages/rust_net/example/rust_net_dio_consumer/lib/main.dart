@@ -45,7 +45,6 @@ class RustNetDioConsumerPage extends StatefulWidget {
 
 class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
   Dio? _dio;
-  String? _nativeLibraryPath;
   String? _error;
   String _result = 'Ready';
   bool _isLoading = false;
@@ -66,16 +65,15 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
 
   Future<void> _initialize() async {
     try {
-      final nativeLibraryPath = RustNetClient.resolveNativeLibraryPath();
       final dio = Dio(
         BaseOptions(
           baseUrl: _fixtureBaseUrl,
           responseType: ResponseType.plain,
         ),
-      )..httpClientAdapter = RustNetDioAdapter.client(
+        )..httpClientAdapter = RustNetDioAdapter.client(
           config: const RustNetClientConfig(
             timeout: Duration(seconds: 10),
-            userAgent: 'rust_net_dio_consumer/1.0.0',
+            userAgent: 'rust_net_dio_consumer/2.0.0',
           ),
         );
 
@@ -86,12 +84,11 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
 
       setState(() {
         _dio = dio;
-        _nativeLibraryPath = nativeLibraryPath;
         _error = null;
       });
       debugPrint(
         'rust_net_dio_consumer initialized: '
-        'library=$nativeLibraryPath, baseUrl=$_fixtureBaseUrl',
+        'native_asset=bundled, baseUrl=$_fixtureBaseUrl',
       );
 
       unawaited(_sendGet());
@@ -263,9 +260,7 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                _nativeLibraryPath == null
-                    ? 'Native library not resolved yet.'
-                    : 'Resolved native library: $_nativeLibraryPath',
+                'Native asset: bundled by build hook',
                 style: theme.textTheme.textStyle,
               ),
               const SizedBox(height: 20),

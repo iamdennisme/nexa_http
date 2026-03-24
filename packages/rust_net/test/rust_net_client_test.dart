@@ -1,10 +1,10 @@
 import 'dart:convert';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_net/rust_net.dart';
 import 'package:rust_net/src/data/dto/native_http_client_config_dto.dart';
 import 'package:rust_net/src/data/dto/native_http_request_dto.dart';
 import 'package:rust_net/src/data/sources/rust_net_native_data_source.dart';
+import 'package:test/test.dart';
 
 void main() {
   test('resolves relative URLs and maps successful responses', () async {

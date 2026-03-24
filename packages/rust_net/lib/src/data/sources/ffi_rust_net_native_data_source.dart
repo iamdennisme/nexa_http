@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
-import 'package:rust_net/rust_net_bindings_generated.dart';
 import 'package:rust_net_core/rust_net_core.dart';
 
+import '../../native/rust_net_native_ffi.dart';
 import '../../rinf/rust_net_rinf_runtime.dart';
 import '../dto/native_http_client_config_dto.dart';
 import '../dto/native_http_request_dto.dart';
@@ -15,9 +14,7 @@ import '../mappers/native_http_response_mapper.dart';
 import 'rust_net_native_data_source.dart';
 
 final class FfiRustNetNativeDataSource implements RustNetNativeDataSource {
-  FfiRustNetNativeDataSource({required this.libraryPath})
-      : _bindings = RustNetBindings(DynamicLibrary.open(libraryPath)),
-        _runtime = RustNetRinfRuntime.shared(libraryPath: libraryPath) {
+  FfiRustNetNativeDataSource() : _runtime = RustNetRinfRuntime.shared() {
     _responseSubscription ??= _runtime
         .signalsFor(_executeResponseEndpoint)
         .listen(_handleExecuteResponseSignal);
@@ -32,15 +29,13 @@ final class FfiRustNetNativeDataSource implements RustNetNativeDataSource {
   static final _pendingExecuteRequests =
       <String, Completer<Map<String, dynamic>>>{};
 
-  final String libraryPath;
-  final RustNetBindings _bindings;
   final RustNetRinfRuntime _runtime;
 
   @override
   int createClient(NativeHttpClientConfigDto config) {
     final configPointer = jsonEncode(config.toJson()).toNativeUtf8();
     try {
-      final clientId = _bindings.rust_net_client_create(configPointer.cast());
+      final clientId = rustNetClientCreate(configPointer.cast());
       if (clientId == 0) {
         throw StateError(
           'Rust native library failed to create an HTTP client.',
@@ -92,7 +87,7 @@ final class FfiRustNetNativeDataSource implements RustNetNativeDataSource {
 
   @override
   void closeClient(int clientId) {
-    _bindings.rust_net_client_close(clientId);
+    rustNetClientClose(clientId);
   }
 
   static String _nextRequestId() {

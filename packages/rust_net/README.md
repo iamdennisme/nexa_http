@@ -87,28 +87,12 @@ Platform proxy sources:
 
 ### Platform Notes
 
-This package now declares Flutter FFI plugin wrappers for:
+This package uses `hook/build.dart` plus `code_assets` to bundle a matching
+Rust dynamic library for the target OS and architecture.
 
-- Android
-- iOS
-- macOS
-- Windows
-
-The macOS packaging and runtime resolution path has been verified in local
-development. Android, iOS, and Windows plugin wrappers are included in the
-package, but you should still validate packaging in the consuming app.
-
-Linux native artifacts are committed for local/native validation, but this
-package does not currently declare a Linux Flutter plugin wrapper.
-
-For Android builds, the plugin first uses prebuilt `jniLibs`. If any ABI
-library is missing, or `RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true` is set, it
-falls back to compiling and packaging `librust_net_native.so` during Gradle
-`preDebugBuild` / `preReleaseBuild`. Source fallback requires:
-
-- Rust toolchain available from the build environment
-- Android NDK installed
-- Rust Android targets available or installable through `rustup`
+Release builds resolve native assets from immutable GitHub Release assets.
+Maintainers can still validate local binaries from
+`native/rust_net_native/target/*` before a release is published.
 
 ### Consumer App Setup
 
@@ -117,26 +101,31 @@ falls back to compiling and packaging `librust_net_native.so` during Gradle
 ```yaml
 dependencies:
   dio: ^5.9.0
-  rust_net: ^1.0.0
-  # Optional: use core contracts directly in your own adapters/tests.
-  rust_net_core: ^0.1.0
+  rust_net:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: v2.0.0
+      path: packages/rust_net
+  rust_net_core:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: v2.0.0
+      path: packages/rust_net_core
 ```
-
-Package the macOS native library for local development:
-
-```bash
-dart run rust_net:prepare_macos_native --configuration debug
-```
-
-For Android consumer builds, no extra manual packaging step is required once
-Rust and the Android NDK are available on the build machine.
 
 For sandboxed macOS apps, ensure the Runner entitlements include
 `com.apple.security.network.client`.
 
+For local maintainer validation, build the host Rust crate before running the
+package tests:
+
+```bash
+cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
+```
+
 ### Repository Layout
 
-- `packages/rust_net/`: Flutter FFI transport package (this package)
+- `packages/rust_net/`: Dart FFI transport package with build hook (this package)
 - `packages/rust_net_core/`: pure Dart domain package
 - `packages/rust_net/native/rust_net_native/`: Rust `cdylib` based on `reqwest`
 - `fixture_server/`: local fixture server and proxy smoke-test utilities
@@ -154,8 +143,6 @@ cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
 ```bash
 dart pub get
 dart run melos bootstrap
-dart run melos exec --scope=rust_net -- dart run rust_net:prepare_macos_native --configuration debug
-dart run melos exec --scope=rust_net -- dart run ffigen --config ffigen.yaml
 dart run melos exec --scope=rust_net -- dart run build_runner build --delete-conflicting-outputs
 ```
 
@@ -305,25 +292,30 @@ Android 构建会优先使用仓库内预编译 `jniLibs`。当某个 ABI 缺失
 ```yaml
 dependencies:
   dio: ^5.9.0
-  rust_net: ^1.0.0
-  # 可选：如果你要直接依赖领域模型/接口，可额外引入 core 包。
-  rust_net_core: ^0.1.0
+  rust_net:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: v2.0.0
+      path: packages/rust_net
+  rust_net_core:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: v2.0.0
+      path: packages/rust_net_core
 ```
-
-本地开发时准备 macOS 原生库：
-
-```bash
-dart run rust_net:prepare_macos_native --configuration debug
-```
-
-Android 消费端构建在具备 Rust 和 Android NDK 的前提下，不需要额外手工复制 `.so`。
 
 如果是 sandboxed macOS 应用，需要确保 Runner entitlement 包含
 `com.apple.security.network.client`。
 
+维护者本地验证时，先构建宿主机 Rust 动态库：
+
+```bash
+cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
+```
+
 ### 仓库结构
 
-- `packages/rust_net/`：Flutter FFI 传输包（当前包）
+- `packages/rust_net/`：带 build hook 的 Dart FFI 传输包（当前包）
 - `packages/rust_net_core/`：纯 Dart 领域层包
 - `packages/rust_net/native/rust_net_native/`：基于 `reqwest` 的 Rust `cdylib`
 - `fixture_server/`：本地 fixture 处理逻辑
@@ -341,8 +333,6 @@ cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
 ```bash
 dart pub get
 dart run melos bootstrap
-dart run melos exec --scope=rust_net -- dart run rust_net:prepare_macos_native --configuration debug
-dart run melos exec --scope=rust_net -- dart run ffigen --config ffigen.yaml
 dart run melos exec --scope=rust_net -- dart run build_runner build --delete-conflicting-outputs
 ```
 

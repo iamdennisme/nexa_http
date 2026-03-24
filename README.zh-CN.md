@@ -5,20 +5,20 @@
 
 ### 项目介绍
 
-`rust_net` 是一个 Flutter HTTP SDK 工作区：对业务开放的 API 保持在 Dart
+`rust_net` 是一个 Flutter/Dart HTTP SDK 工作区：对业务开放的 API 保持在 Dart
 层，底层传输执行交给 Rust `reqwest` 内核。
 
 这个仓库主要用于：
 
 - 维护统一的领域契约（`rust_net_core`）
-- 实现 Flutter FFI 传输层（`rust_net`）
-- 管理 Rust 原生运行时与多平台打包
+- 实现 FFI 传输层（`rust_net`）
+- 管理 Rust 原生运行时与 Release 资产分发
 - 提供本地 fixture/proxy 集成测试工具
 
 ### 仓库内容
 
 - `packages/rust_net_core`：领域实体、异常定义、仓储接口契约
-- `packages/rust_net`：Flutter 包、FFI 桥接实现、Dio 适配器
+- `packages/rust_net`：Dart FFI 包、build hook 实现、Dio 适配器
 - `packages/rust_net/native/rust_net_native`：基于 `reqwest` 的 Rust `cdylib`
 - `fixture_server/`：本地 HTTP fixture 服务与代理冒烟测试工具
 - `scripts/`：多平台原生库构建脚本
@@ -26,7 +26,7 @@
 ### 包详情
 
 - `packages/rust_net_core`：纯 Dart 领域契约与模型（`RustNetRequest`、`RustNetResponse`、`RustNetException`、`HttpExecutor` 等）。
-- `packages/rust_net`：基于 Rust `reqwest` 的 Flutter FFI 传输实现，并提供 `Dio` 适配器集成。
+- `packages/rust_net`：基于 Rust `reqwest` 的 Dart FFI 传输实现，并提供 `Dio` 适配器集成。
 
 ### 本地开发
 
@@ -39,32 +39,21 @@ dart run melos test
 
 ### 编译原生库
 
-当 Rust 原生代码变更后，可重新编译并提交预编译产物：
+当 Rust 原生代码变更后，维护者可以本地重新编译各平台二进制做验证：
 
 ```bash
-./scripts/build_native_all.sh release
-git add packages/rust_net/android/src/main/jniLibs \
-        packages/rust_net/ios/Frameworks \
-        packages/rust_net/macos/Libraries \
-        packages/rust_net/linux/Libraries \
-        packages/rust_net/windows/Libraries
+cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
+./scripts/build_native_macos.sh release
+./scripts/build_native_android.sh release
+./scripts/build_native_ios.sh release
+./scripts/build_native_linux.sh release
+./scripts/build_native_windows.sh release
 ```
 
-也可以按平台单独编译：
-
-```bash
-./scripts/build_native_macos.sh
-./scripts/build_native_android.sh
-./scripts/build_native_ios.sh
-./scripts/build_native_linux.sh
-./scripts/build_native_windows.sh
-```
-
-Android 说明：
-
-- 默认优先使用仓库内预编译 `jniLibs`。
-- 仅在 ABI 库缺失，或设置 `RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true` 时，回退到源码编译。
-- 源码回退模式需要构建机具备 Rust toolchain 和 Android NDK。
+正式 tag 发布时，会由 GitHub Actions 产出多平台二进制、manifest 和
+checksum，并上传到 GitHub Release。消费方构建时通过
+`packages/rust_net/hook/build.dart` 自动拉取匹配平台的原生资产，不再要求把
+预编译产物提交进仓库。
 
 ### Flutter 使用方式
 
@@ -73,9 +62,16 @@ Android 说明：
 ```yaml
 dependencies:
   dio: ^5.9.0
-  rust_net: ^0.1.0
-  # 可选
-  rust_net_core: ^0.1.0
+  rust_net:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: v2.0.0
+      path: packages/rust_net
+  rust_net_core:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: v2.0.0
+      path: packages/rust_net_core
 ```
 
 作为 Dio adapter 使用：
@@ -139,22 +135,20 @@ await client.close();
 cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
 ```
 
-### 预编译策略
+### Native Asset 分发
 
-仓库直接提交各平台预编译产物：
+`packages/rust_net` 通过 `hook/build.dart` 和 `code_assets` 在构建时选择
+并打包正确的 Rust 动态库。build hook 的解析顺序是：
 
-- Android：`packages/rust_net/android/src/main/jniLibs/*/librust_net_native.so`
-- iOS：`packages/rust_net/ios/Frameworks/*.dylib`
-- macOS：`packages/rust_net/macos/Libraries/librust_net_native.dylib`
-- Linux：`packages/rust_net/linux/Libraries/librust_net_native.so`（用于本地/原生验证；当前未声明 Linux Flutter plugin wrapper）
-- Windows：`packages/rust_net/windows/Libraries/rust_net_native.dll`
+1. 显式 manifest override
+2. 维护者本地 `native/rust_net_native/target/*` 回退
+3. 迁移期 legacy 产物回退
+4. GitHub Release manifest + 二进制下载
 
-`packages/rust_net/android/build.gradle` 会优先使用预编译 `jniLibs`，仅在缺失时回退到 Rust 编译。
-
-如需强制 Android 源码编译：
+维护者本地验证时，至少先构建宿主机 Rust 动态库：
 
 ```bash
-RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true flutter build apk
+cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
 ```
 
 ### rust_net_core 集成

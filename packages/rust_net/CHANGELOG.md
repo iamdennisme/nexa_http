@@ -1,3 +1,11 @@
+## 2.0.0
+
+- Migrate native library distribution to `hook/build.dart` + `code_assets`.
+- Bind Rust entrypoints through `@Native` and remove manual dynamic-library path resolution.
+- Keep the RINF-style runtime execute channel for asynchronous request execution.
+- Remove committed multi-platform native binaries from the package repository.
+- Raise the minimum toolchain to Dart 3.11 / Flutter 3.41.5.
+
 ## 1.0.0
 
 - Migrate native request execution path to a rinf-style runtime signal channel.

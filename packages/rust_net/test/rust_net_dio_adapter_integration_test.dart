@@ -2,26 +2,17 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_net/rust_net_dio.dart';
+import 'package:test/test.dart';
 
 import 'support/http_fixture_server.dart';
 
 void main() {
-  final nativeLibraryPath = _maybeResolveNativeLibraryPath();
-  final skipReason = nativeLibraryPath == null
-      ? 'Rust native library not found. Run `cargo build --manifest-path native/rust_net_native/Cargo.toml` first.'
-      : false;
-
   group('RustNetDioAdapter native integration', () {
     HttpFixtureServer? fixtureServer;
     Dio? dio;
 
     setUpAll(() async {
-      if (nativeLibraryPath == null) {
-        return;
-      }
-
       fixtureServer = await HttpFixtureServer.start();
       dio = Dio()
         ..httpClientAdapter = RustNetDioAdapter.client(
@@ -29,7 +20,6 @@ void main() {
             timeout: Duration(seconds: 2),
             userAgent: 'rust_net_dio_integration_test',
           ),
-          nativeLibraryPath: nativeLibraryPath,
         );
     });
 
@@ -110,7 +100,6 @@ void main() {
           contains(contains('DELETE')),
         );
       },
-      skip: skipReason,
     );
 
     test(
@@ -148,7 +137,6 @@ void main() {
           }
         }
       },
-      skip: skipReason,
     );
 
     test(
@@ -174,7 +162,6 @@ void main() {
           );
         }
       },
-      skip: skipReason,
     );
 
     test(
@@ -216,7 +203,6 @@ void main() {
           }
         }
       },
-      skip: skipReason,
     );
 
     test(
@@ -241,7 +227,6 @@ void main() {
           ),
         );
       },
-      skip: skipReason,
     );
 
     test(
@@ -261,16 +246,6 @@ void main() {
         expect(response.statusCode, HttpStatus.ok);
         expect(response.data, payload);
       },
-      skip: skipReason,
     );
   });
-}
-
-String? _maybeResolveNativeLibraryPath() {
-  try {
-    final path = RustNetClient.resolveNativeLibraryPath();
-    return File(path).existsSync() ? path : null;
-  } catch (_) {
-    return null;
-  }
 }

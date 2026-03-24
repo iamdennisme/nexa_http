@@ -8,7 +8,6 @@ integrates `rust_net` as its HTTP transport.
 From the repository root:
 
 ```bash
-dart run rust_net:prepare_macos_native --configuration debug
 dart run 'fixture_server/http_fixture_server.dart' --port 8080
 ```
 
@@ -19,9 +18,8 @@ flutter pub get
 flutter run -d macos
 ```
 
-The app does not pass a `nativeLibraryPath`. It relies on the packaged macOS
-plugin resource that `prepare_macos_native` produces under
-`../../macos/Libraries/`.
+The app relies on the native asset resolved by
+`packages/rust_net/hook/build.dart`.
 
 The macOS Runner entitlements in this example also enable
 `com.apple.security.network.client`, since the default sandboxed template

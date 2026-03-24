@@ -30,6 +30,7 @@ packages/rust_net/pubspec.lock
 packages/rust_net_core/pubspec.lock
 **/doc/api/
 .dart_tool/
+.fvm/
 .flutter-plugins
 .flutter-plugins-dependencies
 **/pubspec_overrides.yaml
@@ -37,3 +38,6 @@ build/
 **/native/rust_net_native/target/
 **/native/rust_net_native/Cargo.lock
 **/android/.cxx/
+
+# FVM Version Cache
+.fvm/

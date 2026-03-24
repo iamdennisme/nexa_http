@@ -1,0 +1,157 @@
+name: Release Native Assets
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos-arm64-ios:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - name: Build macOS arm64 dylib
+        run: |
+          cargo build \
+            --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml \
+            --target aarch64-apple-darwin \
+            --release
+          mkdir -p dist/native-assets
+          cp packages/rust_net/native/rust_net_native/target/aarch64-apple-darwin/release/librust_net_native.dylib \
+            dist/native-assets/rust_net-native-macos-arm64.dylib
+      - name: Build iOS dylibs
+        run: ./scripts/build_native_ios.sh release
+      - name: Stage iOS assets
+        run: |
+          cp packages/rust_net/ios/Frameworks/librust_net_native-ios-arm64.dylib \
+            dist/native-assets/rust_net-native-ios-arm64.dylib
+          cp packages/rust_net/ios/Frameworks/librust_net_native-ios-sim-arm64.dylib \
+            dist/native-assets/rust_net-native-ios-sim-arm64.dylib
+          cp packages/rust_net/ios/Frameworks/librust_net_native-ios-sim-x64.dylib \
+            dist/native-assets/rust_net-native-ios-sim-x64.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-assets-macos-arm64-ios
+          path: dist/native-assets/*
+
+  build-macos-x64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+      - name: Build macOS x64 dylib
+        run: |
+          cargo build \
+            --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml \
+            --target x86_64-apple-darwin \
+            --release
+          mkdir -p dist/native-assets
+          cp packages/rust_net/native/rust_net_native/target/x86_64-apple-darwin/release/librust_net_native.dylib \
+            dist/native-assets/rust_net-native-macos-x64.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-assets-macos-x64
+          path: dist/native-assets/*
+
+  build-linux-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu,aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: android-actions/setup-android@v3
+      - name: Install Android NDK
+        run: sdkmanager "ndk;28.0.13004108"
+      - name: Export Android environment
+        run: |
+          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/28.0.13004108" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/28.0.13004108" >> "$GITHUB_ENV"
+      - name: Build Linux and Android assets
+        run: |
+          ./scripts/build_native_linux.sh release
+          ./scripts/build_native_android.sh release
+          mkdir -p dist/native-assets
+          cp packages/rust_net/linux/Libraries/librust_net_native.so \
+            dist/native-assets/rust_net-native-linux-x64.so
+          cp packages/rust_net/android/src/main/jniLibs/arm64-v8a/librust_net_native.so \
+            dist/native-assets/rust_net-native-android-arm64-v8a.so
+          cp packages/rust_net/android/src/main/jniLibs/armeabi-v7a/librust_net_native.so \
+            dist/native-assets/rust_net-native-android-armeabi-v7a.so
+          cp packages/rust_net/android/src/main/jniLibs/x86_64/librust_net_native.so \
+            dist/native-assets/rust_net-native-android-x86_64.so
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-assets-linux-android
+          path: dist/native-assets/*
+
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build Windows asset
+        run: |
+          cargo build \
+            --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml \
+            --target x86_64-pc-windows-msvc \
+            --release
+          mkdir -p dist/native-assets
+          cp packages/rust_net/native/rust_net_native/target/x86_64-pc-windows-msvc/release/rust_net_native.dll \
+            dist/native-assets/rust_net-native-windows-x64.dll
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-assets-windows
+          path: dist/native-assets/*
+
+  publish:
+    runs-on: ubuntu-latest
+    needs:
+      - build-macos-arm64-ios
+      - build-macos-x64
+      - build-linux-android
+      - build-windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.11.3
+      - name: Install workspace dependencies
+        run: dart pub get
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-assets-*
+          merge-multiple: true
+          path: dist/native-assets
+      - name: Generate manifest and checksums
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+          dart run scripts/generate_native_asset_manifest.dart \
+            --version "$VERSION" \
+            --dist dist/native-assets \
+            --output dist/rust_net_native_assets_manifest.json \
+            --sha-output dist/SHA256SUMS \
+            --base-url "https://github.com/${REPOSITORY}/releases/download/${TAG_NAME}"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/native-assets/*
+            dist/rust_net_native_assets_manifest.json
+            dist/SHA256SUMS

@@ -38,7 +38,6 @@ class _RustNetExamplePageState extends State<RustNetExamplePage> {
 
   late final TextEditingController _urlController;
   RustNetClient? _client;
-  String? _nativeLibraryPath;
   String? _requestInfo;
   String? _responseInfo;
   String? _errorInfo;
@@ -65,13 +64,11 @@ class _RustNetExamplePageState extends State<RustNetExamplePage> {
 
   Future<void> _initializeClient() async {
     try {
-      final nativeLibraryPath = RustNetClient.resolveNativeLibraryPath();
       final client = RustNetClient(
         config: const RustNetClientConfig(
           timeout: Duration(seconds: 15),
-          userAgent: 'rust_net_example/0.1.1',
+          userAgent: 'rust_net_example/2.0.0',
         ),
-        nativeLibraryPath: nativeLibraryPath,
       );
 
       if (!mounted) {
@@ -81,7 +78,6 @@ class _RustNetExamplePageState extends State<RustNetExamplePage> {
 
       setState(() {
         _client = client;
-        _nativeLibraryPath = nativeLibraryPath;
         _errorInfo = null;
       });
     } catch (error) {
@@ -237,9 +233,7 @@ class _RustNetExamplePageState extends State<RustNetExamplePage> {
             ),
             const SizedBox(height: 12),
             Text(
-              _nativeLibraryPath == null
-                  ? 'Initializing native library...'
-                  : 'Native library: $_nativeLibraryPath',
+              'Native asset: bundled by build hook',
               style: theme.textTheme.textStyle,
             ),
             const SizedBox(height: 8),

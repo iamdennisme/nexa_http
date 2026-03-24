@@ -17,14 +17,10 @@ class RustNetDioAdapter implements HttpClientAdapter {
 
   factory RustNetDioAdapter.client({
     RustNetClientConfig config = const RustNetClientConfig(),
-    String? nativeLibraryPath,
     bool closeExecutor = true,
   }) {
     return RustNetDioAdapter(
-      executor: RustNetClient(
-        config: config,
-        nativeLibraryPath: nativeLibraryPath,
-      ),
+      executor: RustNetClient(config: config),
       closeExecutor: closeExecutor,
       defaultTimeout: config.timeout,
     );
