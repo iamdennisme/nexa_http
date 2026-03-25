@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:rust_net_core/rust_net_core.dart';
 
 import '../dto/native_http_request_dto.dart';
@@ -27,10 +25,9 @@ final class NativeHttpRequestMapper {
       method: request.method.wireValue,
       url: resolvedUri.toString(),
       headers: headers,
-      bodyBase64:
-          request.bodyBytes == null ? null : base64Encode(request.bodyBytes!),
-      timeoutMs:
-          request.timeout?.inMilliseconds ?? clientConfig.timeout?.inMilliseconds,
+      bodyBytes: request.bodyBytes,
+      timeoutMs: request.timeout?.inMilliseconds ??
+          clientConfig.timeout?.inMilliseconds,
     );
   }
 

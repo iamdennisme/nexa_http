@@ -270,6 +270,31 @@ void main() {
     );
 
     test(
+      'downloads raw binary payloads without base64 transport',
+      () async {
+        final response = await client!.execute(
+          RustNetRequest.get(
+            uri: fixtureServer!.uri(
+              '/bytes',
+              <String, String>{'size': '32', 'seed': '11'},
+            ),
+          ),
+        );
+
+        expect(response.statusCode, HttpStatus.ok);
+        expect(
+          response.headers[HttpHeaders.contentTypeHeader.toLowerCase()],
+          contains('application/octet-stream'),
+        );
+        expect(
+          response.bodyBytes,
+          List<int>.generate(32, (index) => (11 + index) % 256),
+        );
+      },
+      skip: skipReason,
+    );
+
+    test(
       'maps local fixture timeouts to RustNetException',
       () async {
         expect(

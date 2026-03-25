@@ -51,7 +51,7 @@ def rustNetForceSourceBuild = (System.getenv('RUST_NET_ANDROID_FORCE_SOURCE_BUIL
     .toBoolean()
 def rustNetRequiredAndroidSymbols = [
     'rust_net_client_create',
-    'rust_net_client_execute',
+    'rust_net_client_execute_async',
     'rust_net_client_execute_binary',
     'rust_net_binary_result_free',
 ]

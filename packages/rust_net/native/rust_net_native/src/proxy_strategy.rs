@@ -15,8 +15,8 @@ use core_foundation::number::{CFNumberGetValue, CFNumberRef, kCFNumberSInt32Type
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use core_foundation::string::{CFString, CFStringRef};
 use ipnet::IpNet;
+use reqwest::ClientBuilder;
 use reqwest::Url;
-use reqwest::blocking::ClientBuilder;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::c_void;
 #[cfg(any(target_os = "ios", target_os = "macos"))]

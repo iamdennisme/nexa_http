@@ -42,8 +42,7 @@ final class FixtureHandler {
         (method == 'POST' || method == 'PUT' || method == 'PATCH')) {
       final bodyBytes = await _readBodyBytes(request);
       response
-        ..statusCode =
-            method == 'POST' ? HttpStatus.created : HttpStatus.ok
+        ..statusCode = method == 'POST' ? HttpStatus.created : HttpStatus.ok
         ..headers.contentType =
             request.headers.contentType ?? ContentType.binary
         ..headers.set('x-request-method', method)
@@ -108,6 +107,23 @@ final class FixtureHandler {
       return;
     }
 
+    if (path == '/bytes' && method == 'GET') {
+      final size =
+          int.tryParse(request.uri.queryParameters['size'] ?? '') ?? 65536;
+      final seed = int.tryParse(request.uri.queryParameters['seed'] ?? '') ?? 0;
+      final payload = Uint8List.fromList(
+        List<int>.generate(size, (index) => (seed + index) % 256),
+      );
+      response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.binary
+        ..headers.set('x-fixture-size', '$size')
+        ..headers.set('x-fixture-seed', '$seed')
+        ..add(payload);
+      await response.close();
+      return;
+    }
+
     if (_isStatusPath(path)) {
       final statusCode = int.parse(path.split('/').last);
       _writeStatusResponse(
@@ -119,8 +135,7 @@ final class FixtureHandler {
 
     if (_isRedirectPath(path)) {
       final statusCode = int.parse(path.split('/').last);
-      final location =
-          request.uri.queryParameters['location'] ??
+      final location = request.uri.queryParameters['location'] ??
           '/redirect-target?source=redirected';
       response
         ..statusCode = statusCode
@@ -157,8 +172,7 @@ final class FixtureHandler {
     final response = request.response;
     response.statusCode = statusCode;
 
-    final disallowBody =
-        request.method.toUpperCase() == 'HEAD' ||
+    final disallowBody = request.method.toUpperCase() == 'HEAD' ||
         statusCode == HttpStatus.noContent ||
         statusCode == HttpStatus.notModified;
     if (disallowBody) {

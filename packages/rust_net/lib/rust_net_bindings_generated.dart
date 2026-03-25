@@ -41,41 +41,63 @@ class RustNetBindings {
   late final _rust_net_client_create = _rust_net_client_createPtr
       .asFunction<int Function(ffi.Pointer<ffi.Char>)>();
 
-  ffi.Pointer<ffi.Char> rust_net_client_execute(
+  int rust_net_client_execute_async(
     int client_id,
+    int request_id,
     ffi.Pointer<ffi.Char> request_json,
+    ffi.Pointer<ffi.Uint8> body_ptr,
+    int body_len,
+    RustNetExecuteCallback callback,
   ) {
-    return _rust_net_client_execute(
+    return _rust_net_client_execute_async(
       client_id,
+      request_id,
       request_json,
+      body_ptr,
+      body_len,
+      callback,
     );
   }
 
-  late final _rust_net_client_executePtr = _lookup<
+  late final _rust_net_client_execute_asyncPtr = _lookup<
       ffi.NativeFunction<
-          ffi.Pointer<ffi.Char> Function(
-              ffi.Uint64, ffi.Pointer<ffi.Char>)>>('rust_net_client_execute');
-  late final _rust_net_client_execute = _rust_net_client_executePtr
-      .asFunction<ffi.Pointer<ffi.Char> Function(int, ffi.Pointer<ffi.Char>)>();
+          ffi.Uint8 Function(
+              ffi.Uint64,
+              ffi.Uint64,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Uint8>,
+              ffi.UintPtr,
+              RustNetExecuteCallback)>>('rust_net_client_execute_async');
+  late final _rust_net_client_execute_async =
+      _rust_net_client_execute_asyncPtr.asFunction<
+          int Function(int, int, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Uint8>,
+              int, RustNetExecuteCallback)>();
 
   ffi.Pointer<RustNetBinaryResult> rust_net_client_execute_binary(
     int client_id,
     ffi.Pointer<ffi.Char> request_json,
+    ffi.Pointer<ffi.Uint8> body_ptr,
+    int body_len,
   ) {
     return _rust_net_client_execute_binary(
       client_id,
       request_json,
+      body_ptr,
+      body_len,
     );
   }
 
   late final _rust_net_client_execute_binaryPtr = _lookup<
       ffi.NativeFunction<
-          ffi.Pointer<RustNetBinaryResult> Function(ffi.Uint64,
-              ffi.Pointer<ffi.Char>)>>('rust_net_client_execute_binary');
+          ffi.Pointer<RustNetBinaryResult> Function(
+              ffi.Uint64,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Uint8>,
+              ffi.UintPtr)>>('rust_net_client_execute_binary');
   late final _rust_net_client_execute_binary =
       _rust_net_client_execute_binaryPtr.asFunction<
           ffi.Pointer<RustNetBinaryResult> Function(
-              int, ffi.Pointer<ffi.Char>)>();
+              int, ffi.Pointer<ffi.Char>, ffi.Pointer<ffi.Uint8>, int)>();
 
   void rust_net_client_close(
     int client_id,
@@ -90,20 +112,6 @@ class RustNetBindings {
           'rust_net_client_close');
   late final _rust_net_client_close =
       _rust_net_client_closePtr.asFunction<void Function(int)>();
-
-  void rust_net_string_free(
-    ffi.Pointer<ffi.Char> value,
-  ) {
-    return _rust_net_string_free(
-      value,
-    );
-  }
-
-  late final _rust_net_string_freePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Char>)>>(
-          'rust_net_string_free');
-  late final _rust_net_string_free = _rust_net_string_freePtr
-      .asFunction<void Function(ffi.Pointer<ffi.Char>)>();
 
   void rust_net_binary_result_free(
     ffi.Pointer<RustNetBinaryResult> value,
@@ -139,3 +147,10 @@ final class RustNetBinaryResult extends ffi.Struct {
 
   external ffi.Pointer<ffi.Char> error_json;
 }
+
+typedef RustNetExecuteCallback
+    = ffi.Pointer<ffi.NativeFunction<RustNetExecuteCallbackFunction>>;
+typedef RustNetExecuteCallbackFunction = ffi.Void Function(
+    ffi.Uint64 request_id, ffi.Pointer<RustNetBinaryResult> result);
+typedef DartRustNetExecuteCallbackFunction = void Function(
+    int request_id, ffi.Pointer<RustNetBinaryResult> result);

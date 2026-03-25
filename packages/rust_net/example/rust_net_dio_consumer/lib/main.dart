@@ -44,7 +44,8 @@ class RustNetDioConsumerPage extends StatefulWidget {
 }
 
 class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
-  Dio? _dio;
+  Dio? _rustNetDio;
+  Dio? _directDio;
   String? _nativeLibraryPath;
   String? _error;
   String _result = 'Ready';
@@ -60,14 +61,15 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
 
   @override
   void dispose() {
-    _dio?.close(force: true);
+    _rustNetDio?.close(force: true);
+    _directDio?.close(force: true);
     super.dispose();
   }
 
   Future<void> _initialize() async {
     try {
       final nativeLibraryPath = RustNetClient.resolveNativeLibraryPath();
-      final dio = Dio(
+      final rustNetDio = Dio(
         BaseOptions(
           baseUrl: _fixtureBaseUrl,
           responseType: ResponseType.plain,
@@ -78,14 +80,22 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
             userAgent: 'rust_net_dio_consumer/1.0.0',
           ),
         );
+      final directDio = Dio(
+        BaseOptions(
+          baseUrl: _fixtureBaseUrl,
+          responseType: ResponseType.plain,
+        ),
+      );
 
       if (!mounted) {
-        dio.close(force: true);
+        rustNetDio.close(force: true);
+        directDio.close(force: true);
         return;
       }
 
       setState(() {
-        _dio = dio;
+        _rustNetDio = rustNetDio;
+        _directDio = directDio;
         _nativeLibraryPath = nativeLibraryPath;
         _error = null;
       });
@@ -109,6 +119,7 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
   Future<void> _sendGet() async {
     await _performRequest(
       label: 'GET /get',
+      dio: _rustNetDio,
       run: (dio) async {
         final response = await dio.get<String>(
           '/get',
@@ -126,6 +137,7 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
   Future<void> _sendPost() async {
     await _performRequest(
       label: 'POST /echo',
+      dio: _rustNetDio,
       run: (dio) async {
         final payload = jsonEncode(
           <String, Object?>{'source': 'dio_consumer', 'kind': 'post'},
@@ -147,6 +159,7 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
   Future<void> _send404() async {
     await _performRequest(
       label: 'GET /status/404',
+      dio: _rustNetDio,
       run: (dio) async {
         final response = await dio.get<String>(
           '/status/404',
@@ -167,6 +180,7 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
   Future<void> _sendTimeout() async {
     await _performRequest(
       label: 'GET /slow',
+      dio: _rustNetDio,
       run: (dio) async {
         try {
           await dio.get<void>(
@@ -186,11 +200,74 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
     );
   }
 
+  Future<void> _runBinaryBenchmark() async {
+    final rustNetDio = _rustNetDio;
+    final directDio = _directDio;
+    if (rustNetDio == null || directDio == null) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _result = 'Running binary benchmark ...';
+    });
+
+    try {
+      const concurrency = 50;
+      const bytesPerRequest = 64 * 1024;
+
+      final direct = await _runBinaryScenario(
+        dio: directDio,
+        label: 'dio',
+        concurrency: concurrency,
+        bytesPerRequest: bytesPerRequest,
+      );
+      final rustNet = await _runBinaryScenario(
+        dio: rustNetDio,
+        label: 'rust_net',
+        concurrency: concurrency,
+        bytesPerRequest: bytesPerRequest,
+      );
+
+      final deltaPercent = direct.elapsed.inMicroseconds == 0
+          ? 0
+          : ((rustNet.elapsed.inMicroseconds - direct.elapsed.inMicroseconds) /
+                  direct.elapsed.inMicroseconds) *
+              100;
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _result = 'Binary benchmark\n'
+            'baseUrl: $_fixtureBaseUrl\n'
+            '${direct.describe()}\n'
+            '${rustNet.describe()}\n'
+            'delta: ${deltaPercent.toStringAsFixed(2)}% rust_net vs dio';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = '$error';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _performRequest({
     required String label,
+    required Dio? dio,
     required Future<String> Function(Dio dio) run,
   }) async {
-    final dio = _dio;
     if (dio == null) {
       return;
     }
@@ -236,6 +313,41 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
     return '$method\n'
         'Status: ${statusCode ?? 'unknown'}\n\n'
         '${preview.length > 600 ? '${preview.substring(0, 600)}...' : preview}';
+  }
+
+  Future<_BenchmarkResult> _runBinaryScenario({
+    required Dio dio,
+    required String label,
+    required int concurrency,
+    required int bytesPerRequest,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    var totalBytes = 0;
+
+    final responses = await Future.wait(
+      List<Future<Response<List<int>>>>.generate(concurrency, (index) {
+        return dio.get<List<int>>(
+          '/bytes',
+          queryParameters: <String, String>{
+            'size': '$bytesPerRequest',
+            'seed': '$index',
+          },
+          options: Options(responseType: ResponseType.bytes),
+        );
+      }),
+    );
+
+    for (final response in responses) {
+      totalBytes += response.data?.length ?? 0;
+    }
+
+    stopwatch.stop();
+    return _BenchmarkResult(
+      label: label,
+      elapsed: stopwatch.elapsed,
+      totalBytes: totalBytes,
+      requests: concurrency,
+    );
   }
 
   @override
@@ -289,6 +401,10 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
                     onPressed: _isLoading ? null : _sendTimeout,
                     child: const Text('Timeout'),
                   ),
+                  CupertinoButton.filled(
+                    onPressed: _isLoading ? null : _runBinaryBenchmark,
+                    child: const Text('Benchmark'),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -321,5 +437,28 @@ class _RustNetDioConsumerPageState extends State<RustNetDioConsumerPage> {
         ),
       ),
     );
+  }
+}
+
+final class _BenchmarkResult {
+  const _BenchmarkResult({
+    required this.label,
+    required this.elapsed,
+    required this.totalBytes,
+    required this.requests,
+  });
+
+  final String label;
+  final Duration elapsed;
+  final int totalBytes;
+  final int requests;
+
+  String describe() {
+    final megabytes = totalBytes / (1024 * 1024);
+    final seconds = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    final throughput = seconds == 0 ? 0 : megabytes / seconds;
+    return '$label: requests=$requests bytes=$totalBytes '
+        'elapsed=${elapsed.inMilliseconds}ms '
+        'throughput=${throughput.toStringAsFixed(2)} MiB/s';
   }
 }
