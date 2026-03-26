@@ -11,7 +11,7 @@
 - Migrate native request execution path to a rinf-style runtime signal channel.
 - Enforce Rust-native transport as the primary path for Dio and image cache integrations.
 - Shrink Android native artifacts by building release binaries and stripping unneeded symbols.
-- Refresh all platform native release artifacts (Android/iOS/macOS/Linux/Windows).
+- Refresh all platform native release artifacts (Android/iOS/macOS/Windows).
 
 ## 0.1.1
 

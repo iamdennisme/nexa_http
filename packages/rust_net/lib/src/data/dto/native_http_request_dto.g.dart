@@ -15,7 +15,6 @@ _$NativeHttpRequestDtoImpl _$$NativeHttpRequestDtoImplFromJson(
             (k, e) => MapEntry(k, e as String),
           ) ??
           const <String, String>{},
-      bodyBase64: json['body_base64'] as String?,
       timeoutMs: (json['timeout_ms'] as num?)?.toInt(),
     );
 
@@ -25,6 +24,5 @@ Map<String, dynamic> _$$NativeHttpRequestDtoImplToJson(
       'method': instance.method,
       'url': instance.url,
       'headers': instance.headers,
-      'body_base64': instance.bodyBase64,
       'timeout_ms': instance.timeoutMs,
     };

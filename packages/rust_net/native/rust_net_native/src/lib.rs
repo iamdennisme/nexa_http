@@ -3,27 +3,26 @@ use std::ffi::{CStr, CString, c_char};
 use std::ptr::null_mut;
 use std::slice::from_raw_parts;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use base64::Engine;
-use base64::prelude::BASE64_STANDARD;
 use once_cell::sync::Lazy;
-use reqwest::Method;
-use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use rinf::{dart_shutdown, send_rust_signal, write_interface};
+use reqwest::{Client, ClientBuilder, Method};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use tokio::runtime::{Builder as RuntimeBuilder, Runtime};
+use tokio::sync::Semaphore;
 
 mod proxy_strategy;
 
 static CLIENTS: Lazy<Mutex<HashMap<u64, ClientEntry>>> = Lazy::new(|| Mutex::new(HashMap::new()));
 static NEXT_CLIENT_ID: AtomicU64 = AtomicU64::new(1);
-const RINF_EXECUTE_RESPONSE_ENDPOINT: &str = "RustNetExecuteResponse";
-
-write_interface!();
+static RUNTIME: Lazy<Runtime> = Lazy::new(build_runtime);
+static REQUEST_LIMITER: Lazy<Arc<Semaphore>> =
+    Lazy::new(|| Arc::new(Semaphore::new(default_max_inflight_requests())));
 
 #[derive(Clone)]
 struct ClientEntry {
@@ -42,21 +41,20 @@ struct NativeHttpClientConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
+struct NativeHttpRequestMetadata {
+    method: String,
+    url: String,
+    headers: HashMap<String, String>,
+    timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
 struct NativeHttpRequest {
     method: String,
     url: String,
     headers: HashMap<String, String>,
-    body_base64: Option<String>,
+    body: Vec<u8>,
     timeout_ms: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "snake_case")]
-struct NativeHttpResponse {
-    status_code: u16,
-    headers: HashMap<String, Vec<String>>,
-    body_base64: String,
-    final_url: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,28 +76,6 @@ struct NativeHttpError {
     details: Option<HashMap<String, String>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum NativeHttpResult {
-    Success { response: NativeHttpResponse },
-    Error { error: NativeHttpError },
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "snake_case")]
-struct RustNetExecuteCommand {
-    request_id: String,
-    client_id: u64,
-    request: NativeHttpRequest,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "snake_case")]
-struct RustNetExecuteResponseEnvelope {
-    request_id: String,
-    result: NativeHttpResult,
-}
-
 #[repr(C)]
 pub struct RustNetBinaryResult {
     is_success: u8,
@@ -110,6 +86,8 @@ pub struct RustNetBinaryResult {
     body_len: usize,
     error_json: *mut c_char,
 }
+
+type RustNetExecuteCallback = Option<unsafe extern "C" fn(u64, *mut RustNetBinaryResult)>;
 
 #[derive(Debug)]
 struct NativeError {
@@ -158,17 +136,27 @@ impl NativeError {
             details: self.details,
         }
     }
-
-    fn into_result(self) -> NativeHttpResult {
-        NativeHttpResult::Error {
-            error: self.into_http_error(),
-        }
-    }
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
-    dart_shutdown().await;
+fn build_runtime() -> Runtime {
+    RuntimeBuilder::new_multi_thread()
+        .worker_threads(default_runtime_worker_threads())
+        .enable_all()
+        .build()
+        .expect("failed to build tokio runtime")
+}
+
+fn default_runtime_worker_threads() -> usize {
+    std::thread::available_parallelism()
+        .map(|value| value.get().clamp(2, 8))
+        .unwrap_or(4)
+}
+
+fn default_max_inflight_requests() -> usize {
+    let parallelism = std::thread::available_parallelism()
+        .map(|value| value.get())
+        .unwrap_or(4);
+    (parallelism * 32).clamp(64, 512)
 }
 
 #[unsafe(no_mangle)]
@@ -194,38 +182,55 @@ pub extern "C" fn rust_net_client_create(config_json: *const c_char) -> u64 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rust_net_client_execute(
+pub extern "C" fn rust_net_client_execute_async(
     client_id: u64,
+    request_id: u64,
     request_json: *const c_char,
-) -> *mut c_char {
-    let result = match read_json::<NativeHttpRequest>(request_json) {
-        Ok(request) => match execute_request(client_id, request) {
-            Ok(response) => NativeHttpResult::Success {
-                response: NativeHttpResponse {
-                    status_code: response.status_code,
-                    headers: response.headers,
-                    body_base64: BASE64_STANDARD.encode(response.body),
-                    final_url: response.final_url,
-                },
-            },
-            Err(error) => error.into_result(),
-        },
-        Err(error) => error.into_result(),
+    body_ptr: *const u8,
+    body_len: usize,
+    callback: RustNetExecuteCallback,
+) -> u8 {
+    let Some(callback) = callback else {
+        return 0;
     };
 
-    serialize_result(result)
+    let request = match read_request(request_json, body_ptr, body_len) {
+        Ok(request) => request,
+        Err(error) => {
+            let result = build_binary_error_result(error.into_http_error());
+            unsafe {
+                callback(request_id, Box::into_raw(Box::new(result)));
+            }
+            return 1;
+        }
+    };
+
+    RUNTIME.spawn(async move {
+        let result = execute_request_with_limit(client_id, request)
+            .await
+            .map(build_binary_success_result)
+            .unwrap_or_else(|error| build_binary_error_result(error.into_http_error()));
+
+        unsafe {
+            callback(request_id, Box::into_raw(Box::new(result)));
+        }
+    });
+
+    1
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_net_client_execute_binary(
     client_id: u64,
     request_json: *const c_char,
+    body_ptr: *const u8,
+    body_len: usize,
 ) -> *mut RustNetBinaryResult {
-    let result = match read_json::<NativeHttpRequest>(request_json) {
-        Ok(request) => match execute_request(client_id, request) {
-            Ok(response) => build_binary_success_result(response),
-            Err(error) => build_binary_error_result(error.into_http_error()),
-        },
+    let result = match read_request(request_json, body_ptr, body_len) {
+        Ok(request) => RUNTIME
+            .block_on(execute_request_with_limit(client_id, request))
+            .map(build_binary_success_result)
+            .unwrap_or_else(|error| build_binary_error_result(error.into_http_error())),
         Err(error) => build_binary_error_result(error.into_http_error()),
     };
 
@@ -235,16 +240,6 @@ pub extern "C" fn rust_net_client_execute_binary(
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_net_client_close(client_id: u64) {
     CLIENTS.lock().unwrap().remove(&client_id);
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rust_net_string_free(value: *mut c_char) {
-    if value.is_null() {
-        return;
-    }
-    unsafe {
-        drop(CString::from_raw(value));
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -274,37 +269,6 @@ pub extern "C" fn rust_net_binary_result_free(value: *mut RustNetBinaryResult) {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn rinf_send_dart_signal_rust_net_execute_request(
-    message_pointer: *const u8,
-    message_size: usize,
-    _binary_pointer: *const u8,
-    _binary_size: usize,
-) {
-    let message_bytes = if message_pointer.is_null() || message_size == 0 {
-        &[]
-    } else {
-        unsafe { from_raw_parts(message_pointer, message_size) }
-    };
-
-    let command = match serde_json::from_slice::<RustNetExecuteCommand>(message_bytes) {
-        Ok(command) => command,
-        Err(error) => {
-            let result = NativeError::new("invalid_json", error.to_string()).into_result();
-            send_execute_response(String::new(), result);
-            return;
-        }
-    };
-
-    std::thread::spawn(move || {
-        let result = execute_request(command.client_id, command.request)
-            .map(to_native_http_response)
-            .map(|response| NativeHttpResult::Success { response })
-            .unwrap_or_else(|error| error.into_result());
-        send_execute_response(command.request_id, result);
-    });
-}
-
 fn read_json<T>(pointer: *const c_char) -> Result<T, NativeError>
 where
     T: DeserializeOwned,
@@ -323,11 +287,39 @@ where
     serde_json::from_str(json).map_err(|error| NativeError::new("invalid_json", error.to_string()))
 }
 
+fn read_request(
+    request_json: *const c_char,
+    body_ptr: *const u8,
+    body_len: usize,
+) -> Result<NativeHttpRequest, NativeError> {
+    let metadata = read_json::<NativeHttpRequestMetadata>(request_json)?;
+    let body = if body_len == 0 {
+        Vec::new()
+    } else if body_ptr.is_null() {
+        return Err(NativeError::new(
+            "invalid_argument",
+            "Expected a non-null body pointer when body_len > 0.",
+        ));
+    } else {
+        unsafe { from_raw_parts(body_ptr, body_len) }.to_vec()
+    };
+
+    Ok(NativeHttpRequest {
+        method: metadata.method,
+        url: metadata.url,
+        headers: metadata.headers,
+        body,
+        timeout_ms: metadata.timeout_ms,
+    })
+}
+
 fn build_client(
     config: &NativeHttpClientConfig,
     proxy_snapshot: &proxy_strategy::ProxySnapshot,
 ) -> Result<Client, NativeError> {
     let mut builder = ClientBuilder::new();
+
+    builder = builder.pool_max_idle_per_host(usize::MAX).tcp_nodelay(true);
 
     if let Some(timeout_ms) = config.timeout_ms.filter(|value| *value > 0) {
         builder = builder.timeout(Duration::from_millis(timeout_ms));
@@ -349,7 +341,20 @@ fn build_client(
         .map_err(|error| NativeError::new("invalid_config", error.to_string()))
 }
 
-fn execute_request(
+async fn execute_request_with_limit(
+    client_id: u64,
+    request: NativeHttpRequest,
+) -> Result<NativeHttpRawResponse, NativeError> {
+    let _permit = REQUEST_LIMITER
+        .clone()
+        .acquire_owned()
+        .await
+        .map_err(|_| NativeError::new("internal", "Request limiter unexpectedly closed."))?;
+
+    execute_request(client_id, request).await
+}
+
+async fn execute_request(
     client_id: u64,
     request: NativeHttpRequest,
 ) -> Result<NativeHttpRawResponse, NativeError> {
@@ -368,12 +373,27 @@ fn execute_request(
         entry.client.clone()
     };
 
-    let method = Method::from_str(&request.method)
+    execute_request_with_client_async(&client, request).await
+}
+
+async fn execute_request_with_client_async(
+    client: &Client,
+    request: NativeHttpRequest,
+) -> Result<NativeHttpRawResponse, NativeError> {
+    let NativeHttpRequest {
+        method,
+        url,
+        headers,
+        body,
+        timeout_ms,
+    } = request;
+
+    let method = Method::from_str(&method)
         .map_err(|error| NativeError::new("invalid_request", error.to_string()))?;
 
-    let mut builder = client.request(method, &request.url);
+    let mut builder = client.request(method, &url);
 
-    for (name, value) in &request.headers {
+    for (name, value) in &headers {
         let header_name = HeaderName::from_bytes(name.as_bytes()).map_err(|error| {
             let mut details = HashMap::new();
             details.insert("header".to_string(), name.clone());
@@ -387,20 +407,18 @@ fn execute_request(
         builder = builder.header(header_name, header_value);
     }
 
-    if let Some(timeout_ms) = request.timeout_ms.filter(|value| *value > 0) {
+    if let Some(timeout_ms) = timeout_ms.filter(|value| *value > 0) {
         builder = builder.timeout(Duration::from_millis(timeout_ms));
     }
 
-    if let Some(body_base64) = request.body_base64.as_ref() {
-        let bytes = BASE64_STANDARD.decode(body_base64).map_err(|error| {
-            NativeError::new("invalid_request", error.to_string()).with_uri(request.url.clone())
-        })?;
-        builder = builder.body(bytes);
+    if !body.is_empty() {
+        builder = builder.body(body);
     }
 
     let response = builder
         .send()
-        .map_err(|error| map_reqwest_error(error, &request.url))?;
+        .await
+        .map_err(|error| map_reqwest_error(error, &url))?;
     let status_code = response.status().as_u16();
 
     let mut headers = HashMap::<String, Vec<String>>::new();
@@ -415,7 +433,8 @@ fn execute_request(
     let final_url = Some(response.url().to_string());
     let body = response
         .bytes()
-        .map_err(|error| map_reqwest_error(error, &request.url))?;
+        .await
+        .map_err(|error| map_reqwest_error(error, &url))?;
 
     Ok(NativeHttpRawResponse {
         status_code,
@@ -423,34 +442,6 @@ fn execute_request(
         body: body.to_vec(),
         final_url,
     })
-}
-
-fn to_native_http_response(response: NativeHttpRawResponse) -> NativeHttpResponse {
-    NativeHttpResponse {
-        status_code: response.status_code,
-        headers: response.headers,
-        body_base64: BASE64_STANDARD.encode(response.body),
-        final_url: response.final_url,
-    }
-}
-
-fn send_execute_response(request_id: String, result: NativeHttpResult) {
-    let payload = RustNetExecuteResponseEnvelope { request_id, result };
-    let json = match serde_json::to_vec(&payload) {
-        Ok(json) => json,
-        Err(error) => {
-            let fallback = RustNetExecuteResponseEnvelope {
-                request_id: String::new(),
-                result: NativeError::new("serialization", error.to_string()).into_result(),
-            };
-            match serde_json::to_vec(&fallback) {
-                Ok(json) => json,
-                Err(_) => return,
-            }
-        }
-    };
-
-    let _ = send_rust_signal(RINF_EXECUTE_RESPONSE_ENDPOINT, json, Vec::new());
 }
 
 fn build_binary_success_result(response: NativeHttpRawResponse) -> RustNetBinaryResult {
@@ -561,20 +552,6 @@ fn map_reqwest_error(error: reqwest::Error, url: &str) -> NativeError {
     NativeError::new("network", error.to_string()).with_uri(url.to_string())
 }
 
-fn serialize_result(result: NativeHttpResult) -> *mut c_char {
-    match serde_json::to_string(&result)
-        .ok()
-        .and_then(|json| CString::new(json).ok())
-    {
-        Some(value) => value.into_raw(),
-        None => CString::new(
-            r#"{"type":"error","error":{"code":"serialization","message":"Failed to encode response.","is_timeout":false}}"#,
-        )
-        .unwrap()
-        .into_raw(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -603,7 +580,7 @@ mod tests {
                 method: "GET".to_string(),
                 url: server.url("/hello"),
                 headers: HashMap::new(),
-                body_base64: None,
+                body: Vec::new(),
                 timeout_ms: None,
             },
         )
@@ -663,7 +640,7 @@ mod tests {
                 method: "GET".to_string(),
                 url: server.url("/slow"),
                 headers: HashMap::new(),
-                body_base64: None,
+                body: Vec::new(),
                 timeout_ms: Some(5),
             },
         )
@@ -675,17 +652,18 @@ mod tests {
 
     #[test]
     fn rejects_unknown_client_handles() {
-        let error = execute_request(
-            u64::MAX,
-            NativeHttpRequest {
-                method: "GET".to_string(),
-                url: "https://example.com".to_string(),
-                headers: HashMap::new(),
-                body_base64: None,
-                timeout_ms: None,
-            },
-        )
-        .unwrap_err();
+        let error = RUNTIME
+            .block_on(execute_request(
+                u64::MAX,
+                NativeHttpRequest {
+                    method: "GET".to_string(),
+                    url: "https://example.com".to_string(),
+                    headers: HashMap::new(),
+                    body: Vec::new(),
+                    timeout_ms: None,
+                },
+            ))
+            .unwrap_err();
 
         assert_eq!(error.code, "invalid_client");
     }
@@ -700,7 +678,7 @@ mod tests {
                 method: "NOT VALID".to_string(),
                 url: "https://example.com".to_string(),
                 headers: HashMap::new(),
-                body_base64: None,
+                body: Vec::new(),
                 timeout_ms: None,
             },
         )
@@ -739,17 +717,18 @@ mod tests {
         }
         let expected_signature = proxy_strategy::current_proxy_snapshot().signature();
 
-        let response = execute_request(
-            client_id,
-            NativeHttpRequest {
-                method: "GET".to_string(),
-                url: server.url("/rebuild"),
-                headers: HashMap::new(),
-                body_base64: None,
-                timeout_ms: None,
-            },
-        )
-        .unwrap();
+        let response = RUNTIME
+            .block_on(execute_request(
+                client_id,
+                NativeHttpRequest {
+                    method: "GET".to_string(),
+                    url: server.url("/rebuild"),
+                    headers: HashMap::new(),
+                    body: Vec::new(),
+                    timeout_ms: None,
+                },
+            ))
+            .unwrap();
 
         let actual_signature = CLIENTS
             .lock()
@@ -772,36 +751,7 @@ mod tests {
         client: &Client,
         request: NativeHttpRequest,
     ) -> Result<NativeHttpRawResponse, NativeError> {
-        let method = Method::from_str(&request.method)
-            .map_err(|error| NativeError::new("invalid_request", error.to_string()))?;
-
-        let mut builder = client.request(method, &request.url);
-        if let Some(timeout_ms) = request.timeout_ms.filter(|value| *value > 0) {
-            builder = builder.timeout(Duration::from_millis(timeout_ms));
-        }
-
-        let response = builder
-            .send()
-            .map_err(|error| map_reqwest_error(error, &request.url))?;
-        let status_code = response.status().as_u16();
-        let mut headers = HashMap::<String, Vec<String>>::new();
-        for (name, value) in response.headers() {
-            headers
-                .entry(name.to_string())
-                .or_default()
-                .push(value.to_str().unwrap_or_default().to_string());
-        }
-        let final_url = Some(response.url().to_string());
-        let body = response
-            .bytes()
-            .map_err(|error| map_reqwest_error(error, &request.url))?;
-
-        Ok(NativeHttpRawResponse {
-            status_code,
-            headers,
-            body: body.to_vec(),
-            final_url,
-        })
+        RUNTIME.block_on(execute_request_with_client_async(client, request))
     }
 
     fn clear_proxy_env() {

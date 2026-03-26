@@ -8,7 +8,6 @@ platform_scripts=(
   build_native_macos.sh
   build_native_android.sh
   build_native_ios.sh
-  build_native_linux.sh
   build_native_windows.sh
 )
 

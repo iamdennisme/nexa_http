@@ -6,7 +6,10 @@ import 'http_fixture/fixture_handler.dart';
 
 Future<void> main(List<String> arguments) async {
   final port = _parsePort(arguments) ?? 8080;
-  final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+  final host = _parseHost(arguments) ?? InternetAddress.loopbackIPv4.address;
+  final bindAddress =
+      host == '0.0.0.0' ? InternetAddress.anyIPv4 : InternetAddress(host);
+  final server = await HttpServer.bind(bindAddress, port);
 
   stdout.writeln(
     jsonEncode(<String, Object>{
@@ -57,6 +60,21 @@ int? _parsePort(List<String> arguments) {
     }
     if (argument.startsWith('--port=')) {
       return int.tryParse(argument.substring('--port='.length));
+    }
+  }
+  return null;
+}
+
+String? _parseHost(List<String> arguments) {
+  for (var index = 0; index < arguments.length; index++) {
+    final argument = arguments[index];
+    if (argument == '--host' && index + 1 < arguments.length) {
+      final value = arguments[index + 1].trim();
+      return value.isEmpty ? null : value;
+    }
+    if (argument.startsWith('--host=')) {
+      final value = argument.substring('--host='.length).trim();
+      return value.isEmpty ? null : value;
     }
   }
   return null;

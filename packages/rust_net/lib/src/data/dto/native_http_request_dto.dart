@@ -9,7 +9,7 @@ class NativeHttpRequestDto with _$NativeHttpRequestDto {
     required String method,
     required String url,
     @Default(<String, String>{}) Map<String, String> headers,
-    @JsonKey(name: 'body_base64') String? bodyBase64,
+    @JsonKey(includeFromJson: false, includeToJson: false) List<int>? bodyBytes,
     @JsonKey(name: 'timeout_ms') int? timeoutMs,
   }) = _NativeHttpRequestDto;
 

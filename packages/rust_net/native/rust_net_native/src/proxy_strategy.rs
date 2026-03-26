@@ -1,8 +1,14 @@
 use std::collections::BTreeSet;
 use std::env;
 use std::net::IpAddr;
-#[cfg(any(target_os = "android", target_os = "linux"))]
+#[cfg(target_os = "android")]
+use std::sync::Mutex;
+#[cfg(target_os = "android")]
 use std::process::Command;
+#[cfg(target_os = "android")]
+use once_cell::sync::Lazy;
+#[cfg(any(target_os = "android", test))]
+use std::time::{Duration, Instant};
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use core_foundation::array::{CFArray, CFArrayRef};
@@ -15,8 +21,8 @@ use core_foundation::number::{CFNumberGetValue, CFNumberRef, kCFNumberSInt32Type
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use core_foundation::string::{CFString, CFStringRef};
 use ipnet::IpNet;
+use reqwest::ClientBuilder;
 use reqwest::Url;
-use reqwest::blocking::ClientBuilder;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use std::ffi::c_void;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -68,7 +74,67 @@ impl ProxySnapshot {
     }
 }
 
+#[cfg(any(target_os = "android", test))]
+#[derive(Debug, Clone)]
+struct CachedProxySnapshot {
+    snapshot: ProxySnapshot,
+    refreshed_at: Instant,
+}
+
+#[cfg(any(target_os = "android", test))]
+#[derive(Debug, Default)]
+struct ProxySnapshotCache {
+    ttl: Duration,
+    cached: Option<CachedProxySnapshot>,
+}
+
+#[cfg(any(target_os = "android", test))]
+impl ProxySnapshotCache {
+    fn new(ttl: Duration) -> Self {
+        Self { ttl, cached: None }
+    }
+
+    fn get_or_refresh<F>(&mut self, now: Instant, refresh: F) -> ProxySnapshot
+    where
+        F: FnOnce() -> ProxySnapshot,
+    {
+        if let Some(cached) = &self.cached {
+            if now
+                .checked_duration_since(cached.refreshed_at)
+                .map(|elapsed| elapsed < self.ttl)
+                .unwrap_or(false)
+            {
+                return cached.snapshot.clone();
+            }
+        }
+
+        let snapshot = refresh();
+        self.cached = Some(CachedProxySnapshot {
+            snapshot: snapshot.clone(),
+            refreshed_at: now,
+        });
+        snapshot
+    }
+}
+
+#[cfg(target_os = "android")]
+static ANDROID_PROXY_SNAPSHOT_CACHE: Lazy<Mutex<ProxySnapshotCache>> =
+    Lazy::new(|| Mutex::new(ProxySnapshotCache::new(Duration::from_secs(5))));
+
 pub(crate) fn current_proxy_snapshot() -> ProxySnapshot {
+    #[cfg(target_os = "android")]
+    {
+        let mut cache = ANDROID_PROXY_SNAPSHOT_CACHE.lock().unwrap();
+        cache.get_or_refresh(Instant::now(), load_current_proxy_snapshot)
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        load_current_proxy_snapshot()
+    }
+}
+
+fn load_current_proxy_snapshot() -> ProxySnapshot {
     let system = system_proxy_snapshot();
     let env_based = env_proxy_snapshot();
 
@@ -313,11 +379,6 @@ fn system_proxy_snapshot() -> ProxySnapshot {
     apple_proxy_snapshot()
 }
 
-#[cfg(target_os = "linux")]
-fn system_proxy_snapshot() -> ProxySnapshot {
-    linux_proxy_snapshot()
-}
-
 #[cfg(target_os = "macos")]
 fn system_proxy_snapshot() -> ProxySnapshot {
     apple_proxy_snapshot()
@@ -331,7 +392,6 @@ fn system_proxy_snapshot() -> ProxySnapshot {
 #[cfg(not(any(
     target_os = "android",
     target_os = "ios",
-    target_os = "linux",
     target_os = "macos",
     target_os = "windows",
 )))]
@@ -408,143 +468,6 @@ fn with_port(host: String, port: Option<String>, default_port: u16) -> Option<St
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(default_port);
     Some(format!("{host}:{port}"))
-}
-
-#[cfg(target_os = "linux")]
-fn linux_proxy_snapshot() -> ProxySnapshot {
-    let gnome = gnome_proxy_snapshot();
-    if gnome.has_any_proxy() || !gnome.no_proxy.is_empty() {
-        return gnome;
-    }
-
-    let kde = kde_proxy_snapshot();
-    if kde.has_any_proxy() || !kde.no_proxy.is_empty() {
-        return kde;
-    }
-
-    ProxySnapshot::default()
-}
-
-#[cfg(target_os = "linux")]
-fn gnome_proxy_snapshot() -> ProxySnapshot {
-    let mode = gsettings_get("org.gnome.system.proxy", "mode");
-    if mode.as_deref() != Some("manual") {
-        return ProxySnapshot::default();
-    }
-
-    let mut snapshot = ProxySnapshot {
-        http_proxy: gsettings_proxy("http", "http"),
-        https_proxy: gsettings_proxy("https", "http"),
-        all_proxy: gsettings_proxy("socks", "socks5"),
-        no_proxy: gsettings_get_list("org.gnome.system.proxy", "ignore-hosts"),
-    };
-
-    if gsettings_get("org.gnome.system.proxy", "use-same-proxy").as_deref() == Some("true") {
-        if snapshot.https_proxy.is_none() {
-            snapshot.https_proxy = snapshot.http_proxy.clone();
-        }
-    }
-
-    snapshot.dedup_no_proxy();
-    snapshot
-}
-
-#[cfg(target_os = "linux")]
-fn gsettings_proxy(service: &str, scheme: &str) -> Option<String> {
-    let schema = format!("org.gnome.system.proxy.{service}");
-    let host = gsettings_get(&schema, "host")?;
-    let port = gsettings_get(&schema, "port")
-        .and_then(|value| value.parse::<u16>().ok())
-        .filter(|value| *value > 0);
-    let host_port = match port {
-        Some(port) => format!("{host}:{port}"),
-        None => host,
-    };
-    normalize_proxy_url(&host_port, scheme)
-}
-
-#[cfg(target_os = "linux")]
-fn gsettings_get(schema: &str, key: &str) -> Option<String> {
-    let output = Command::new("gsettings")
-        .args(["get", schema, key])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    String::from_utf8(output.stdout).ok().and_then(clean_value)
-}
-
-#[cfg(target_os = "linux")]
-fn gsettings_get_list(schema: &str, key: &str) -> Vec<String> {
-    let output = match Command::new("gsettings")
-        .args(["get", schema, key])
-        .output()
-    {
-        Ok(output) if output.status.success() => output,
-        _ => return Vec::new(),
-    };
-    let raw = match String::from_utf8(output.stdout) {
-        Ok(raw) => raw,
-        Err(_) => return Vec::new(),
-    };
-    let trimmed = raw.trim().trim_start_matches('[').trim_end_matches(']');
-    parse_no_proxy_list(trimmed)
-        .into_iter()
-        .filter_map(|item| clean_value(item))
-        .collect()
-}
-
-#[cfg(target_os = "linux")]
-fn kde_proxy_snapshot() -> ProxySnapshot {
-    let kreadconfig = match find_kreadconfig() {
-        Some(value) => value,
-        None => return ProxySnapshot::default(),
-    };
-
-    let proxy_type = match kreadconfig_get(&kreadconfig, "Proxy Settings", "ProxyType") {
-        Some(value) => value,
-        None => return ProxySnapshot::default(),
-    };
-    if proxy_type != "1" {
-        return ProxySnapshot::default();
-    }
-
-    let mut snapshot = ProxySnapshot {
-        http_proxy: kreadconfig_get(&kreadconfig, "Proxy Settings", "httpProxy")
-            .and_then(|value| normalize_proxy_url(&value, "http")),
-        https_proxy: kreadconfig_get(&kreadconfig, "Proxy Settings", "httpsProxy")
-            .and_then(|value| normalize_proxy_url(&value, "http")),
-        all_proxy: kreadconfig_get(&kreadconfig, "Proxy Settings", "socksProxy")
-            .and_then(|value| normalize_proxy_url(&value, "socks5")),
-        no_proxy: kreadconfig_get(&kreadconfig, "Proxy Settings", "NoProxyFor")
-            .map(|value| parse_no_proxy_list(&value))
-            .unwrap_or_default(),
-    };
-    snapshot.dedup_no_proxy();
-    snapshot
-}
-
-#[cfg(target_os = "linux")]
-fn find_kreadconfig() -> Option<String> {
-    for candidate in ["kreadconfig6", "kreadconfig5"] {
-        if Command::new(candidate).arg("--help").output().is_ok() {
-            return Some(candidate.to_string());
-        }
-    }
-    None
-}
-
-#[cfg(target_os = "linux")]
-fn kreadconfig_get(binary: &str, group: &str, key: &str) -> Option<String> {
-    let output = Command::new(binary)
-        .args(["--group", group, "--key", key])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    String::from_utf8(output.stdout).ok().and_then(clean_value)
 }
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -745,6 +668,8 @@ fn windows_proxy_snapshot() -> ProxySnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{Duration, Instant};
 
     #[test]
     fn bypass_matches_domains_and_subdomains() {
@@ -811,5 +736,62 @@ mod tests {
             Some("http://127.0.0.1:8443")
         );
         assert_eq!(select_proxy_for_url(&snapshot, &bypass_url), None);
+    }
+
+    #[test]
+    fn proxy_snapshot_cache_reuses_value_within_ttl() {
+        let mut cache = ProxySnapshotCache::new(Duration::from_secs(5));
+        let call_count = AtomicUsize::new(0);
+        let first = Instant::now();
+
+        let initial = cache.get_or_refresh(first, || {
+            call_count.fetch_add(1, Ordering::Relaxed);
+            ProxySnapshot {
+                http_proxy: Some("http://127.0.0.1:8080".to_string()),
+                ..ProxySnapshot::default()
+            }
+        });
+        let cached = cache.get_or_refresh(first + Duration::from_secs(2), || {
+            call_count.fetch_add(1, Ordering::Relaxed);
+            ProxySnapshot {
+                http_proxy: Some("http://127.0.0.1:9090".to_string()),
+                ..ProxySnapshot::default()
+            }
+        });
+
+        assert_eq!(call_count.load(Ordering::Relaxed), 1);
+        assert_eq!(initial, cached);
+        assert_eq!(
+            cached.http_proxy.as_deref(),
+            Some("http://127.0.0.1:8080"),
+        );
+    }
+
+    #[test]
+    fn proxy_snapshot_cache_refreshes_after_ttl() {
+        let mut cache = ProxySnapshotCache::new(Duration::from_secs(5));
+        let call_count = AtomicUsize::new(0);
+        let first = Instant::now();
+
+        let _ = cache.get_or_refresh(first, || {
+            call_count.fetch_add(1, Ordering::Relaxed);
+            ProxySnapshot {
+                http_proxy: Some("http://127.0.0.1:8080".to_string()),
+                ..ProxySnapshot::default()
+            }
+        });
+        let refreshed = cache.get_or_refresh(first + Duration::from_secs(6), || {
+            call_count.fetch_add(1, Ordering::Relaxed);
+            ProxySnapshot {
+                http_proxy: Some("http://127.0.0.1:9090".to_string()),
+                ..ProxySnapshot::default()
+            }
+        });
+
+        assert_eq!(call_count.load(Ordering::Relaxed), 2);
+        assert_eq!(
+            refreshed.http_proxy.as_deref(),
+            Some("http://127.0.0.1:9090"),
+        );
     }
 }

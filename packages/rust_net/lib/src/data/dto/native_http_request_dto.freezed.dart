@@ -23,8 +23,8 @@ mixin _$NativeHttpRequestDto {
   String get method => throw _privateConstructorUsedError;
   String get url => throw _privateConstructorUsedError;
   Map<String, String> get headers => throw _privateConstructorUsedError;
-  @JsonKey(name: 'body_base64')
-  String? get bodyBase64 => throw _privateConstructorUsedError;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<int>? get bodyBytes => throw _privateConstructorUsedError;
   @JsonKey(name: 'timeout_ms')
   int? get timeoutMs => throw _privateConstructorUsedError;
 
@@ -48,7 +48,8 @@ abstract class $NativeHttpRequestDtoCopyWith<$Res> {
       {String method,
       String url,
       Map<String, String> headers,
-      @JsonKey(name: 'body_base64') String? bodyBase64,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      List<int>? bodyBytes,
       @JsonKey(name: 'timeout_ms') int? timeoutMs});
 }
 
@@ -71,7 +72,7 @@ class _$NativeHttpRequestDtoCopyWithImpl<$Res,
     Object? method = null,
     Object? url = null,
     Object? headers = null,
-    Object? bodyBase64 = freezed,
+    Object? bodyBytes = freezed,
     Object? timeoutMs = freezed,
   }) {
     return _then(_value.copyWith(
@@ -87,10 +88,10 @@ class _$NativeHttpRequestDtoCopyWithImpl<$Res,
           ? _value.headers
           : headers // ignore: cast_nullable_to_non_nullable
               as Map<String, String>,
-      bodyBase64: freezed == bodyBase64
-          ? _value.bodyBase64
-          : bodyBase64 // ignore: cast_nullable_to_non_nullable
-              as String?,
+      bodyBytes: freezed == bodyBytes
+          ? _value.bodyBytes
+          : bodyBytes // ignore: cast_nullable_to_non_nullable
+              as List<int>?,
       timeoutMs: freezed == timeoutMs
           ? _value.timeoutMs
           : timeoutMs // ignore: cast_nullable_to_non_nullable
@@ -111,7 +112,8 @@ abstract class _$$NativeHttpRequestDtoImplCopyWith<$Res>
       {String method,
       String url,
       Map<String, String> headers,
-      @JsonKey(name: 'body_base64') String? bodyBase64,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      List<int>? bodyBytes,
       @JsonKey(name: 'timeout_ms') int? timeoutMs});
 }
 
@@ -131,7 +133,7 @@ class __$$NativeHttpRequestDtoImplCopyWithImpl<$Res>
     Object? method = null,
     Object? url = null,
     Object? headers = null,
-    Object? bodyBase64 = freezed,
+    Object? bodyBytes = freezed,
     Object? timeoutMs = freezed,
   }) {
     return _then(_$NativeHttpRequestDtoImpl(
@@ -147,10 +149,10 @@ class __$$NativeHttpRequestDtoImplCopyWithImpl<$Res>
           ? _value._headers
           : headers // ignore: cast_nullable_to_non_nullable
               as Map<String, String>,
-      bodyBase64: freezed == bodyBase64
-          ? _value.bodyBase64
-          : bodyBase64 // ignore: cast_nullable_to_non_nullable
-              as String?,
+      bodyBytes: freezed == bodyBytes
+          ? _value._bodyBytes
+          : bodyBytes // ignore: cast_nullable_to_non_nullable
+              as List<int>?,
       timeoutMs: freezed == timeoutMs
           ? _value.timeoutMs
           : timeoutMs // ignore: cast_nullable_to_non_nullable
@@ -166,9 +168,11 @@ class _$NativeHttpRequestDtoImpl implements _NativeHttpRequestDto {
       {required this.method,
       required this.url,
       final Map<String, String> headers = const <String, String>{},
-      @JsonKey(name: 'body_base64') this.bodyBase64,
+      @JsonKey(includeFromJson: false, includeToJson: false)
+      final List<int>? bodyBytes,
       @JsonKey(name: 'timeout_ms') this.timeoutMs})
-      : _headers = headers;
+      : _headers = headers,
+        _bodyBytes = bodyBytes;
 
   factory _$NativeHttpRequestDtoImpl.fromJson(Map<String, dynamic> json) =>
       _$$NativeHttpRequestDtoImplFromJson(json);
@@ -186,16 +190,24 @@ class _$NativeHttpRequestDtoImpl implements _NativeHttpRequestDto {
     return EqualUnmodifiableMapView(_headers);
   }
 
+  final List<int>? _bodyBytes;
   @override
-  @JsonKey(name: 'body_base64')
-  final String? bodyBase64;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<int>? get bodyBytes {
+    final value = _bodyBytes;
+    if (value == null) return null;
+    if (_bodyBytes is EqualUnmodifiableListView) return _bodyBytes;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   @JsonKey(name: 'timeout_ms')
   final int? timeoutMs;
 
   @override
   String toString() {
-    return 'NativeHttpRequestDto(method: $method, url: $url, headers: $headers, bodyBase64: $bodyBase64, timeoutMs: $timeoutMs)';
+    return 'NativeHttpRequestDto(method: $method, url: $url, headers: $headers, bodyBytes: $bodyBytes, timeoutMs: $timeoutMs)';
   }
 
   @override
@@ -206,16 +218,21 @@ class _$NativeHttpRequestDtoImpl implements _NativeHttpRequestDto {
             (identical(other.method, method) || other.method == method) &&
             (identical(other.url, url) || other.url == url) &&
             const DeepCollectionEquality().equals(other._headers, _headers) &&
-            (identical(other.bodyBase64, bodyBase64) ||
-                other.bodyBase64 == bodyBase64) &&
+            const DeepCollectionEquality()
+                .equals(other._bodyBytes, _bodyBytes) &&
             (identical(other.timeoutMs, timeoutMs) ||
                 other.timeoutMs == timeoutMs));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, method, url,
-      const DeepCollectionEquality().hash(_headers), bodyBase64, timeoutMs);
+  int get hashCode => Object.hash(
+      runtimeType,
+      method,
+      url,
+      const DeepCollectionEquality().hash(_headers),
+      const DeepCollectionEquality().hash(_bodyBytes),
+      timeoutMs);
 
   /// Create a copy of NativeHttpRequestDto
   /// with the given fields replaced by the non-null parameter values.
@@ -240,7 +257,8 @@ abstract class _NativeHttpRequestDto implements NativeHttpRequestDto {
           {required final String method,
           required final String url,
           final Map<String, String> headers,
-          @JsonKey(name: 'body_base64') final String? bodyBase64,
+          @JsonKey(includeFromJson: false, includeToJson: false)
+          final List<int>? bodyBytes,
           @JsonKey(name: 'timeout_ms') final int? timeoutMs}) =
       _$NativeHttpRequestDtoImpl;
 
@@ -254,8 +272,8 @@ abstract class _NativeHttpRequestDto implements NativeHttpRequestDto {
   @override
   Map<String, String> get headers;
   @override
-  @JsonKey(name: 'body_base64')
-  String? get bodyBase64;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  List<int>? get bodyBytes;
   @override
   @JsonKey(name: 'timeout_ms')
   int? get timeoutMs;
