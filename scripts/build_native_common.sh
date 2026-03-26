@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+WORKSPACE_ROOT="${REPO_ROOT}"
 PACKAGE_ROOT="${REPO_ROOT}/packages/rust_net"
 RUST_CRATE_DIR="${PACKAGE_ROOT}/native/rust_net_native"
 CARGO_MANIFEST_PATH="${RUST_CRATE_DIR}/Cargo.toml"

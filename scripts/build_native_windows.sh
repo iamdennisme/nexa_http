@@ -35,7 +35,7 @@ log "Building Windows native library (${TARGET}, ${PROFILE})"
 source_file="${RUST_CRATE_DIR}/target/${TARGET}/${PROFILE}/rust_net_native.dll"
 [[ -f "${source_file}" ]] || die "Expected output not found: ${source_file}"
 
-destination_dir="${PACKAGE_ROOT}/windows/Libraries"
+destination_dir="${WORKSPACE_ROOT}/packages/rust_net_native_windows/windows/Libraries"
 mkdir -p "${destination_dir}"
 cp "${source_file}" "${destination_dir}/rust_net_native.dll"
 

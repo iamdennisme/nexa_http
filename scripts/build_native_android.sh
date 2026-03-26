@@ -101,10 +101,10 @@ for entry in "${targets[@]}"; do
   source_file="${RUST_CRATE_DIR}/target/${triple}/${PROFILE}/librust_net_native.so"
   [[ -f "${source_file}" ]] || die "Expected output not found: ${source_file}"
 
-  destination_dir="${PACKAGE_ROOT}/android/src/main/jniLibs/${abi}"
+  destination_dir="${WORKSPACE_ROOT}/packages/rust_net_native_android/android/src/main/jniLibs/${abi}"
   mkdir -p "${destination_dir}"
   cp "${source_file}" "${destination_dir}/librust_net_native.so"
   "${llvm_strip}" --strip-unneeded "${destination_dir}/librust_net_native.so"
 done
 
-log 'Prepared Android native libraries in packages/rust_net/android/src/main/jniLibs'
+log 'Prepared Android native libraries in packages/rust_net_native_android/android/src/main/jniLibs'

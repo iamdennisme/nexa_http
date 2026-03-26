@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:rust_net_core/rust_net_core.dart';
 
+import '../../api/api.dart';
 import '../../rust_net_client.dart';
 
 class RustNetDioAdapter implements HttpClientAdapter {

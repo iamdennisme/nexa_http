@@ -1,27 +1,22 @@
 # rust_net_core
 
-`rust_net_core` is the pure Dart core package for `rust_net`.
+`rust_net_core` is a deprecated compatibility shim for older integrations.
 
-It contains:
-
-- immutable request/response entities
-- transport-agnostic exception model
-- `HttpExecutor` abstraction
-
-This package has no Flutter/plugin dependencies, so it can be used in shared
-domain layers, tests, and adapters.
+New code should depend on `package:rust_net` directly. The canonical Dart API
+surface now lives in `package:rust_net`, while platform-specific native
+artifacts are being split into separate carrier packages.
 
 ## Install
 
 ```yaml
 dependencies:
-  rust_net_core: ^0.1.0
+  rust_net: ^2.0.0
 ```
 
 ## Example
 
 ```dart
-import 'package:rust_net_core/rust_net_core.dart';
+import 'package:rust_net/rust_net.dart';
 
 final request = RustNetRequest.get(uri: Uri.parse('https://example.com/ping'));
 ```

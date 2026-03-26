@@ -1,26 +1,18 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_net/src/ffi/rust_net_native_library_resolver.dart';
+import 'package:test/test.dart';
 
 void main() {
-  test('does not treat linux as a supported operating system', () {
+  test('treats linux as a supported operating system', () {
     expect(
       RustNetNativeLibraryResolver.isSupportedOperatingSystem('linux'),
-      isFalse,
+      isTrue,
     );
   });
 
-  test('throws an unsupported error for linux library resolution metadata', () {
+  test('returns the linux shared library file name', () {
     expect(
-      () => RustNetNativeLibraryResolver.libraryFileNameForOperatingSystem(
-        'linux',
-      ),
-      throwsA(
-        isA<UnsupportedError>().having(
-          (error) => '$error',
-          'message',
-          contains('linux'),
-        ),
-      ),
+      RustNetNativeLibraryResolver.libraryFileNameForOperatingSystem('linux'),
+      'librust_net_native.so',
     );
   });
 }

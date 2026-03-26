@@ -12,7 +12,8 @@ part of 'native_http_error_dto.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 NativeHttpErrorDto _$NativeHttpErrorDtoFromJson(Map<String, dynamic> json) {
   return _NativeHttpErrorDto.fromJson(json);
@@ -42,16 +43,18 @@ mixin _$NativeHttpErrorDto {
 /// @nodoc
 abstract class $NativeHttpErrorDtoCopyWith<$Res> {
   factory $NativeHttpErrorDtoCopyWith(
-          NativeHttpErrorDto value, $Res Function(NativeHttpErrorDto) then) =
-      _$NativeHttpErrorDtoCopyWithImpl<$Res, NativeHttpErrorDto>;
+    NativeHttpErrorDto value,
+    $Res Function(NativeHttpErrorDto) then,
+  ) = _$NativeHttpErrorDtoCopyWithImpl<$Res, NativeHttpErrorDto>;
   @useResult
-  $Res call(
-      {String code,
-      String message,
-      @JsonKey(name: 'status_code') int? statusCode,
-      @JsonKey(name: 'is_timeout') bool isTimeout,
-      String? uri,
-      Map<String, dynamic>? details});
+  $Res call({
+    String code,
+    String message,
+    @JsonKey(name: 'status_code') int? statusCode,
+    @JsonKey(name: 'is_timeout') bool isTimeout,
+    String? uri,
+    Map<String, dynamic>? details,
+  });
 }
 
 /// @nodoc
@@ -76,59 +79,71 @@ class _$NativeHttpErrorDtoCopyWithImpl<$Res, $Val extends NativeHttpErrorDto>
     Object? uri = freezed,
     Object? details = freezed,
   }) {
-    return _then(_value.copyWith(
-      code: null == code
-          ? _value.code
-          : code // ignore: cast_nullable_to_non_nullable
-              as String,
-      message: null == message
-          ? _value.message
-          : message // ignore: cast_nullable_to_non_nullable
-              as String,
-      statusCode: freezed == statusCode
-          ? _value.statusCode
-          : statusCode // ignore: cast_nullable_to_non_nullable
-              as int?,
-      isTimeout: null == isTimeout
-          ? _value.isTimeout
-          : isTimeout // ignore: cast_nullable_to_non_nullable
-              as bool,
-      uri: freezed == uri
-          ? _value.uri
-          : uri // ignore: cast_nullable_to_non_nullable
-              as String?,
-      details: freezed == details
-          ? _value.details
-          : details // ignore: cast_nullable_to_non_nullable
-              as Map<String, dynamic>?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            code:
+                null == code
+                    ? _value.code
+                    : code // ignore: cast_nullable_to_non_nullable
+                        as String,
+            message:
+                null == message
+                    ? _value.message
+                    : message // ignore: cast_nullable_to_non_nullable
+                        as String,
+            statusCode:
+                freezed == statusCode
+                    ? _value.statusCode
+                    : statusCode // ignore: cast_nullable_to_non_nullable
+                        as int?,
+            isTimeout:
+                null == isTimeout
+                    ? _value.isTimeout
+                    : isTimeout // ignore: cast_nullable_to_non_nullable
+                        as bool,
+            uri:
+                freezed == uri
+                    ? _value.uri
+                    : uri // ignore: cast_nullable_to_non_nullable
+                        as String?,
+            details:
+                freezed == details
+                    ? _value.details
+                    : details // ignore: cast_nullable_to_non_nullable
+                        as Map<String, dynamic>?,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$NativeHttpErrorDtoImplCopyWith<$Res>
     implements $NativeHttpErrorDtoCopyWith<$Res> {
-  factory _$$NativeHttpErrorDtoImplCopyWith(_$NativeHttpErrorDtoImpl value,
-          $Res Function(_$NativeHttpErrorDtoImpl) then) =
-      __$$NativeHttpErrorDtoImplCopyWithImpl<$Res>;
+  factory _$$NativeHttpErrorDtoImplCopyWith(
+    _$NativeHttpErrorDtoImpl value,
+    $Res Function(_$NativeHttpErrorDtoImpl) then,
+  ) = __$$NativeHttpErrorDtoImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {String code,
-      String message,
-      @JsonKey(name: 'status_code') int? statusCode,
-      @JsonKey(name: 'is_timeout') bool isTimeout,
-      String? uri,
-      Map<String, dynamic>? details});
+  $Res call({
+    String code,
+    String message,
+    @JsonKey(name: 'status_code') int? statusCode,
+    @JsonKey(name: 'is_timeout') bool isTimeout,
+    String? uri,
+    Map<String, dynamic>? details,
+  });
 }
 
 /// @nodoc
 class __$$NativeHttpErrorDtoImplCopyWithImpl<$Res>
     extends _$NativeHttpErrorDtoCopyWithImpl<$Res, _$NativeHttpErrorDtoImpl>
     implements _$$NativeHttpErrorDtoImplCopyWith<$Res> {
-  __$$NativeHttpErrorDtoImplCopyWithImpl(_$NativeHttpErrorDtoImpl _value,
-      $Res Function(_$NativeHttpErrorDtoImpl) _then)
-      : super(_value, _then);
+  __$$NativeHttpErrorDtoImplCopyWithImpl(
+    _$NativeHttpErrorDtoImpl _value,
+    $Res Function(_$NativeHttpErrorDtoImpl) _then,
+  ) : super(_value, _then);
 
   /// Create a copy of NativeHttpErrorDto
   /// with the given fields replaced by the non-null parameter values.
@@ -142,46 +157,54 @@ class __$$NativeHttpErrorDtoImplCopyWithImpl<$Res>
     Object? uri = freezed,
     Object? details = freezed,
   }) {
-    return _then(_$NativeHttpErrorDtoImpl(
-      code: null == code
-          ? _value.code
-          : code // ignore: cast_nullable_to_non_nullable
-              as String,
-      message: null == message
-          ? _value.message
-          : message // ignore: cast_nullable_to_non_nullable
-              as String,
-      statusCode: freezed == statusCode
-          ? _value.statusCode
-          : statusCode // ignore: cast_nullable_to_non_nullable
-              as int?,
-      isTimeout: null == isTimeout
-          ? _value.isTimeout
-          : isTimeout // ignore: cast_nullable_to_non_nullable
-              as bool,
-      uri: freezed == uri
-          ? _value.uri
-          : uri // ignore: cast_nullable_to_non_nullable
-              as String?,
-      details: freezed == details
-          ? _value._details
-          : details // ignore: cast_nullable_to_non_nullable
-              as Map<String, dynamic>?,
-    ));
+    return _then(
+      _$NativeHttpErrorDtoImpl(
+        code:
+            null == code
+                ? _value.code
+                : code // ignore: cast_nullable_to_non_nullable
+                    as String,
+        message:
+            null == message
+                ? _value.message
+                : message // ignore: cast_nullable_to_non_nullable
+                    as String,
+        statusCode:
+            freezed == statusCode
+                ? _value.statusCode
+                : statusCode // ignore: cast_nullable_to_non_nullable
+                    as int?,
+        isTimeout:
+            null == isTimeout
+                ? _value.isTimeout
+                : isTimeout // ignore: cast_nullable_to_non_nullable
+                    as bool,
+        uri:
+            freezed == uri
+                ? _value.uri
+                : uri // ignore: cast_nullable_to_non_nullable
+                    as String?,
+        details:
+            freezed == details
+                ? _value._details
+                : details // ignore: cast_nullable_to_non_nullable
+                    as Map<String, dynamic>?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$NativeHttpErrorDtoImpl implements _NativeHttpErrorDto {
-  const _$NativeHttpErrorDtoImpl(
-      {required this.code,
-      required this.message,
-      @JsonKey(name: 'status_code') this.statusCode,
-      @JsonKey(name: 'is_timeout') this.isTimeout = false,
-      this.uri,
-      final Map<String, dynamic>? details})
-      : _details = details;
+  const _$NativeHttpErrorDtoImpl({
+    required this.code,
+    required this.message,
+    @JsonKey(name: 'status_code') this.statusCode,
+    @JsonKey(name: 'is_timeout') this.isTimeout = false,
+    this.uri,
+    final Map<String, dynamic>? details,
+  }) : _details = details;
 
   factory _$NativeHttpErrorDtoImpl.fromJson(Map<String, dynamic> json) =>
       _$$NativeHttpErrorDtoImplFromJson(json);
@@ -230,8 +253,15 @@ class _$NativeHttpErrorDtoImpl implements _NativeHttpErrorDto {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, code, message, statusCode,
-      isTimeout, uri, const DeepCollectionEquality().hash(_details));
+  int get hashCode => Object.hash(
+    runtimeType,
+    code,
+    message,
+    statusCode,
+    isTimeout,
+    uri,
+    const DeepCollectionEquality().hash(_details),
+  );
 
   /// Create a copy of NativeHttpErrorDto
   /// with the given fields replaced by the non-null parameter values.
@@ -240,24 +270,25 @@ class _$NativeHttpErrorDtoImpl implements _NativeHttpErrorDto {
   @pragma('vm:prefer-inline')
   _$$NativeHttpErrorDtoImplCopyWith<_$NativeHttpErrorDtoImpl> get copyWith =>
       __$$NativeHttpErrorDtoImplCopyWithImpl<_$NativeHttpErrorDtoImpl>(
-          this, _$identity);
+        this,
+        _$identity,
+      );
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$NativeHttpErrorDtoImplToJson(
-      this,
-    );
+    return _$$NativeHttpErrorDtoImplToJson(this);
   }
 }
 
 abstract class _NativeHttpErrorDto implements NativeHttpErrorDto {
-  const factory _NativeHttpErrorDto(
-      {required final String code,
-      required final String message,
-      @JsonKey(name: 'status_code') final int? statusCode,
-      @JsonKey(name: 'is_timeout') final bool isTimeout,
-      final String? uri,
-      final Map<String, dynamic>? details}) = _$NativeHttpErrorDtoImpl;
+  const factory _NativeHttpErrorDto({
+    required final String code,
+    required final String message,
+    @JsonKey(name: 'status_code') final int? statusCode,
+    @JsonKey(name: 'is_timeout') final bool isTimeout,
+    final String? uri,
+    final Map<String, dynamic>? details,
+  }) = _$NativeHttpErrorDtoImpl;
 
   factory _NativeHttpErrorDto.fromJson(Map<String, dynamic> json) =
       _$NativeHttpErrorDtoImpl.fromJson;

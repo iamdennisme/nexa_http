@@ -10,43 +10,41 @@ Dart while delegating transport execution to a Rust `reqwest` core.
 
 This repository is designed for:
 
-- shared domain contracts (`rust_net_core`)
-- Flutter FFI transport implementation (`rust_net`)
+- Dart API and Flutter transport facade (`rust_net`)
+- platform carrier packages for native delivery
 - native Rust transport runtime and multi-platform packaging
 - local fixture/proxy tools for integration testing
 
 ### Repository Contents
 
-- `packages/rust_net_core`: domain entities, exceptions, and repository contracts
 - `packages/rust_net`: Flutter package, FFI bridge, and Dio adapter
+- `packages/rust_net_native_android|ios|macos|windows|linux`: carrier packages for platform artifacts and build hooks
 - `packages/rust_net/native/rust_net_native`: Rust `cdylib` based on `reqwest`
 - `fixture_server/`: local HTTP fixture server and proxy smoke-test tooling
 - `scripts/`: multi-platform native build scripts
 
 ### Package Details
 
-- `packages/rust_net_core`: Pure Dart domain contracts and models (`RustNetRequest`, `RustNetResponse`, `RustNetException`, `HttpExecutor`, etc.).
-- `packages/rust_net`: Flutter FFI transport implementation backed by Rust `reqwest`, plus `Dio` adapter integration.
+- `packages/rust_net`: the only public Dart API package, including requests, responses, exceptions, FFI bridge, and `Dio` integration.
+- `packages/rust_net_native_*`: thin Flutter/pub carrier packages for platform-specific native artifacts.
 
 ### Local development
 
 ```bash
 dart pub get
-dart run melos bootstrap
-dart run melos analyze
-dart run melos test
+dart run scripts/workspace_tools.dart bootstrap
+dart run scripts/workspace_tools.dart analyze
+dart run scripts/workspace_tools.dart test
 ```
 
 ### Build Native Libraries
 
-When Rust native code changes, rebuild binaries and commit updated artifacts:
+When Rust native code changes, rebuild the platform artifacts into the carrier
+package directories. These outputs are build products and should not be
+committed:
 
 ```bash
 ./scripts/build_native_all.sh release
-git add packages/rust_net/android/src/main/jniLibs \
-        packages/rust_net/ios/Frameworks \
-        packages/rust_net/macos/Libraries \
-        packages/rust_net/windows/Libraries
 ```
 
 You can also build one platform at a time:
@@ -54,13 +52,29 @@ You can also build one platform at a time:
 ```bash
 ./scripts/build_native_macos.sh
 ./scripts/build_native_android.sh
+./scripts/build_native_linux.sh
 ./scripts/build_native_ios.sh
 ./scripts/build_native_windows.sh
 ```
 
+To build the selected carrier artifacts and then materialize a separate
+publish/debug workspace:
+
+```bash
+dart run scripts/prepare_distribution.dart \
+  --packages=rust_net,rust_net_native_android,rust_net_native_macos
+```
+
+If the artifacts already exist locally, you can materialize only:
+
+```bash
+dart run scripts/materialize_distribution.dart \
+  --packages=rust_net,rust_net_native_android,rust_net_native_macos
+```
+
 Android notes:
 
-- The plugin prefers prebuilt `jniLibs` in the repository.
+- The Android carrier package materializes `jniLibs` during the build workflow.
 - It falls back to source build only when any ABI library is missing, or when `RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true` is set.
 - Source fallback requires Rust toolchain + Android NDK on the build machine.
 
@@ -71,9 +85,8 @@ Android notes:
 ```yaml
 dependencies:
   dio: ^5.9.0
-  rust_net: ^0.1.0
-  # optional
-  rust_net_core: ^0.1.0
+  rust_net: ^2.0.0
+  rust_net_native_android: ^2.0.0 # choose the carrier packages you ship
 ```
 
 Use as a Dio adapter:
@@ -138,14 +151,15 @@ cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
 
 ### Prebuilt strategy
 
-This repository commits prebuilt native artifacts directly in source:
+Native artifacts are generated into carrier package directories during build:
 
-- Android: `packages/rust_net/android/src/main/jniLibs/*/librust_net_native.so`
-- iOS: `packages/rust_net/ios/Frameworks/*.dylib`
-- macOS: `packages/rust_net/macos/Libraries/librust_net_native.dylib`
-- Windows: `packages/rust_net/windows/Libraries/rust_net_native.dll`
+- Android: `packages/rust_net_native_android/android/src/main/jniLibs/*/librust_net_native.so`
+- iOS: `packages/rust_net_native_ios/ios/Frameworks/*.dylib`
+- Linux: `packages/rust_net_native_linux/linux/Libraries/librust_net_native.so`
+- macOS: `packages/rust_net_native_macos/macos/Libraries/librust_net_native.dylib`
+- Windows: `packages/rust_net_native_windows/windows/Libraries/rust_net_native.dll`
 
-`packages/rust_net/android/build.gradle` prefers prebuilt `jniLibs` and falls back to Rust compilation only when prebuilt files are missing.
+`packages/rust_net_native_android/android/build.gradle` uses locally built `jniLibs` when present and falls back to Rust compilation only when they are missing.
 
 To force source rebuild on Android:
 
@@ -153,6 +167,8 @@ To force source rebuild on Android:
 RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true flutter build apk
 ```
 
-### rust_net_core integration
+### Compatibility shim
 
-`rust_net_core` remains a separate package under `packages/rust_net_core`. Consumers can reference both packages from this monorepo using git `path` dependencies (as Kino does).
+`packages/rust_net_core` remains in the repository as a deprecated shim package.
+It re-exports `package:rust_net` for migration compatibility and should not be
+used for new integrations.

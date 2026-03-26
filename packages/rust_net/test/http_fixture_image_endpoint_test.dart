@@ -1,8 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-
 import 'support/http_fixture_server.dart';
+import 'package:test/test.dart';
 
 void main() {
   test('image endpoint serves a cacheable PNG fixture', () async {

@@ -7,6 +7,7 @@
 .atom/
 .build/
 .buildlog/
+.dist/
 .history
 .svn/
 .swiftpm/
@@ -38,6 +39,15 @@ build/
 **/native/rust_net_native/target/
 **/native/rust_net_native/Cargo.lock
 **/android/.cxx/
+packages/rust_net_native_android/android/src/main/jniLibs/*/librust_net_native.so
+packages/rust_net_native_ios/ios/Frameworks/*.dylib
+packages/rust_net_native_linux/linux/Libraries/*.so
+packages/rust_net_native_macos/macos/Libraries/*.dylib
+packages/rust_net_native_windows/windows/Libraries/*.dll
+packages/rust_net/android/
+packages/rust_net/ios/
+packages/rust_net/macos/
+packages/rust_net/windows/
 # FVM Version Cache
 .fvm/
 .worktrees/

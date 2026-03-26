@@ -1,4 +1,4 @@
-import 'package:rust_net_core/rust_net_core.dart';
+import '../../api/api.dart';
 
 import '../dto/native_http_client_config_dto.dart';
 import '../dto/native_http_request_dto.dart';

@@ -12,7 +12,8 @@ part of 'native_http_request_dto.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 NativeHttpRequestDto _$NativeHttpRequestDtoFromJson(Map<String, dynamic> json) {
   return _NativeHttpRequestDto.fromJson(json);
@@ -40,22 +41,25 @@ mixin _$NativeHttpRequestDto {
 
 /// @nodoc
 abstract class $NativeHttpRequestDtoCopyWith<$Res> {
-  factory $NativeHttpRequestDtoCopyWith(NativeHttpRequestDto value,
-          $Res Function(NativeHttpRequestDto) then) =
-      _$NativeHttpRequestDtoCopyWithImpl<$Res, NativeHttpRequestDto>;
+  factory $NativeHttpRequestDtoCopyWith(
+    NativeHttpRequestDto value,
+    $Res Function(NativeHttpRequestDto) then,
+  ) = _$NativeHttpRequestDtoCopyWithImpl<$Res, NativeHttpRequestDto>;
   @useResult
-  $Res call(
-      {String method,
-      String url,
-      Map<String, String> headers,
-      @JsonKey(includeFromJson: false, includeToJson: false)
-      List<int>? bodyBytes,
-      @JsonKey(name: 'timeout_ms') int? timeoutMs});
+  $Res call({
+    String method,
+    String url,
+    Map<String, String> headers,
+    @JsonKey(includeFromJson: false, includeToJson: false) List<int>? bodyBytes,
+    @JsonKey(name: 'timeout_ms') int? timeoutMs,
+  });
 }
 
 /// @nodoc
-class _$NativeHttpRequestDtoCopyWithImpl<$Res,
-        $Val extends NativeHttpRequestDto>
+class _$NativeHttpRequestDtoCopyWithImpl<
+  $Res,
+  $Val extends NativeHttpRequestDto
+>
     implements $NativeHttpRequestDtoCopyWith<$Res> {
   _$NativeHttpRequestDtoCopyWithImpl(this._value, this._then);
 
@@ -75,55 +79,65 @@ class _$NativeHttpRequestDtoCopyWithImpl<$Res,
     Object? bodyBytes = freezed,
     Object? timeoutMs = freezed,
   }) {
-    return _then(_value.copyWith(
-      method: null == method
-          ? _value.method
-          : method // ignore: cast_nullable_to_non_nullable
-              as String,
-      url: null == url
-          ? _value.url
-          : url // ignore: cast_nullable_to_non_nullable
-              as String,
-      headers: null == headers
-          ? _value.headers
-          : headers // ignore: cast_nullable_to_non_nullable
-              as Map<String, String>,
-      bodyBytes: freezed == bodyBytes
-          ? _value.bodyBytes
-          : bodyBytes // ignore: cast_nullable_to_non_nullable
-              as List<int>?,
-      timeoutMs: freezed == timeoutMs
-          ? _value.timeoutMs
-          : timeoutMs // ignore: cast_nullable_to_non_nullable
-              as int?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            method:
+                null == method
+                    ? _value.method
+                    : method // ignore: cast_nullable_to_non_nullable
+                        as String,
+            url:
+                null == url
+                    ? _value.url
+                    : url // ignore: cast_nullable_to_non_nullable
+                        as String,
+            headers:
+                null == headers
+                    ? _value.headers
+                    : headers // ignore: cast_nullable_to_non_nullable
+                        as Map<String, String>,
+            bodyBytes:
+                freezed == bodyBytes
+                    ? _value.bodyBytes
+                    : bodyBytes // ignore: cast_nullable_to_non_nullable
+                        as List<int>?,
+            timeoutMs:
+                freezed == timeoutMs
+                    ? _value.timeoutMs
+                    : timeoutMs // ignore: cast_nullable_to_non_nullable
+                        as int?,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$NativeHttpRequestDtoImplCopyWith<$Res>
     implements $NativeHttpRequestDtoCopyWith<$Res> {
-  factory _$$NativeHttpRequestDtoImplCopyWith(_$NativeHttpRequestDtoImpl value,
-          $Res Function(_$NativeHttpRequestDtoImpl) then) =
-      __$$NativeHttpRequestDtoImplCopyWithImpl<$Res>;
+  factory _$$NativeHttpRequestDtoImplCopyWith(
+    _$NativeHttpRequestDtoImpl value,
+    $Res Function(_$NativeHttpRequestDtoImpl) then,
+  ) = __$$NativeHttpRequestDtoImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {String method,
-      String url,
-      Map<String, String> headers,
-      @JsonKey(includeFromJson: false, includeToJson: false)
-      List<int>? bodyBytes,
-      @JsonKey(name: 'timeout_ms') int? timeoutMs});
+  $Res call({
+    String method,
+    String url,
+    Map<String, String> headers,
+    @JsonKey(includeFromJson: false, includeToJson: false) List<int>? bodyBytes,
+    @JsonKey(name: 'timeout_ms') int? timeoutMs,
+  });
 }
 
 /// @nodoc
 class __$$NativeHttpRequestDtoImplCopyWithImpl<$Res>
     extends _$NativeHttpRequestDtoCopyWithImpl<$Res, _$NativeHttpRequestDtoImpl>
     implements _$$NativeHttpRequestDtoImplCopyWith<$Res> {
-  __$$NativeHttpRequestDtoImplCopyWithImpl(_$NativeHttpRequestDtoImpl _value,
-      $Res Function(_$NativeHttpRequestDtoImpl) _then)
-      : super(_value, _then);
+  __$$NativeHttpRequestDtoImplCopyWithImpl(
+    _$NativeHttpRequestDtoImpl _value,
+    $Res Function(_$NativeHttpRequestDtoImpl) _then,
+  ) : super(_value, _then);
 
   /// Create a copy of NativeHttpRequestDto
   /// with the given fields replaced by the non-null parameter values.
@@ -136,43 +150,50 @@ class __$$NativeHttpRequestDtoImplCopyWithImpl<$Res>
     Object? bodyBytes = freezed,
     Object? timeoutMs = freezed,
   }) {
-    return _then(_$NativeHttpRequestDtoImpl(
-      method: null == method
-          ? _value.method
-          : method // ignore: cast_nullable_to_non_nullable
-              as String,
-      url: null == url
-          ? _value.url
-          : url // ignore: cast_nullable_to_non_nullable
-              as String,
-      headers: null == headers
-          ? _value._headers
-          : headers // ignore: cast_nullable_to_non_nullable
-              as Map<String, String>,
-      bodyBytes: freezed == bodyBytes
-          ? _value._bodyBytes
-          : bodyBytes // ignore: cast_nullable_to_non_nullable
-              as List<int>?,
-      timeoutMs: freezed == timeoutMs
-          ? _value.timeoutMs
-          : timeoutMs // ignore: cast_nullable_to_non_nullable
-              as int?,
-    ));
+    return _then(
+      _$NativeHttpRequestDtoImpl(
+        method:
+            null == method
+                ? _value.method
+                : method // ignore: cast_nullable_to_non_nullable
+                    as String,
+        url:
+            null == url
+                ? _value.url
+                : url // ignore: cast_nullable_to_non_nullable
+                    as String,
+        headers:
+            null == headers
+                ? _value._headers
+                : headers // ignore: cast_nullable_to_non_nullable
+                    as Map<String, String>,
+        bodyBytes:
+            freezed == bodyBytes
+                ? _value._bodyBytes
+                : bodyBytes // ignore: cast_nullable_to_non_nullable
+                    as List<int>?,
+        timeoutMs:
+            freezed == timeoutMs
+                ? _value.timeoutMs
+                : timeoutMs // ignore: cast_nullable_to_non_nullable
+                    as int?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$NativeHttpRequestDtoImpl implements _NativeHttpRequestDto {
-  const _$NativeHttpRequestDtoImpl(
-      {required this.method,
-      required this.url,
-      final Map<String, String> headers = const <String, String>{},
-      @JsonKey(includeFromJson: false, includeToJson: false)
-      final List<int>? bodyBytes,
-      @JsonKey(name: 'timeout_ms') this.timeoutMs})
-      : _headers = headers,
-        _bodyBytes = bodyBytes;
+  const _$NativeHttpRequestDtoImpl({
+    required this.method,
+    required this.url,
+    final Map<String, String> headers = const <String, String>{},
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final List<int>? bodyBytes,
+    @JsonKey(name: 'timeout_ms') this.timeoutMs,
+  }) : _headers = headers,
+       _bodyBytes = bodyBytes;
 
   factory _$NativeHttpRequestDtoImpl.fromJson(Map<String, dynamic> json) =>
       _$$NativeHttpRequestDtoImplFromJson(json);
@@ -218,8 +239,10 @@ class _$NativeHttpRequestDtoImpl implements _NativeHttpRequestDto {
             (identical(other.method, method) || other.method == method) &&
             (identical(other.url, url) || other.url == url) &&
             const DeepCollectionEquality().equals(other._headers, _headers) &&
-            const DeepCollectionEquality()
-                .equals(other._bodyBytes, _bodyBytes) &&
+            const DeepCollectionEquality().equals(
+              other._bodyBytes,
+              _bodyBytes,
+            ) &&
             (identical(other.timeoutMs, timeoutMs) ||
                 other.timeoutMs == timeoutMs));
   }
@@ -227,12 +250,13 @@ class _$NativeHttpRequestDtoImpl implements _NativeHttpRequestDto {
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      method,
-      url,
-      const DeepCollectionEquality().hash(_headers),
-      const DeepCollectionEquality().hash(_bodyBytes),
-      timeoutMs);
+    runtimeType,
+    method,
+    url,
+    const DeepCollectionEquality().hash(_headers),
+    const DeepCollectionEquality().hash(_bodyBytes),
+    timeoutMs,
+  );
 
   /// Create a copy of NativeHttpRequestDto
   /// with the given fields replaced by the non-null parameter values.
@@ -240,27 +264,27 @@ class _$NativeHttpRequestDtoImpl implements _NativeHttpRequestDto {
   @override
   @pragma('vm:prefer-inline')
   _$$NativeHttpRequestDtoImplCopyWith<_$NativeHttpRequestDtoImpl>
-      get copyWith =>
-          __$$NativeHttpRequestDtoImplCopyWithImpl<_$NativeHttpRequestDtoImpl>(
-              this, _$identity);
+  get copyWith =>
+      __$$NativeHttpRequestDtoImplCopyWithImpl<_$NativeHttpRequestDtoImpl>(
+        this,
+        _$identity,
+      );
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$NativeHttpRequestDtoImplToJson(
-      this,
-    );
+    return _$$NativeHttpRequestDtoImplToJson(this);
   }
 }
 
 abstract class _NativeHttpRequestDto implements NativeHttpRequestDto {
-  const factory _NativeHttpRequestDto(
-          {required final String method,
-          required final String url,
-          final Map<String, String> headers,
-          @JsonKey(includeFromJson: false, includeToJson: false)
-          final List<int>? bodyBytes,
-          @JsonKey(name: 'timeout_ms') final int? timeoutMs}) =
-      _$NativeHttpRequestDtoImpl;
+  const factory _NativeHttpRequestDto({
+    required final String method,
+    required final String url,
+    final Map<String, String> headers,
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    final List<int>? bodyBytes,
+    @JsonKey(name: 'timeout_ms') final int? timeoutMs,
+  }) = _$NativeHttpRequestDtoImpl;
 
   factory _NativeHttpRequestDto.fromJson(Map<String, dynamic> json) =
       _$NativeHttpRequestDtoImpl.fromJson;
@@ -283,5 +307,5 @@ abstract class _NativeHttpRequestDto implements NativeHttpRequestDto {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$NativeHttpRequestDtoImplCopyWith<_$NativeHttpRequestDtoImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }

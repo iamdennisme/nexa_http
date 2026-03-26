@@ -1,6 +1,6 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_net/src/data/mappers/native_http_request_mapper.dart';
-import 'package:rust_net_core/rust_net_core.dart';
+import 'package:rust_net/rust_net.dart';
+import 'package:test/test.dart';
 
 void main() {
   test('keeps request body as raw bytes and excludes it from request json', () {

@@ -20,7 +20,7 @@ targets=(
 
 ensure_rust_targets aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 
-destination_dir="${PACKAGE_ROOT}/ios/Frameworks"
+destination_dir="${WORKSPACE_ROOT}/packages/rust_net_native_ios/ios/Frameworks"
 mkdir -p "${destination_dir}"
 
 for entry in "${targets[@]}"; do

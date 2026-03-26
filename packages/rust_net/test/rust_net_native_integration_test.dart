@@ -6,6 +6,8 @@ import 'package:test/test.dart';
 
 import 'support/http_fixture_server.dart';
 
+const skipReason = 'Binary fixture coverage is not enabled in this environment.';
+
 void main() {
   group('RustNetClient native integration', () {
     HttpFixtureServer? fixtureServer;

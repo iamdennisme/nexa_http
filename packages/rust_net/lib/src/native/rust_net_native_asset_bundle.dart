@@ -86,14 +86,20 @@ final class RustNetNativeAssetBundle {
 
     final candidates = <Uri>[
       switch (targetOS) {
-        OS.macOS => packageRoot.resolve('macos/Libraries/librust_net_native.dylib'),
-        OS.linux => packageRoot.resolve('linux/Libraries/librust_net_native.so'),
-        OS.windows => packageRoot.resolve('windows/Libraries/rust_net_native.dll'),
+        OS.macOS => packageRoot.resolve(
+            '../rust_net_native_macos/macos/Libraries/librust_net_native.dylib',
+          ),
+        OS.linux => packageRoot.resolve(
+            '../rust_net_native_linux/linux/Libraries/librust_net_native.so',
+          ),
+        OS.windows => packageRoot.resolve(
+            '../rust_net_native_windows/windows/Libraries/rust_net_native.dll',
+          ),
         OS.android => packageRoot.resolve(
-            'android/src/main/jniLibs/${_androidAbi(targetArchitecture)}/librust_net_native.so',
+            '../rust_net_native_android/android/src/main/jniLibs/${_androidAbi(targetArchitecture)}/librust_net_native.so',
           ),
         OS.iOS => packageRoot.resolve(
-            'ios/Frameworks/${_iosLibraryName(targetArchitecture, _targetSdk(input))}',
+            '../rust_net_native_ios/ios/Frameworks/${_iosLibraryName(targetArchitecture, _targetSdk(input))}',
           ),
         _ => packageRoot,
       },

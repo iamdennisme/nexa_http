@@ -27,7 +27,7 @@ cargo "${build_args[@]}"
 source_file="${RUST_CRATE_DIR}/target/${PROFILE}/librust_net_native.dylib"
 [[ -f "${source_file}" ]] || die "Expected output not found: ${source_file}"
 
-destination_file="${PACKAGE_ROOT}/macos/Libraries/librust_net_native.dylib"
+destination_file="${WORKSPACE_ROOT}/packages/rust_net_native_macos/macos/Libraries/librust_net_native.dylib"
 mkdir -p "$(dirname "${destination_file}")"
 cp "${source_file}" "${destination_file}"
 

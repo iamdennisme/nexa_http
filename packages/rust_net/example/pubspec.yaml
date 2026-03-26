@@ -40,6 +40,16 @@ dependencies:
     # The example app is bundled with the plugin so we use a path dependency on
     # the parent directory to use the current plugin's version.
     path: ../
+  rust_net_native_android:
+    path: ../../rust_net_native_android
+  rust_net_native_ios:
+    path: ../../rust_net_native_ios
+  rust_net_native_linux:
+    path: ../../rust_net_native_linux
+  rust_net_native_macos:
+    path: ../../rust_net_native_macos
+  rust_net_native_windows:
+    path: ../../rust_net_native_windows
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

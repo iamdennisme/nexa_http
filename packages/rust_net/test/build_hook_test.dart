@@ -10,6 +10,15 @@ import '../hook/build.dart' as rust_net_build_hook;
 
 void main() {
   group('rust_net build hook', () {
+    test('does not emit native assets by default', () async {
+      await testCodeBuildHook(
+        mainMethod: rust_net_build_hook.main,
+        check: (input, output) async {
+          expect(output.assets.code, isEmpty);
+        },
+      );
+    });
+
     test('emits a bundled code asset from a local manifest override', () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'rust_net_build_hook_manifest',

@@ -32,13 +32,14 @@ final class RustNetNativeLibraryResolver {
 
   static bool isSupportedOperatingSystem(String operatingSystem) {
     return switch (operatingSystem) {
-      'android' || 'ios' || 'macos' || 'windows' => true,
+      'android' || 'ios' || 'linux' || 'macos' || 'windows' => true,
       _ => false,
     };
   }
 
   static String libraryFileNameForOperatingSystem(String operatingSystem) {
     return switch (operatingSystem) {
+      'linux' => 'librust_net_native.so',
       'macos' => 'librust_net_native.dylib',
       'android' => 'librust_net_native.so',
       'windows' => 'rust_net_native.dll',

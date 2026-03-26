@@ -33,6 +33,16 @@ dependencies:
     sdk: flutter
   rust_net:
     path: ../../
+  rust_net_native_android:
+    path: ../../../rust_net_native_android
+  rust_net_native_ios:
+    path: ../../../rust_net_native_ios
+  rust_net_native_linux:
+    path: ../../../rust_net_native_linux
+  rust_net_native_macos:
+    path: ../../../rust_net_native_macos
+  rust_net_native_windows:
+    path: ../../../rust_net_native_windows
 
   cupertino_icons: ^1.0.8
 

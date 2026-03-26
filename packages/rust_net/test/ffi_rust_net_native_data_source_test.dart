@@ -5,10 +5,10 @@ import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_net/rust_net_bindings_generated.dart';
 import 'package:rust_net/src/data/dto/native_http_request_dto.dart';
 import 'package:rust_net/src/data/sources/ffi_rust_net_native_data_source.dart';
+import 'package:test/test.dart';
 
 void main() {
   test('executes through async ffi and decodes raw response bytes', () async {

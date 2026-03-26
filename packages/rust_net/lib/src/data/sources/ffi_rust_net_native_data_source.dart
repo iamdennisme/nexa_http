@@ -5,8 +5,8 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 import 'package:rust_net/rust_net_bindings_generated.dart';
-import 'package:rust_net_core/rust_net_core.dart';
 
+import '../../api/api.dart';
 import '../dto/native_http_client_config_dto.dart';
 import '../dto/native_http_error_dto.dart';
 import '../dto/native_http_request_dto.dart';
