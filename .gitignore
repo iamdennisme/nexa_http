@@ -37,3 +37,4 @@ build/
 **/native/rust_net_native/target/
 **/native/rust_net_native/Cargo.lock
 **/android/.cxx/
+.worktrees/
