@@ -46,7 +46,6 @@ When Rust native code changes, rebuild binaries and commit updated artifacts:
 git add packages/rust_net/android/src/main/jniLibs \
         packages/rust_net/ios/Frameworks \
         packages/rust_net/macos/Libraries \
-        packages/rust_net/linux/Libraries \
         packages/rust_net/windows/Libraries
 ```
 
@@ -56,7 +55,6 @@ You can also build one platform at a time:
 ./scripts/build_native_macos.sh
 ./scripts/build_native_android.sh
 ./scripts/build_native_ios.sh
-./scripts/build_native_linux.sh
 ./scripts/build_native_windows.sh
 ```
 
@@ -119,7 +117,6 @@ Platform proxy sources:
 
 - Android: `getprop` (`http.proxyHost`, `https.proxyHost`, `socksProxyHost`, `*.nonProxyHosts`)
 - iOS/macOS: Apple `SystemConfiguration`
-- Linux: GNOME `gsettings` with KDE `kreadconfig` fallback
 - Windows: `Internet Settings` registry
 - Other targets: env fallback only
 - Current scope is manual HTTP/HTTPS/SOCKS proxy settings; PAC is not evaluated yet
@@ -146,7 +143,6 @@ This repository commits prebuilt native artifacts directly in source:
 - Android: `packages/rust_net/android/src/main/jniLibs/*/librust_net_native.so`
 - iOS: `packages/rust_net/ios/Frameworks/*.dylib`
 - macOS: `packages/rust_net/macos/Libraries/librust_net_native.dylib`
-- Linux: `packages/rust_net/linux/Libraries/librust_net_native.so` (for local/native validation; Linux Flutter plugin wrapper is not declared yet)
 - Windows: `packages/rust_net/windows/Libraries/rust_net_native.dll`
 
 `packages/rust_net/android/build.gradle` prefers prebuilt `jniLibs` and falls back to Rust compilation only when prebuilt files are missing.

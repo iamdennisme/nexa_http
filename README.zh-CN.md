@@ -46,7 +46,6 @@ dart run melos test
 git add packages/rust_net/android/src/main/jniLibs \
         packages/rust_net/ios/Frameworks \
         packages/rust_net/macos/Libraries \
-        packages/rust_net/linux/Libraries \
         packages/rust_net/windows/Libraries
 ```
 
@@ -56,7 +55,6 @@ git add packages/rust_net/android/src/main/jniLibs \
 ./scripts/build_native_macos.sh
 ./scripts/build_native_android.sh
 ./scripts/build_native_ios.sh
-./scripts/build_native_linux.sh
 ./scripts/build_native_windows.sh
 ```
 
@@ -119,7 +117,6 @@ await client.close();
 
 - Android：通过 `getprop`（`http.proxyHost`、`https.proxyHost`、`socksProxyHost`、`*.nonProxyHosts`）
 - iOS/macOS：通过 Apple `SystemConfiguration`
-- Linux：优先读取 GNOME `gsettings`，并回退 KDE `kreadconfig`
 - Windows：读取 `Internet Settings` 注册表
 - 其他平台：仅环境变量回退
 - 当前仅覆盖手动 HTTP/HTTPS/SOCKS 代理设置，PAC 暂未执行
@@ -146,7 +143,6 @@ cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
 - Android：`packages/rust_net/android/src/main/jniLibs/*/librust_net_native.so`
 - iOS：`packages/rust_net/ios/Frameworks/*.dylib`
 - macOS：`packages/rust_net/macos/Libraries/librust_net_native.dylib`
-- Linux：`packages/rust_net/linux/Libraries/librust_net_native.so`（用于本地/原生验证；当前未声明 Linux Flutter plugin wrapper）
 - Windows：`packages/rust_net/windows/Libraries/rust_net_native.dll`
 
 `packages/rust_net/android/build.gradle` 会优先使用预编译 `jniLibs`，仅在缺失时回退到 Rust 编译。

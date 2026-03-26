@@ -80,7 +80,6 @@ Platform proxy sources:
 
 - Android: `getprop` (`http.proxyHost`, `https.proxyHost`, `socksProxyHost`, `*.nonProxyHosts`)
 - iOS/macOS: Apple `SystemConfiguration`
-- Linux: GNOME `gsettings` with KDE `kreadconfig` fallback
 - Windows: `Internet Settings` registry
 - Other targets: env fallback only
 - Current scope is manual HTTP/HTTPS/SOCKS proxy settings; PAC is not evaluated yet
@@ -97,9 +96,6 @@ This package now declares Flutter FFI plugin wrappers for:
 The macOS packaging and runtime resolution path has been verified in local
 development. Android, iOS, and Windows plugin wrappers are included in the
 package, but you should still validate packaging in the consuming app.
-
-Linux native artifacts are committed for local/native validation, but this
-package does not currently declare a Linux Flutter plugin wrapper.
 
 For Android builds, the plugin first uses prebuilt `jniLibs`. If any ABI
 library is missing, or `RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true` is set, it
@@ -269,7 +265,6 @@ final dio = Dio()
 
 - Android：通过 `getprop`（`http.proxyHost`、`https.proxyHost`、`socksProxyHost`、`*.nonProxyHosts`）
 - iOS/macOS：通过 Apple `SystemConfiguration`
-- Linux：优先读取 GNOME `gsettings`，并回退 KDE `kreadconfig`
 - Windows：读取 `Internet Settings` 注册表
 - 其他平台：仅环境变量回退
 - 当前仅覆盖手动 HTTP/HTTPS/SOCKS 代理设置，PAC 暂未执行
@@ -285,9 +280,6 @@ final dio = Dio()
 
 其中 macOS 的打包和运行时解析链路已经在本地验证过；Android、iOS、Windows
 的插件封装目录和元数据已经补齐，但仍建议在消费端项目里完成实际打包验证。
-
-仓库里也提交了 Linux 原生产物用于本地/原生验证，但当前包尚未声明 Linux 的
-Flutter 插件封装。
 
 Android 构建会优先使用仓库内预编译 `jniLibs`。当某个 ABI 缺失，或设置
 `RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true` 时，才会在 Gradle 的

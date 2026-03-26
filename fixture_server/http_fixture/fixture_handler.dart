@@ -6,6 +6,7 @@ final class FixtureHandler {
   const FixtureHandler._();
 
   static const allowMethods = 'GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS';
+  static Future<List<int>>? _cachedFixtureImageBytes;
 
   static Future<void> handle(HttpRequest request) async {
     final response = request.response;
@@ -124,6 +125,19 @@ final class FixtureHandler {
       return;
     }
 
+    if (path == '/image' && method == 'GET') {
+      final imageId = request.uri.queryParameters['id'] ?? 'image-0';
+      final bodyBytes = await _fixtureImageBytes();
+      response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType('image', 'png')
+        ..headers.set(HttpHeaders.cacheControlHeader, 'max-age=60')
+        ..headers.set('x-fixture-image-id', imageId)
+        ..add(bodyBytes);
+      await response.close();
+      return;
+    }
+
     if (_isStatusPath(path)) {
       final statusCode = int.parse(path.split('/').last);
       _writeStatusResponse(
@@ -229,5 +243,26 @@ final class FixtureHandler {
       bytes.add(chunk);
     }
     return bytes.takeBytes();
+  }
+
+  static Future<List<int>> _fixtureImageBytes() {
+    return _cachedFixtureImageBytes ??=
+        _loadFixtureImageBytes();
+  }
+
+  static Future<List<int>> _loadFixtureImageBytes() async {
+    final candidates = <String>[
+      'packages/rust_net/example/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+      'example/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+    ];
+
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (await file.exists()) {
+        return file.readAsBytes();
+      }
+    }
+
+    throw StateError('Fixture image asset could not be found from $candidates');
   }
 }

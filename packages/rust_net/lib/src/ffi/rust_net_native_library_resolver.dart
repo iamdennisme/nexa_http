@@ -8,6 +8,8 @@ final class RustNetNativeLibraryResolver {
   static const environmentVariable = 'RUST_NET_NATIVE_LIB_PATH';
 
   static String resolve({String? explicitPath}) {
+    _ensureSupportedOperatingSystem(Platform.operatingSystem);
+
     for (final candidate in _configuredCandidates(explicitPath)) {
       final normalizedCandidate = _normalizeConfiguredCandidate(candidate);
       if (normalizedCandidate != null) {
@@ -26,6 +28,34 @@ final class RustNetNativeLibraryResolver {
       'Unable to locate the Rust native library. Build '
       '`native/rust_net_native` and/or set $environmentVariable.',
     );
+  }
+
+  static bool isSupportedOperatingSystem(String operatingSystem) {
+    return switch (operatingSystem) {
+      'android' || 'ios' || 'macos' || 'windows' => true,
+      _ => false,
+    };
+  }
+
+  static String libraryFileNameForOperatingSystem(String operatingSystem) {
+    return switch (operatingSystem) {
+      'macos' => 'librust_net_native.dylib',
+      'android' => 'librust_net_native.so',
+      'windows' => 'rust_net_native.dll',
+      _ => throw UnsupportedError(
+          'Unsupported platform for Rust native library resolution: '
+          '$operatingSystem',
+        ),
+    };
+  }
+
+  static void _ensureSupportedOperatingSystem(String operatingSystem) {
+    if (!isSupportedOperatingSystem(operatingSystem)) {
+      throw UnsupportedError(
+        'Unsupported platform for Rust native library resolution: '
+        '$operatingSystem',
+      );
+    }
   }
 
   static Iterable<String> _configuredCandidates(String? explicitPath) sync* {
@@ -208,18 +238,6 @@ final class RustNetNativeLibraryResolver {
   static const _resourceBundleName = 'rust_net_native.bundle';
 
   static String get _libraryFileName {
-    if (Platform.isMacOS) {
-      return 'librust_net_native.dylib';
-    }
-    if (Platform.isLinux || Platform.isAndroid) {
-      return 'librust_net_native.so';
-    }
-    if (Platform.isWindows) {
-      return 'rust_net_native.dll';
-    }
-    throw UnsupportedError(
-      'Unsupported platform for Rust native library resolution: '
-      '${Platform.operatingSystem}',
-    );
+    return libraryFileNameForOperatingSystem(Platform.operatingSystem);
   }
 }
