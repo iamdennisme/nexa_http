@@ -36,35 +36,32 @@
 
 ```yaml
 dependencies:
-  nexa_http: ^2.0.0
-  nexa_http_native_android: ^2.0.0
-  nexa_http_native_ios: ^2.0.0
-```
-
-也可以直接通过 Git SSH 依赖这个仓库：
-
-```yaml
-dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      ref: main
+      tag_pattern: 'v{{version}}'
       path: packages/nexa_http
+    version: ^1.0.0
   nexa_http_native_android:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      ref: main
+      tag_pattern: 'v{{version}}'
       path: packages/nexa_http_native_android
+    version: ^1.0.0
   nexa_http_native_ios:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      ref: main
+      tag_pattern: 'v{{version}}'
       path: packages/nexa_http_native_ios
+    version: ^1.0.0
 ```
+
+如果你在活跃开发阶段需要固定某个分支或 commit，仍然可以手动改回
+`ref:`；但正式按发布版本消费时，推荐使用 `tag_pattern`。
 
 说明：
 
-- 所有包都应固定到同一个 `ref`
+- 所有包都应固定到同一个版本范围
 - 只添加你实际会打包的平台 carrier package
 - 桌面端同理，使用同仓库里的对应 `nexa_http_native_<platform>` 包
 
@@ -201,7 +198,7 @@ dart run scripts/materialize_distribution.dart \
 
 ```bash
 dart run scripts/generate_native_asset_manifest.dart \
-  --version 2.0.0
+  --version 1.0.0
 ```
 
 ## Fixture server

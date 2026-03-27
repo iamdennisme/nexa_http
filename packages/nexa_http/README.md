@@ -21,8 +21,18 @@ It does not build or locate native binaries by itself. Native loading now happen
 
 ```yaml
 dependencies:
-  nexa_http: ^2.0.0
-  nexa_http_native_macos: ^2.0.0
+  nexa_http:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      tag_pattern: 'v{{version}}'
+      path: packages/nexa_http
+    version: ^1.0.0
+  nexa_http_native_macos:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      tag_pattern: 'v{{version}}'
+      path: packages/nexa_http_native_macos
+    version: ^1.0.0
 ```
 
 ```dart

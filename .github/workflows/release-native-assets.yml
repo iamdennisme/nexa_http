@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+      - '[0-9]*.[0-9]*.[0-9]*'
   workflow_dispatch:
 
 permissions:
@@ -24,7 +25,7 @@ jobs:
             --target aarch64-apple-darwin \
             --release
           mkdir -p dist/native-assets
-          cp packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/target/aarch64-apple-darwin/release/libnexa_http_native.dylib \
+          cp target/aarch64-apple-darwin/release/libnexa_http_native_macos_ffi.dylib \
             dist/native-assets/nexa_http-native-macos-arm64.dylib
       - name: Build macOS x64 dylib
         run: |
@@ -33,7 +34,7 @@ jobs:
             --target x86_64-apple-darwin \
             --release
           mkdir -p dist/native-assets
-          cp packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/target/x86_64-apple-darwin/release/libnexa_http_native.dylib \
+          cp target/x86_64-apple-darwin/release/libnexa_http_native_macos_ffi.dylib \
             dist/native-assets/nexa_http-native-macos-x64.dylib
       - name: Build iOS dylibs
         run: ./scripts/build_native_ios.sh release
@@ -59,11 +60,11 @@ jobs:
           targets: x86_64-unknown-linux-gnu,aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
       - uses: android-actions/setup-android@v3
       - name: Install Android NDK
-        run: sdkmanager "ndk;28.0.13004108"
+        run: sdkmanager "ndk;29.0.14206865"
       - name: Export Android environment
         run: |
-          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/28.0.13004108" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/28.0.13004108" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
       - name: Build Linux and Android assets
         run: |
           ./scripts/build_native_linux.sh release
@@ -99,7 +100,7 @@ jobs:
             --target x86_64-pc-windows-msvc \
             --release
           mkdir -p dist/native-assets
-          cp packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/target/x86_64-pc-windows-msvc/release/nexa_http_native.dll \
+          cp target/x86_64-pc-windows-msvc/release/nexa_http_native_windows_ffi.dll \
             dist/native-assets/nexa_http-native-windows-x64.dll
       - uses: actions/upload-artifact@v4
         with:

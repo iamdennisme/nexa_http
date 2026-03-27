@@ -7,7 +7,7 @@ import 'package:yaml/yaml.dart';
 const _manifestPathEnvironmentVariable = 'NEXA_HTTP_NATIVE_MANIFEST_PATH';
 const _releaseBaseUrlEnvironmentVariable = 'NEXA_HTTP_NATIVE_RELEASE_BASE_URL';
 const _defaultReleaseBaseUrl =
-    'https://github.com/iamdennisme/nexa_http/releases/download';
+    'https://github.com/iamdennisme/rust_net/releases/download';
 const _manifestFileName = 'nexa_http_native_assets_manifest.json';
 
 typedef SourceDirCandidatesBuilder = Iterable<String> Function(String sourceDir);
@@ -163,6 +163,16 @@ Uri _resolveManifestUri({
       ? releaseBaseUrl
       : '$_defaultReleaseBaseUrl/v$packageVersion';
   return Uri.parse('$base/$_manifestFileName');
+}
+
+Uri resolveNexaHttpNativeManifestUri({
+  required String packageVersion,
+  required Map<String, String> environment,
+}) {
+  return _resolveManifestUri(
+    packageVersion: packageVersion,
+    environment: environment,
+  );
 }
 
 String packageVersionForRoot(Uri packageRoot) {

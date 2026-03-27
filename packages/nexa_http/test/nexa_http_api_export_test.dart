@@ -1,4 +1,3 @@
-import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http/nexa_http_dio.dart';
 import 'package:test/test.dart';
 

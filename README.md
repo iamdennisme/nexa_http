@@ -36,35 +36,33 @@ Typical dependency setup:
 
 ```yaml
 dependencies:
-  nexa_http: ^2.0.0
-  nexa_http_native_android: ^2.0.0
-  nexa_http_native_ios: ^2.0.0
-```
-
-Or depend on this repository directly over Git SSH:
-
-```yaml
-dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      ref: main
+      tag_pattern: 'v{{version}}'
       path: packages/nexa_http
+    version: ^1.0.0
   nexa_http_native_android:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      ref: main
+      tag_pattern: 'v{{version}}'
       path: packages/nexa_http_native_android
+    version: ^1.0.0
   nexa_http_native_ios:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      ref: main
+      tag_pattern: 'v{{version}}'
       path: packages/nexa_http_native_ios
+    version: ^1.0.0
 ```
+
+If you need a moving branch or a one-off commit during active development, you
+can still switch back to `ref:` manually. For released versions, prefer
+`tag_pattern`.
 
 Notes:
 
-- Pin every package to the same `ref`.
+- Pin every package to the same version range.
 - Add only the carrier packages you actually ship.
 - For desktop targets, use the corresponding `nexa_http_native_<platform>` package from the same repo in the same way.
 
@@ -201,7 +199,7 @@ Generate the native asset manifest:
 
 ```bash
 dart run scripts/generate_native_asset_manifest.dart \
-  --version 2.0.0
+  --version 1.0.0
 ```
 
 ## Fixture server

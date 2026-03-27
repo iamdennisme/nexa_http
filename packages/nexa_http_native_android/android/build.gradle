@@ -315,12 +315,21 @@ def registerRustAndroidTask = { String buildType, String cargoProfile ->
                     commandLine cargoExecutable, "+${activeToolchain}", *cargoArgs
                 }
 
-                def builtLibrary = new File(
-                    rustPackageRoot,
-                    "target/${target.triple}/${cargoProfile}/libnexa_http_native_android_ffi.so",
-                )
-                if (!builtLibrary.exists()) {
-                    throw new GradleException("Expected Rust Android library not found: ${builtLibrary}")
+                def builtLibraryCandidates = [
+                    new File(
+                        rustPackageRoot,
+                        "target/${target.triple}/${cargoProfile}/libnexa_http_native_android_ffi.so",
+                    ),
+                    new File(
+                        repoRoot,
+                        "target/${target.triple}/${cargoProfile}/libnexa_http_native_android_ffi.so",
+                    ),
+                ]
+                def builtLibrary = builtLibraryCandidates.find { it.exists() }
+                if (builtLibrary == null) {
+                    throw new GradleException(
+                        "Expected Rust Android library not found in any known target directory: ${builtLibraryCandidates.join(', ')}",
+                    )
                 }
                 if (!libraryExportsRequiredSymbols(builtLibrary)) {
                     throw new GradleException(
@@ -331,6 +340,7 @@ def registerRustAndroidTask = { String buildType, String cargoProfile ->
                 copy {
                     from builtLibrary
                     into new File(rustNetAndroidJniLibsDir, target.abi)
+                    rename { 'libnexa_http_native.so' }
                 }
 
                 def copiedLibrary = new File(

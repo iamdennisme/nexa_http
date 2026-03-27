@@ -26,7 +26,7 @@ void main() {
     final resolved = await resolveNexaHttpNativeArtifactFile(
       packageRoot: tempDir.uri,
       cacheRoot: tempDir.uri,
-      packageVersion: '3.0.0',
+      packageVersion: '1.0.0',
       targetOS: 'macos',
       targetArchitecture: 'arm64',
       targetSdk: null,
@@ -51,7 +51,7 @@ void main() {
     final resolved = await resolveNexaHttpNativeArtifactFile(
       packageRoot: tempDir.uri,
       cacheRoot: tempDir.uri,
-      packageVersion: '3.0.0',
+      packageVersion: '1.0.0',
       targetOS: 'macos',
       targetArchitecture: 'arm64',
       targetSdk: null,
@@ -79,7 +79,7 @@ void main() {
     await manifest.writeAsString(
       jsonEncode(<String, Object?>{
         'package': 'nexa_http',
-        'package_version': '3.0.0',
+        'package_version': '1.0.0',
         'assets': <Map<String, Object?>>[
           <String, Object?>{
             'target_os': 'macos',
@@ -95,7 +95,7 @@ void main() {
     final resolved = await resolveNexaHttpNativeArtifactFile(
       packageRoot: tempDir.uri,
       cacheRoot: tempDir.uri,
-      packageVersion: '3.0.0',
+      packageVersion: '1.0.0',
       targetOS: 'macos',
       targetArchitecture: 'arm64',
       targetSdk: null,
@@ -109,5 +109,18 @@ void main() {
     );
 
     expect(await resolved.readAsString(), 'download-me');
+  });
+
+  test('default release manifest uri points at the rust_net GitHub release', () {
+    final manifestUri = resolveNexaHttpNativeManifestUri(
+      packageVersion: '1.0.0',
+      environment: const <String, String>{},
+    );
+
+    expect(
+      manifestUri.toString(),
+      'https://github.com/iamdennisme/rust_net/releases/download/v1.0.0/'
+      'nexa_http_native_assets_manifest.json',
+    );
   });
 }
