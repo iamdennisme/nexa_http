@@ -54,6 +54,38 @@ void main() {
     );
   });
 
+  test('runs the linux build script when the linux carrier package is selected', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'rust_net_prepare_distribution_linux_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final invokedScripts = <String>[];
+
+    await prepareDistributionWorkspace(
+      workspaceRoot: tempDir.path,
+      outputDirectory: p.join(tempDir.path, '.dist', 'workspace'),
+      requestedPackages: {'rust_net_native_linux'},
+      runBuildScript: (scriptPath, profile) async {
+        invokedScripts.add('${p.basename(scriptPath)}:$profile');
+      },
+      materializeWorkspace: ({
+        required String workspaceRoot,
+        required String outputDirectory,
+        Set<String>? requestedPackages,
+      }) async {},
+    );
+
+    expect(
+      invokedScripts,
+      <String>['build_native_linux.sh:release'],
+    );
+  });
+
   test('skips build scripts when skipBuild is enabled', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'rust_net_prepare_distribution_skip_',
