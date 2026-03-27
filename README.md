@@ -184,3 +184,12 @@ Use the local fixture server for HTTP and proxy verification:
 ```bash
 dart run fixture_server/http_fixture_server.dart --port 8080
 ```
+
+This binds to `127.0.0.1` by default.
+
+Use these base URLs depending on the client you run:
+
+- Host-local desktop app: `http://127.0.0.1:8080`
+- Android emulator: `http://10.0.2.2:8080`
+- Android device over `adb reverse`: `http://127.0.0.1:8080` after `adb reverse tcp:8080 tcp:8080`
+- Physical device over LAN: start the fixture server with `--host 0.0.0.0` and use your host LAN IP, for example `http://192.168.1.16:8080`

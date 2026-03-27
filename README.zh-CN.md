@@ -184,3 +184,12 @@ dart run scripts/generate_native_asset_manifest.dart \
 ```bash
 dart run fixture_server/http_fixture_server.dart --port 8080
 ```
+
+默认只绑定到 `127.0.0.1`。
+
+不同运行目标应使用不同 base URL：
+
+- 桌面宿主机本地运行：`http://127.0.0.1:8080`
+- Android 模拟器：`http://10.0.2.2:8080`
+- Android 真机通过 `adb reverse`：先执行 `adb reverse tcp:8080 tcp:8080`，然后使用 `http://127.0.0.1:8080`
+- 真机走局域网：用 `--host 0.0.0.0` 启动 fixture server，并改成你电脑的局域网 IP，例如 `http://192.168.1.16:8080`
