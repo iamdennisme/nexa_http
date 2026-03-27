@@ -11,14 +11,21 @@ use crate::platform::{PlatformFeatures, ProxySettings};
 ///
 /// Semantics: platform/system proxy settings take priority; env vars are fallback.
 /// Bypass lists are appended then deduped.
-pub(crate) fn merge_env_fallback(mut features: PlatformFeatures) -> PlatformFeatures {
+pub(crate) fn merge_env_fallback(features: PlatformFeatures) -> PlatformFeatures {
     let env_proxy = env_proxy_settings();
+    merge_env_fallback_with_settings(features, env_proxy)
+}
 
-    features.proxy.http = features.proxy.http.or(env_proxy.http);
-    features.proxy.https = features.proxy.https.or(env_proxy.https);
-    features.proxy.all = features.proxy.all.or(env_proxy.all);
-    features.proxy.bypass.extend(env_proxy.bypass);
-    dedup_bypass(&mut features.proxy.bypass);
+fn merge_env_fallback_with_settings(
+    mut features: PlatformFeatures,
+    mut env_proxy: ProxySettings,
+) -> PlatformFeatures {
+    features.proxy.http = features.proxy.http.or(env_proxy.http.take());
+    features.proxy.https = features.proxy.https.or(env_proxy.https.take());
+    features.proxy.all = features.proxy.all.or(env_proxy.all.take());
+
+    features.proxy.bypass.append(&mut env_proxy.bypass);
+    canonicalize_bypass_rules(&mut features.proxy.bypass);
     features
 }
 
@@ -46,14 +53,7 @@ impl ProxySnapshot {
     }
 
     fn dedup_no_proxy(&mut self) {
-        let mut set = BTreeSet::<String>::new();
-        for item in &self.no_proxy {
-            let trimmed = item.trim();
-            if !trimmed.is_empty() {
-                set.insert(trimmed.to_ascii_lowercase());
-            }
-        }
-        self.no_proxy = set.into_iter().collect();
+        canonicalize_bypass_rules(&mut self.no_proxy);
     }
 }
 
@@ -247,11 +247,11 @@ fn env_proxy_settings() -> ProxySettings {
             .map(|value| parse_no_proxy_list(&value))
             .unwrap_or_default(),
     };
-    dedup_bypass(&mut settings.bypass);
+    canonicalize_bypass_rules(&mut settings.bypass);
     settings
 }
 
-fn dedup_bypass(bypass: &mut Vec<String>) {
+fn canonicalize_bypass_rules(bypass: &mut Vec<String>) {
     let mut set = BTreeSet::<String>::new();
     for item in bypass.iter() {
         let trimmed = item.trim();
@@ -311,50 +311,9 @@ fn parse_no_proxy_list(value: &str) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::platform::{PlatformFeatures, ProxySettings};
-    use std::sync::{Mutex, OnceLock};
-
-    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-
-    fn lock_env() -> std::sync::MutexGuard<'static, ()> {
-        ENV_LOCK
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-    }
-
-    fn set_env(key: &str, value: &str) -> Option<String> {
-        let prev = env::var(key).ok();
-        // `std::env::set_var` is `unsafe` on recent Rust due to potential UB if other threads
-        // concurrently access the process environment. These tests gate access with `ENV_LOCK`.
-        unsafe {
-            env::set_var(key, value);
-        }
-        prev
-    }
-
-    fn clear_env(key: &str) -> Option<String> {
-        let prev = env::var(key).ok();
-        unsafe {
-            env::remove_var(key);
-        }
-        prev
-    }
-
-    fn restore_env(key: &str, prev: Option<String>) {
-        match prev {
-            Some(value) => unsafe { env::set_var(key, value) },
-            None => unsafe { env::remove_var(key) },
-        }
-    }
 
     #[test]
     fn merge_env_fallback_keeps_system_proxy_priority() {
-        let _guard = lock_env();
-        let prev_http = set_env("HTTP_PROXY", "env-proxy:8080");
-        let prev_https = set_env("HTTPS_PROXY", "env-secure:8443");
-        let prev_all = set_env("ALL_PROXY", "socks5://env-all:1080");
-        let prev_no = set_env("NO_PROXY", "env.example.com");
-
         let features = PlatformFeatures {
             proxy: ProxySettings {
                 http: Some("http://system-proxy:8000".to_string()),
@@ -364,7 +323,14 @@ mod tests {
             },
         };
 
-        let merged = merge_env_fallback(features);
+        let env_proxy = ProxySettings {
+            http: Some("http://env-proxy:8080/".to_string()),
+            https: Some("http://env-secure:8443/".to_string()),
+            all: Some("socks5://env-all:1080".to_string()),
+            bypass: vec!["env.example.com".to_string()],
+        };
+
+        let merged = merge_env_fallback_with_settings(features, env_proxy);
 
         // System settings should win; env is fallback.
         assert_eq!(
@@ -377,24 +343,10 @@ mod tests {
             Some("http://env-secure:8443/")
         );
         assert_eq!(merged.proxy.all.as_deref(), Some("socks5://env-all:1080"));
-
-        restore_env("HTTP_PROXY", prev_http);
-        restore_env("HTTPS_PROXY", prev_https);
-        restore_env("ALL_PROXY", prev_all);
-        restore_env("NO_PROXY", prev_no);
     }
 
     #[test]
     fn merge_env_fallback_appends_and_dedups_bypass_rules() {
-        let _guard = lock_env();
-        let prev_http = clear_env("HTTP_PROXY");
-        let prev_https = clear_env("HTTPS_PROXY");
-        let prev_all = clear_env("ALL_PROXY");
-        let prev_no = set_env(
-            "NO_PROXY",
-            "Example.com, api.example.com , <local> ,10.0.0.0/8",
-        );
-
         let features = PlatformFeatures {
             proxy: ProxySettings {
                 http: None,
@@ -409,7 +361,19 @@ mod tests {
             },
         };
 
-        let merged = merge_env_fallback(features);
+        let env_proxy = ProxySettings {
+            http: None,
+            https: None,
+            all: None,
+            bypass: vec![
+                "Example.com".to_string(),
+                " api.example.com ".to_string(),
+                " <local> ".to_string(),
+                "10.0.0.0/8".to_string(),
+            ],
+        };
+
+        let merged = merge_env_fallback_with_settings(features, env_proxy);
 
         let merged_set: BTreeSet<String> = merged.proxy.bypass.into_iter().collect();
         let expected_set: BTreeSet<String> = [
@@ -424,11 +388,6 @@ mod tests {
         .collect();
 
         assert_eq!(merged_set, expected_set);
-
-        restore_env("HTTP_PROXY", prev_http);
-        restore_env("HTTPS_PROXY", prev_https);
-        restore_env("ALL_PROXY", prev_all);
-        restore_env("NO_PROXY", prev_no);
     }
 
     #[test]
