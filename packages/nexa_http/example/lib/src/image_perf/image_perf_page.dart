@@ -9,6 +9,7 @@ import 'package:flutter/scheduler.dart';
 
 import 'image_cache_transport_registry.dart';
 import 'image_perf_metrics.dart';
+import 'image_perf_result_payload.dart';
 
 final class ImagePerfPage extends StatefulWidget {
   const ImagePerfPage({
@@ -28,10 +29,7 @@ final class ImagePerfPage extends StatefulWidget {
   State<ImagePerfPage> createState() => _ImagePerfPageState();
 }
 
-enum ImagePerfScenario {
-  image,
-  autoScroll,
-}
+enum ImagePerfScenario { image, autoScroll }
 
 class _ImagePerfPageState extends State<ImagePerfPage> {
   static const _firstScreenTarget = 8;
@@ -180,10 +178,7 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
     await _registry.dispose();
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
-    _registry.activate(
-      _mode,
-      onSample: _recordRequestSample,
-    );
+    _registry.activate(_mode, onSample: _recordRequestSample);
 
     _sessionStopwatch
       ..reset()
@@ -280,13 +275,15 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
   }
 
   String _imageUrlForIndex(int index) {
-    return Uri.parse(widget.baseUrl).replace(
-      path: '/image',
-      queryParameters: <String, String>{
-        'id': 'poster-$index',
-        'run': '$_runId',
-      },
-    ).toString();
+    return Uri.parse(widget.baseUrl)
+        .replace(
+          path: '/image',
+          queryParameters: <String, String>{
+            'id': 'poster-$index',
+            'run': '$_runId',
+          },
+        )
+        .toString();
   }
 
   Future<void> _runAutorunScenario(ImagePerfScenario scenario) async {
@@ -319,26 +316,19 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
       samples: _requestSamples,
       frameSamples: _frameSamples,
     );
-    final resultJson = jsonEncode(<String, Object?>{
-      'kind': 'image_perf_result',
-      'scenario': scenario.name,
-      'transport': _mode.name,
-      'base_url': widget.baseUrl,
-      'image_count': widget.imageCount,
-      'first_screen_ms': metrics.firstScreenElapsed?.inMilliseconds,
-      'request_count': metrics.requestCount,
-      'success_count': metrics.successCount,
-      'failure_count': metrics.failureCount,
-      'average_latency_ms': metrics.averageLatency.inMilliseconds,
-      'p95_latency_ms': metrics.p95Latency.inMilliseconds,
-      'total_bytes': metrics.totalBytes,
-      'throughput_mib_s': metrics.throughputMiBPerSecond,
-      'slow_frames': metrics.slowFrameCount,
-      'max_raster_ms': metrics.maxRasterDuration.inMilliseconds,
-      'rss_before_bytes': _rssBeforeBytes,
-      'rss_after_bytes': _rssAfterBytes,
-      'rss_peak_bytes': _rssPeakBytes,
-    });
+    final resultJson = jsonEncode(
+      buildImagePerfResultPayload(
+        scenarioName: scenario.name,
+        transportName: _mode.name,
+        baseUrl: widget.baseUrl,
+        imageCount: widget.imageCount,
+        metrics: metrics,
+        samples: _requestSamples,
+        rssBeforeBytes: _rssBeforeBytes,
+        rssAfterBytes: _rssAfterBytes,
+        rssPeakBytes: _rssPeakBytes,
+      ),
+    );
     stdout.writeln(resultJson);
     debugPrintSynchronously(resultJson);
 
@@ -413,10 +403,7 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          'Transport',
-          style: theme.textTheme.navTitleTextStyle,
-        ),
+        Text('Transport', style: theme.textTheme.navTitleTextStyle),
         const SizedBox(height: 8),
         CupertinoSlidingSegmentedControl<ImageTransportMode>(
           groupValue: _mode,
@@ -518,8 +505,9 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
                     child: Text(
                       'Waiting to start',
                       style: theme.textTheme.textStyle.copyWith(
-                        color:
-                            CupertinoColors.secondaryLabel.resolveFrom(context),
+                        color: CupertinoColors.secondaryLabel.resolveFrom(
+                          context,
+                        ),
                       ),
                     ),
                   ),
@@ -531,10 +519,7 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
 }
 
 final class _PerfCard extends StatelessWidget {
-  const _PerfCard({
-    required this.title,
-    required this.content,
-  });
+  const _PerfCard({required this.title, required this.content});
 
   final String title;
   final String content;
@@ -555,10 +540,7 @@ final class _PerfCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
-              title,
-              style: theme.textTheme.navTitleTextStyle,
-            ),
+            Text(title, style: theme.textTheme.navTitleTextStyle),
             const SizedBox(height: 12),
             Text(
               content,
@@ -628,9 +610,7 @@ class _ImageTileState extends State<_ImageTile> {
                       style: CupertinoTheme.of(context)
                           .textTheme
                           .navTitleTextStyle
-                          .copyWith(
-                            color: CupertinoColors.white,
-                          ),
+                          .copyWith(color: CupertinoColors.white),
                     ),
                   ),
                 );
