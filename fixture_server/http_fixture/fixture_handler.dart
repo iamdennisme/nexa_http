@@ -252,7 +252,8 @@ final class FixtureHandler {
 
   static Future<List<int>> _loadFixtureImageBytes() async {
     final candidates = <String>[
-      'packages/rust_net/example/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+      'packages/nexa_http/example/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+      'packages/nexa_http/example/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
       'example/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
     ];
 
