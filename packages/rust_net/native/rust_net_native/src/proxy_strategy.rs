@@ -1,16 +1,24 @@
-use std::collections::BTreeSet;
-use std::env;
-use std::net::IpAddr;
 use ipnet::IpNet;
 use reqwest::ClientBuilder;
 use reqwest::Url;
+use std::collections::BTreeSet;
+use std::env;
+use std::net::IpAddr;
 
-use crate::platform::PlatformFeatures;
+use crate::platform::{PlatformFeatures, ProxySettings};
 
-/// Temporary scaffold to unblock Task 2 extraction work.
+/// Merge env var-based proxy config into platform-discovered features.
 ///
-/// Task 3 will implement real env merging semantics (env vars as fallback/override).
-pub(crate) fn merge_env_fallback(features: PlatformFeatures) -> PlatformFeatures {
+/// Semantics: platform/system proxy settings take priority; env vars are fallback.
+/// Bypass lists are appended then deduped.
+pub(crate) fn merge_env_fallback(mut features: PlatformFeatures) -> PlatformFeatures {
+    let env_proxy = env_proxy_settings();
+
+    features.proxy.http = features.proxy.http.or(env_proxy.http);
+    features.proxy.https = features.proxy.https.or(env_proxy.https);
+    features.proxy.all = features.proxy.all.or(env_proxy.all);
+    features.proxy.bypass.extend(env_proxy.bypass);
+    dedup_bypass(&mut features.proxy.bypass);
     features
 }
 
@@ -55,23 +63,16 @@ pub(crate) fn current_proxy_snapshot() -> ProxySnapshot {
 
 fn load_current_proxy_snapshot() -> ProxySnapshot {
     let platform = crate::platform::current_platform_features();
-    let mut system = ProxySnapshot {
-        http_proxy: platform.proxy.http,
-        https_proxy: platform.proxy.https,
-        all_proxy: platform.proxy.all,
-        no_proxy: platform.proxy.bypass,
-    };
-    system.dedup_no_proxy();
-    let env_based = env_proxy_snapshot();
+    let features = merge_env_fallback(platform);
 
-    let mut merged = ProxySnapshot {
-        http_proxy: system.http_proxy.or(env_based.http_proxy),
-        https_proxy: system.https_proxy.or(env_based.https_proxy),
-        all_proxy: system.all_proxy.or(env_based.all_proxy),
-        no_proxy: [system.no_proxy, env_based.no_proxy].concat(),
+    let mut snapshot = ProxySnapshot {
+        http_proxy: features.proxy.http,
+        https_proxy: features.proxy.https,
+        all_proxy: features.proxy.all,
+        no_proxy: features.proxy.bypass,
     };
-    merged.dedup_no_proxy();
-    merged
+    snapshot.dedup_no_proxy();
+    snapshot
 }
 
 pub(crate) fn apply_proxy_strategy(
@@ -233,21 +234,32 @@ fn normalize_host_pattern(pattern: String) -> String {
         .to_ascii_lowercase()
 }
 
-fn env_proxy_snapshot() -> ProxySnapshot {
-    let mut snapshot = ProxySnapshot {
-        http_proxy: env_lookup("HTTP_PROXY", "http_proxy")
+fn env_proxy_settings() -> ProxySettings {
+    let mut settings = ProxySettings {
+        http: env_lookup("HTTP_PROXY", "http_proxy")
             .and_then(|value| normalize_proxy_url(&value, "http")),
-        https_proxy: env_lookup("HTTPS_PROXY", "https_proxy")
+        https: env_lookup("HTTPS_PROXY", "https_proxy")
             .and_then(|value| normalize_proxy_url(&value, "http")),
-        all_proxy: env_lookup("ALL_PROXY", "all_proxy")
+        all: env_lookup("ALL_PROXY", "all_proxy")
             .or_else(|| env_lookup("SOCKS_PROXY", "socks_proxy"))
             .and_then(|value| normalize_proxy_url(&value, "http")),
-        no_proxy: env_lookup("NO_PROXY", "no_proxy")
+        bypass: env_lookup("NO_PROXY", "no_proxy")
             .map(|value| parse_no_proxy_list(&value))
             .unwrap_or_default(),
     };
-    snapshot.dedup_no_proxy();
-    snapshot
+    dedup_bypass(&mut settings.bypass);
+    settings
+}
+
+fn dedup_bypass(bypass: &mut Vec<String>) {
+    let mut set = BTreeSet::<String>::new();
+    for item in bypass.iter() {
+        let trimmed = item.trim();
+        if !trimmed.is_empty() {
+            set.insert(trimmed.to_ascii_lowercase());
+        }
+    }
+    *bypass = set.into_iter().collect();
 }
 
 fn env_lookup(primary: &str, secondary: &str) -> Option<String> {
@@ -299,19 +311,124 @@ fn parse_no_proxy_list(value: &str) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::platform::{PlatformFeatures, ProxySettings};
+    use std::sync::{Mutex, OnceLock};
+
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn lock_env() -> std::sync::MutexGuard<'static, ()> {
+        ENV_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    }
+
+    fn set_env(key: &str, value: &str) -> Option<String> {
+        let prev = env::var(key).ok();
+        // `std::env::set_var` is `unsafe` on recent Rust due to potential UB if other threads
+        // concurrently access the process environment. These tests gate access with `ENV_LOCK`.
+        unsafe {
+            env::set_var(key, value);
+        }
+        prev
+    }
+
+    fn clear_env(key: &str) -> Option<String> {
+        let prev = env::var(key).ok();
+        unsafe {
+            env::remove_var(key);
+        }
+        prev
+    }
+
+    fn restore_env(key: &str, prev: Option<String>) {
+        match prev {
+            Some(value) => unsafe { env::set_var(key, value) },
+            None => unsafe { env::remove_var(key) },
+        }
+    }
 
     #[test]
-    fn merge_env_fallback_is_noop_scaffold_for_task_2() {
+    fn merge_env_fallback_keeps_system_proxy_priority() {
+        let _guard = lock_env();
+        let prev_http = set_env("HTTP_PROXY", "env-proxy:8080");
+        let prev_https = set_env("HTTPS_PROXY", "env-secure:8443");
+        let prev_all = set_env("ALL_PROXY", "socks5://env-all:1080");
+        let prev_no = set_env("NO_PROXY", "env.example.com");
+
         let features = PlatformFeatures {
             proxy: ProxySettings {
-                http: Some("http://127.0.0.1:8080".to_string()),
-                https: Some("http://127.0.0.1:8443".to_string()),
-                all: Some("socks5://127.0.0.1:1080".to_string()),
-                bypass: vec!["example.com".to_string()],
+                http: Some("http://system-proxy:8000".to_string()),
+                https: None,
+                all: None,
+                bypass: vec!["system.example.com".to_string()],
             },
         };
 
-        assert_eq!(merge_env_fallback(features.clone()), features);
+        let merged = merge_env_fallback(features);
+
+        // System settings should win; env is fallback.
+        assert_eq!(
+            merged.proxy.http.as_deref(),
+            Some("http://system-proxy:8000")
+        );
+        // Missing system values should be filled from env (normalized).
+        assert_eq!(
+            merged.proxy.https.as_deref(),
+            Some("http://env-secure:8443/")
+        );
+        assert_eq!(merged.proxy.all.as_deref(), Some("socks5://env-all:1080"));
+
+        restore_env("HTTP_PROXY", prev_http);
+        restore_env("HTTPS_PROXY", prev_https);
+        restore_env("ALL_PROXY", prev_all);
+        restore_env("NO_PROXY", prev_no);
+    }
+
+    #[test]
+    fn merge_env_fallback_appends_and_dedups_bypass_rules() {
+        let _guard = lock_env();
+        let prev_http = clear_env("HTTP_PROXY");
+        let prev_https = clear_env("HTTPS_PROXY");
+        let prev_all = clear_env("ALL_PROXY");
+        let prev_no = set_env(
+            "NO_PROXY",
+            "Example.com, api.example.com , <local> ,10.0.0.0/8",
+        );
+
+        let features = PlatformFeatures {
+            proxy: ProxySettings {
+                http: None,
+                https: None,
+                all: None,
+                bypass: vec![
+                    "example.com".to_string(),
+                    "API.EXAMPLE.COM".to_string(),
+                    "172.16.0.0/12".to_string(),
+                    " <local> ".to_string(),
+                ],
+            },
+        };
+
+        let merged = merge_env_fallback(features);
+
+        let merged_set: BTreeSet<String> = merged.proxy.bypass.into_iter().collect();
+        let expected_set: BTreeSet<String> = [
+            "example.com",
+            "api.example.com",
+            "<local>",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect();
+
+        assert_eq!(merged_set, expected_set);
+
+        restore_env("HTTP_PROXY", prev_http);
+        restore_env("HTTPS_PROXY", prev_https);
+        restore_env("ALL_PROXY", prev_all);
+        restore_env("NO_PROXY", prev_no);
     }
 
     #[test]
