@@ -118,6 +118,48 @@ final response = await client.execute(
 await client.close();
 ```
 
+### Local Integration
+
+For local app debugging, there are two recommended modes.
+
+Use the source workspace when you want to iterate on this repository directly:
+
+```yaml
+dependencies:
+  rust_net:
+    path: /absolute/path/to/rust_net/packages/rust_net
+  rust_net_native_macos:
+    path: /absolute/path/to/rust_net/packages/rust_net_native_macos
+```
+
+Before running the consumer app, bootstrap the workspace and build the matching
+carrier artifacts:
+
+```bash
+dart run scripts/workspace_tools.dart bootstrap
+./scripts/build_native_macos.sh debug
+```
+
+Use the materialized distribution workspace when you want something closer to
+what will later be uploaded to pub or shared as local `path` dependencies:
+
+```bash
+dart run scripts/prepare_distribution.dart \
+  --packages=rust_net,rust_net_native_macos
+```
+
+Then point the consumer app to `.dist/materialized_workspace/packages/...`:
+
+```yaml
+dependencies:
+  rust_net:
+    path: /absolute/path/to/rust_net/.dist/materialized_workspace/packages/rust_net
+  rust_net_native_macos:
+    path: /absolute/path/to/rust_net/.dist/materialized_workspace/packages/rust_net_native_macos
+```
+
+Only include the carrier packages for the platforms you actually need to ship.
+
 ### Proxy Behavior
 
 - Proxy selection runs in Rust for every request.

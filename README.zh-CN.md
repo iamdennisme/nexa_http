@@ -102,6 +102,46 @@ final response = await client.execute(
 await client.close();
 ```
 
+### 本地接入
+
+本地调试时，推荐两种接入方式。
+
+如果你要直接联调当前源码仓库，用源码工作区 `path` 依赖：
+
+```yaml
+dependencies:
+  rust_net:
+    path: /absolute/path/to/rust_net/packages/rust_net
+  rust_net_native_macos:
+    path: /absolute/path/to/rust_net/packages/rust_net_native_macos
+```
+
+在运行消费项目之前，先初始化工作区并构建对应平台的 carrier 产物：
+
+```bash
+dart run scripts/workspace_tools.dart bootstrap
+./scripts/build_native_macos.sh debug
+```
+
+如果你希望本地接入形态更接近后续 `pub` 发布或对外分发，使用物化后的分发工作区：
+
+```bash
+dart run scripts/prepare_distribution.dart \
+  --packages=rust_net,rust_net_native_macos
+```
+
+然后在消费项目里指向 `.dist/materialized_workspace/packages/...`：
+
+```yaml
+dependencies:
+  rust_net:
+    path: /absolute/path/to/rust_net/.dist/materialized_workspace/packages/rust_net
+  rust_net_native_macos:
+    path: /absolute/path/to/rust_net/.dist/materialized_workspace/packages/rust_net_native_macos
+```
+
+只需要引入你实际要发布的平台 carrier 包即可。
+
 ### 代理行为
 
 - 代理选择逻辑在 Rust 层按“每次请求”执行。
