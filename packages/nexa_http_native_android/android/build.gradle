@@ -117,7 +117,7 @@ def hasAllPrebuiltAndroidLibraries = {
 android {
     namespace = 'me.iamdennis.nexa_http'
     compileSdk = 35
-    ndkVersion = android.ndkVersion
+    ndkVersion = '29.0.14206865'
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
