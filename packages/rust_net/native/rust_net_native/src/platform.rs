@@ -29,10 +29,28 @@ impl ProxySettings {
     }
 }
 
+#[cfg(target_os = "android")]
+#[path = "platform/android.rs"]
+mod current_os;
+#[cfg(target_os = "ios")]
+#[path = "platform/ios.rs"]
+mod current_os;
+#[cfg(target_os = "macos")]
+#[path = "platform/macos.rs"]
+mod current_os;
+#[cfg(target_os = "windows")]
+#[path = "platform/windows.rs"]
+mod current_os;
 #[cfg(target_os = "linux")]
 #[path = "platform/linux.rs"]
 mod current_os;
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "ios",
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "linux",
+)))]
 mod current_os {
     use super::PlatformFeatures;
 

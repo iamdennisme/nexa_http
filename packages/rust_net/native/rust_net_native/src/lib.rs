@@ -166,8 +166,10 @@ pub extern "C" fn rust_net_client_create(config_json: *const c_char) -> u64 {
         Ok(config) => config,
         Err(_) => return 0,
     };
+
     let platform_features = platform::current_platform_features();
     let platform_features = proxy_strategy::merge_env_fallback(platform_features);
+
     let proxy_snapshot = proxy_strategy::current_proxy_snapshot();
     let client = match build_client(&config, &proxy_snapshot) {
         Ok(client) => client,
