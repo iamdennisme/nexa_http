@@ -89,15 +89,34 @@ final class RustNetNativeLibraryResolver {
   }
 
   static String? _discoverFromAppBundle() {
-    if (Platform.isIOS) {
+    return _discoverFromAppBundleFor(
+      operatingSystem: Platform.operatingSystem,
+      executableDirectory: p.dirname(Platform.resolvedExecutable),
+    );
+  }
+
+  static String? discoverFromAppBundleForTest({
+    required String operatingSystem,
+    required String executableDirectory,
+  }) {
+    return _discoverFromAppBundleFor(
+      operatingSystem: operatingSystem,
+      executableDirectory: executableDirectory,
+    );
+  }
+
+  static String? _discoverFromAppBundleFor({
+    required String operatingSystem,
+    required String executableDirectory,
+  }) {
+    if (operatingSystem == 'ios') {
       return 'rust_net_native.framework/rust_net_native';
     }
 
-    if (!Platform.isMacOS) {
+    if (operatingSystem != 'macos') {
       return null;
     }
 
-    final executableDirectory = p.dirname(Platform.resolvedExecutable);
     final candidates = <String>[
       p.join(
         executableDirectory,
@@ -138,6 +157,54 @@ final class RustNetNativeLibraryResolver {
         'Resources',
         _resourceBundleName,
         _libraryFileName,
+      ),
+      p.join(
+        executableDirectory,
+        '..',
+        'Frameworks',
+        'rust_net_native.framework',
+        'rust_net_native',
+      ),
+      p.join(
+        executableDirectory,
+        '..',
+        'Frameworks',
+        'rust_net_native.framework',
+        'Versions',
+        'A',
+        'rust_net_native',
+      ),
+      p.join(
+        executableDirectory,
+        '..',
+        'Frameworks',
+        'rust_net-native-macos-arm64.framework',
+        'rust_net-native-macos-arm64',
+      ),
+      p.join(
+        executableDirectory,
+        '..',
+        'Frameworks',
+        'rust_net-native-macos-arm64.framework',
+        'Versions',
+        'A',
+        'rust_net-native-macos-arm64',
+      ),
+      p.join(
+        executableDirectory,
+        '..',
+        'Frameworks',
+        'rust_net-native-macos-x64.framework',
+        'rust_net-native-macos-x64',
+      ),
+      p.join(
+        executableDirectory,
+        '..',
+        'Frameworks',
+        'rust_net-native-macos-x64.framework',
+        'Versions',
+        'A',
+        'rust_net-native-macos-x64',
       ),
       p.join(
         executableDirectory,
