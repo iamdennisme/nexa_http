@@ -14,33 +14,6 @@ pub(crate) fn merge_env_fallback(features: PlatformFeatures) -> PlatformFeatures
     features
 }
 
-// Test-only module wiring so we can compile and run unit tests for platform parsing
-// helpers on any host OS without changing `src/platform.rs` cfg dispatch.
-#[cfg(test)]
-mod platform {
-    pub(crate) mod android {
-        include!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/src/platform/android.rs"
-        ));
-    }
-
-    pub(crate) mod ios {
-        include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/platform/ios.rs"));
-    }
-
-    pub(crate) mod macos {
-        include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/platform/macos.rs"));
-    }
-
-    pub(crate) mod windows {
-        include!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/src/platform/windows.rs"
-        ));
-    }
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct ProxySnapshot {
     http_proxy: Option<String>,
