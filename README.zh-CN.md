@@ -41,6 +41,33 @@ dependencies:
   nexa_http_native_ios: ^2.0.0
 ```
 
+也可以直接通过 Git SSH 依赖这个仓库：
+
+```yaml
+dependencies:
+  nexa_http:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: main
+      path: packages/nexa_http
+  nexa_http_native_android:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: main
+      path: packages/nexa_http_native_android
+  nexa_http_native_ios:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: main
+      path: packages/nexa_http_native_ios
+```
+
+说明：
+
+- 所有包都应固定到同一个 `ref`
+- 只添加你实际会打包的平台 carrier package
+- 桌面端同理，使用同仓库里的对应 `nexa_http_native_<platform>` 包
+
 直接使用客户端：
 
 ```dart

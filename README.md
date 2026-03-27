@@ -41,6 +41,33 @@ dependencies:
   nexa_http_native_ios: ^2.0.0
 ```
 
+Or depend on this repository directly over Git SSH:
+
+```yaml
+dependencies:
+  nexa_http:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: main
+      path: packages/nexa_http
+  nexa_http_native_android:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: main
+      path: packages/nexa_http_native_android
+  nexa_http_native_ios:
+    git:
+      url: git@github.com:iamdennisme/rust_net.git
+      ref: main
+      path: packages/nexa_http_native_ios
+```
+
+Notes:
+
+- Pin every package to the same `ref`.
+- Add only the carrier packages you actually ship.
+- For desktop targets, use the corresponding `nexa_http_native_<platform>` package from the same repo in the same way.
+
 Use the Dart API directly:
 
 ```dart
