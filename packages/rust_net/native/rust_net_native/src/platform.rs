@@ -23,12 +23,6 @@ impl PlatformFeatures {
     }
 }
 
-impl ProxySettings {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.http.is_none() && self.https.is_none() && self.all.is_none()
-    }
-}
-
 #[cfg(target_os = "android")]
 #[path = "platform/android.rs"]
 mod current_os;

@@ -38,16 +38,6 @@ pub(crate) struct ProxySnapshot {
 }
 
 impl ProxySnapshot {
-    pub(crate) fn signature(&self) -> String {
-        format!(
-            "http={}|https={}|all={}|no={}",
-            self.http_proxy.as_deref().unwrap_or(""),
-            self.https_proxy.as_deref().unwrap_or(""),
-            self.all_proxy.as_deref().unwrap_or(""),
-            self.no_proxy.join(","),
-        )
-    }
-
     fn has_any_proxy(&self) -> bool {
         self.http_proxy.is_some() || self.https_proxy.is_some() || self.all_proxy.is_some()
     }
@@ -55,16 +45,6 @@ impl ProxySnapshot {
     fn dedup_no_proxy(&mut self) {
         canonicalize_bypass_rules(&mut self.no_proxy);
     }
-}
-
-pub(crate) fn current_proxy_snapshot() -> ProxySnapshot {
-    load_current_proxy_snapshot()
-}
-
-fn load_current_proxy_snapshot() -> ProxySnapshot {
-    let platform = crate::platform::current_platform_features();
-    let features = merge_env_fallback(platform);
-    snapshot_from_proxy_settings(&features.proxy)
 }
 
 pub(crate) fn apply_proxy_strategy(

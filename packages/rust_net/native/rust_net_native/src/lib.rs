@@ -710,7 +710,8 @@ mod tests {
 
         let config = NativeHttpClientConfig::default();
         let initial_platform_features = platform::current_platform_features();
-        let initial_platform_features = proxy_strategy::merge_env_fallback(initial_platform_features);
+        let initial_platform_features =
+            proxy_strategy::merge_env_fallback(initial_platform_features);
         let client = build_client(&config, &initial_platform_features).unwrap();
         let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::Relaxed);
 
