@@ -24,15 +24,13 @@ dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http
-    version: ^1.0.0
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http_native_macos
-    version: ^1.0.0
 ```
 
 ```dart

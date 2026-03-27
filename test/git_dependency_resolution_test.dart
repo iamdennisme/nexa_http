@@ -91,15 +91,13 @@ dependencies:
   nexa_http:
     git:
       url: file://${repoDir.path}
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http
-    version: ^1.0.0
   nexa_http_native_android:
     git:
       url: file://${repoDir.path}
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http_native_android
-    version: ^1.0.0
 ''',
     );
 

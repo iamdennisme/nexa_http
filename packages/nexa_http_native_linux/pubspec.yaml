@@ -14,9 +14,8 @@ dependencies:
   nexa_http:
     git:
       url: https://github.com/iamdennisme/rust_net.git
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http
-    version: ^1.0.0
   path: ^1.9.0
 
 dev_dependencies:

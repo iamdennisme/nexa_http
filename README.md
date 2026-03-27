@@ -39,30 +39,25 @@ dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http
-    version: ^1.0.0
   nexa_http_native_android:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http_native_android
-    version: ^1.0.0
   nexa_http_native_ios:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http_native_ios
-    version: ^1.0.0
 ```
 
-If you need a moving branch or a one-off commit during active development, you
-can still switch back to `ref:` manually. For released versions, prefer
-`tag_pattern`.
+For a different fixed release, change `ref:` consistently across every package.
 
 Notes:
 
-- Pin every package to the same version range.
+- Pin every package to the same `ref`.
 - Add only the carrier packages you actually ship.
 - For desktop targets, use the corresponding `nexa_http_native_<platform>` package from the same repo in the same way.
 

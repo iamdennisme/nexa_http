@@ -39,29 +39,25 @@ dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http
-    version: ^1.0.0
   nexa_http_native_android:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http_native_android
-    version: ^1.0.0
   nexa_http_native_ios:
     git:
       url: git@github.com:iamdennisme/rust_net.git
-      tag_pattern: 'v{{version}}'
+      ref: v1.0.0
       path: packages/nexa_http_native_ios
-    version: ^1.0.0
 ```
 
-如果你在活跃开发阶段需要固定某个分支或 commit，仍然可以手动改回
-`ref:`；但正式按发布版本消费时，推荐使用 `tag_pattern`。
+如果你要切到别的固定发布版本，把所有包的 `ref:` 一起改掉。
 
 说明：
 
-- 所有包都应固定到同一个版本范围
+- 所有包都应固定到同一个 `ref`
 - 只添加你实际会打包的平台 carrier package
 - 桌面端同理，使用同仓库里的对应 `nexa_http_native_<platform>` 包
 
