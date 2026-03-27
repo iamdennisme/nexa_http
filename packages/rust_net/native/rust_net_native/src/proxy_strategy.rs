@@ -64,34 +64,38 @@ pub(crate) fn current_proxy_snapshot() -> ProxySnapshot {
 fn load_current_proxy_snapshot() -> ProxySnapshot {
     let platform = crate::platform::current_platform_features();
     let features = merge_env_fallback(platform);
-
-    let mut snapshot = ProxySnapshot {
-        http_proxy: features.proxy.http,
-        https_proxy: features.proxy.https,
-        all_proxy: features.proxy.all,
-        no_proxy: features.proxy.bypass,
-    };
-    snapshot.dedup_no_proxy();
-    snapshot
+    snapshot_from_proxy_settings(&features.proxy)
 }
 
 pub(crate) fn apply_proxy_strategy(
     builder: ClientBuilder,
-    snapshot: &ProxySnapshot,
+    platform_features: &PlatformFeatures,
 ) -> Result<ClientBuilder, String> {
     let builder = builder.no_proxy();
 
+    let snapshot = snapshot_from_proxy_settings(&platform_features.proxy);
     if !snapshot.has_any_proxy() {
         return Ok(builder);
     }
 
-    validate_proxy_snapshot(snapshot)?;
+    validate_proxy_snapshot(&snapshot)?;
 
     let snapshot = snapshot.clone();
     let proxy = reqwest::Proxy::custom(move |url| {
         select_proxy_for_url(&snapshot, url).map(ToString::to_string)
     });
     Ok(builder.proxy(proxy))
+}
+
+fn snapshot_from_proxy_settings(settings: &ProxySettings) -> ProxySnapshot {
+    let mut snapshot = ProxySnapshot {
+        http_proxy: settings.http.clone(),
+        https_proxy: settings.https.clone(),
+        all_proxy: settings.all.clone(),
+        no_proxy: settings.bypass.clone(),
+    };
+    snapshot.dedup_no_proxy();
+    snapshot
 }
 
 fn validate_proxy_snapshot(snapshot: &ProxySnapshot) -> Result<(), String> {

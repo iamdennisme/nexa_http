@@ -29,7 +29,7 @@ static REQUEST_LIMITER: Lazy<Arc<Semaphore>> =
 struct ClientEntry {
     client: Client,
     config: NativeHttpClientConfig,
-    proxy_signature: String,
+    platform_features_signature: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -170,20 +170,16 @@ pub extern "C" fn rust_net_client_create(config_json: *const c_char) -> u64 {
     let platform_features = platform::current_platform_features();
     let platform_features = proxy_strategy::merge_env_fallback(platform_features);
 
-    let (client, proxy_snapshot) = {
-        let snapshot = proxy_strategy::current_proxy_snapshot();
-        let client = match build_client(&config, &snapshot) {
-            Ok(client) => client,
-            Err(_) => return 0,
-        };
-        (client, snapshot)
+    let client = match build_client(&config, &platform_features) {
+        Ok(client) => client,
+        Err(_) => return 0,
     };
 
     let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::Relaxed);
     let entry = ClientEntry {
         client,
         config,
-        proxy_signature: proxy_snapshot.signature(),
+        platform_features_signature: platform_features.signature(),
     };
     CLIENTS.lock().unwrap().insert(client_id, entry);
     client_id
@@ -323,7 +319,7 @@ fn read_request(
 
 fn build_client(
     config: &NativeHttpClientConfig,
-    proxy_snapshot: &proxy_strategy::ProxySnapshot,
+    platform_features: &platform::PlatformFeatures,
 ) -> Result<Client, NativeError> {
     let mut builder = ClientBuilder::new();
 
@@ -341,7 +337,7 @@ fn build_client(
         builder =
             builder.default_headers(build_headers(&config.default_headers, "invalid_config")?);
     }
-    builder = proxy_strategy::apply_proxy_strategy(builder, proxy_snapshot)
+    builder = proxy_strategy::apply_proxy_strategy(builder, platform_features)
         .map_err(|error| NativeError::new("invalid_proxy", error))?;
 
     builder
@@ -371,12 +367,13 @@ async fn execute_request(
         let entry = clients
             .get_mut(&client_id)
             .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
-        let proxy_snapshot = proxy_strategy::current_proxy_snapshot();
-        let signature = proxy_snapshot.signature();
-        if signature != entry.proxy_signature {
-            entry.client = build_client(&entry.config, &proxy_snapshot)
+        let platform_features = platform::current_platform_features();
+        let platform_features = proxy_strategy::merge_env_fallback(platform_features);
+        let signature = platform_features.signature();
+        if signature != entry.platform_features_signature {
+            entry.client = build_client(&entry.config, &platform_features)
                 .map_err(|error| error.with_uri(request.url.clone()))?;
-            entry.proxy_signature = signature;
+            entry.platform_features_signature = signature;
         }
         entry.client.clone()
     };
@@ -570,6 +567,11 @@ mod tests {
 
     static PROXY_ENV_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
+    fn merged_platform_features() -> platform::PlatformFeatures {
+        let platform_features = platform::current_platform_features();
+        proxy_strategy::merge_env_fallback(platform_features)
+    }
+
     #[test]
     fn executes_http_requests_and_collects_response_data() {
         let server = MockServer::start();
@@ -580,8 +582,8 @@ mod tests {
                 .body("world");
         });
 
-        let snapshot = proxy_strategy::current_proxy_snapshot();
-        let client = build_client(&NativeHttpClientConfig::default(), &snapshot).unwrap();
+        let platform_features = merged_platform_features();
+        let client = build_client(&NativeHttpClientConfig::default(), &platform_features).unwrap();
         let response = execute_request_with_client(
             &client,
             NativeHttpRequest {
@@ -640,8 +642,8 @@ mod tests {
                 .body("slow");
         });
 
-        let snapshot = proxy_strategy::current_proxy_snapshot();
-        let client = build_client(&NativeHttpClientConfig::default(), &snapshot).unwrap();
+        let platform_features = merged_platform_features();
+        let client = build_client(&NativeHttpClientConfig::default(), &platform_features).unwrap();
         let error = execute_request_with_client(
             &client,
             NativeHttpRequest {
@@ -678,8 +680,8 @@ mod tests {
 
     #[test]
     fn rejects_invalid_http_methods() {
-        let snapshot = proxy_strategy::current_proxy_snapshot();
-        let client = build_client(&NativeHttpClientConfig::default(), &snapshot).unwrap();
+        let platform_features = merged_platform_features();
+        let client = build_client(&NativeHttpClientConfig::default(), &platform_features).unwrap();
         let error = execute_request_with_client(
             &client,
             NativeHttpRequest {
@@ -696,7 +698,7 @@ mod tests {
     }
 
     #[test]
-    fn rebuilds_client_when_proxy_snapshot_changes() {
+    fn rebuilds_client_when_platform_features_change() {
         let _guard = PROXY_ENV_MUTEX.lock().unwrap();
         clear_proxy_env();
 
@@ -707,8 +709,9 @@ mod tests {
         });
 
         let config = NativeHttpClientConfig::default();
-        let initial_snapshot = proxy_strategy::current_proxy_snapshot();
-        let client = build_client(&config, &initial_snapshot).unwrap();
+        let initial_platform_features = platform::current_platform_features();
+        let initial_platform_features = proxy_strategy::merge_env_fallback(initial_platform_features);
+        let client = build_client(&config, &initial_platform_features).unwrap();
         let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::Relaxed);
 
         CLIENTS.lock().unwrap().insert(
@@ -716,14 +719,16 @@ mod tests {
             ClientEntry {
                 client,
                 config: config.clone(),
-                proxy_signature: initial_snapshot.signature(),
+                platform_features_signature: initial_platform_features.signature(),
             },
         );
 
         unsafe {
             env::set_var("NO_PROXY", "example-test.invalid");
         }
-        let expected_signature = proxy_strategy::current_proxy_snapshot().signature();
+        let platform_features = platform::current_platform_features();
+        let platform_features = proxy_strategy::merge_env_fallback(platform_features);
+        let expected_signature = platform_features.signature();
 
         let response = RUNTIME
             .block_on(execute_request(
@@ -742,7 +747,7 @@ mod tests {
             .lock()
             .unwrap()
             .get(&client_id)
-            .map(|entry| entry.proxy_signature.clone());
+            .map(|entry| entry.platform_features_signature.clone());
         CLIENTS.lock().unwrap().remove(&client_id);
         clear_proxy_env();
 
@@ -752,7 +757,7 @@ mod tests {
             actual_signature.as_deref(),
             Some(expected_signature.as_str())
         );
-        assert_ne!(initial_snapshot.signature(), expected_signature);
+        assert_ne!(initial_platform_features.signature(), expected_signature);
     }
 
     fn execute_request_with_client(
