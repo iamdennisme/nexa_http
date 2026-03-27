@@ -46,14 +46,10 @@ fn proxy_settings_from_proxy_server(server: &str, bypass: Option<&str>) -> Proxy
             match scheme_lower.as_str() {
                 "http" => settings.http = normalize_proxy_url(address, "http"),
                 "https" => settings.https = normalize_proxy_url(address, "http"),
-                // Windows often uses `socks=` even though the underlying scheme is socks5.
                 "socks" | "socks4" | "socks4a" | "socks5" | "socks5h" => {
-                    let default_scheme = if scheme_lower == "socks" {
-                        "socks5"
-                    } else {
-                        scheme_lower.as_str()
-                    };
-                    settings.all = normalize_proxy_url(address, default_scheme);
+                    // Behavior-preserving: `socks=` is not a supported URL scheme for reqwest,
+                    // so it should not be rewritten into `socks5=`.
+                    settings.all = normalize_proxy_url(address, scheme_lower.as_str());
                 }
                 _ => {}
             }
@@ -145,7 +141,7 @@ mod tests {
 
         assert_eq!(settings.http.as_deref(), Some("http://127.0.0.1:8080/"));
         assert_eq!(settings.https.as_deref(), Some("http://127.0.0.1:8443/"));
-        assert_eq!(settings.all.as_deref(), Some("socks5://127.0.0.1:1080"));
+        assert_eq!(settings.all.as_deref(), None);
         assert!(settings.bypass.contains(&"localhost".to_string()));
         assert!(settings.bypass.contains(&"127.0.0.1".to_string()));
         assert!(settings.bypass.contains(&"*.example.com".to_string()));
