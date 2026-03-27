@@ -216,24 +216,24 @@ bool _shouldSkip(String relativePath) {
 }
 
 final _requiredArtifacts = <String, List<String>>{
-  'rust_net_native_android': <String>[
-    'android/src/main/jniLibs/arm64-v8a/librust_net_native.so',
-    'android/src/main/jniLibs/armeabi-v7a/librust_net_native.so',
-    'android/src/main/jniLibs/x86_64/librust_net_native.so',
+  'nexa_http_native_android': <String>[
+    'android/src/main/jniLibs/arm64-v8a/libnexa_http_native.so',
+    'android/src/main/jniLibs/armeabi-v7a/libnexa_http_native.so',
+    'android/src/main/jniLibs/x86_64/libnexa_http_native.so',
   ],
-  'rust_net_native_ios': <String>[
-    'ios/Frameworks/librust_net_native-ios-arm64.dylib',
-    'ios/Frameworks/librust_net_native-ios-sim-arm64.dylib',
-    'ios/Frameworks/librust_net_native-ios-sim-x64.dylib',
+  'nexa_http_native_ios': <String>[
+    'ios/Frameworks/libnexa_http_native-ios-arm64.dylib',
+    'ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib',
+    'ios/Frameworks/libnexa_http_native-ios-sim-x64.dylib',
   ],
-  'rust_net_native_linux': <String>[
-    'linux/Libraries/librust_net_native.so',
+  'nexa_http_native_linux': <String>[
+    'linux/Libraries/libnexa_http_native.so',
   ],
-  'rust_net_native_macos': <String>[
-    'macos/Libraries/librust_net_native.dylib',
+  'nexa_http_native_macos': <String>[
+    'macos/Libraries/libnexa_http_native.dylib',
   ],
-  'rust_net_native_windows': <String>[
-    'windows/Libraries/rust_net_native.dll',
+  'nexa_http_native_windows': <String>[
+    'windows/Libraries/nexa_http_native.dll',
   ],
 };
 

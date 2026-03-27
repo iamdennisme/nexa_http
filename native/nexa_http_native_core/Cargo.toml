@@ -1,0 +1,18 @@
+[package]
+name = "nexa_http_native_core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+ipnet = "2.11.0"
+reqwest = { version = "0.12.12", default-features = false, features = ["brotli", "deflate", "gzip", "http2", "rustls-tls", "socks", "system-proxy"] }
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.138"
+tokio = { version = "1.45.0", features = ["rt-multi-thread", "sync"] }
+
+[dev-dependencies]
+httpmock = "0.7.0"

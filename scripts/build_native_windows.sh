@@ -5,6 +5,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/build_native_common.
 
 PROFILE="$(normalize_profile "${1:-release}")"
 TARGET='x86_64-pc-windows-gnu'
+PACKAGE_ROOT="${REPO_ROOT}/packages/nexa_http_native_windows"
+RUST_CRATE_DIR="${PACKAGE_ROOT}/native/nexa_http_native_windows_ffi"
+CARGO_MANIFEST_PATH="${RUST_CRATE_DIR}/Cargo.toml"
 
 require_command cargo
 require_command rustup
@@ -32,11 +35,11 @@ fi
 log "Building Windows native library (${TARGET}, ${PROFILE})"
 "${build_tool[@]}" "${build_args[@]}"
 
-source_file="${RUST_CRATE_DIR}/target/${TARGET}/${PROFILE}/rust_net_native.dll"
+source_file="${WORKSPACE_CARGO_TARGET_DIR}/${TARGET}/${PROFILE}/nexa_http_native_windows_ffi.dll"
 [[ -f "${source_file}" ]] || die "Expected output not found: ${source_file}"
 
-destination_dir="${WORKSPACE_ROOT}/packages/rust_net_native_windows/windows/Libraries"
+destination_dir="${WORKSPACE_ROOT}/packages/nexa_http_native_windows/windows/Libraries"
 mkdir -p "${destination_dir}"
-cp "${source_file}" "${destination_dir}/rust_net_native.dll"
+cp "${source_file}" "${destination_dir}/nexa_http_native.dll"
 
-log "Prepared ${destination_dir}/rust_net_native.dll"
+log "Prepared ${destination_dir}/nexa_http_native.dll"

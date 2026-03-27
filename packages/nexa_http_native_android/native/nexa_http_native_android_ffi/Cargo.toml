@@ -1,0 +1,14 @@
+[package]
+name = "nexa_http_native_android_ffi"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "nexa_http_native_android_ffi"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+nexa_http_native_core = { path = "../../../../native/nexa_http_native_core" }
+once_cell = "1.21.3"
+reqwest = { version = "0.12.12", default-features = false, features = ["brotli", "deflate", "gzip", "http2", "rustls-tls", "socks", "system-proxy"] }

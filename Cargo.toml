@@ -1,0 +1,10 @@
+[workspace]
+members = [
+  "native/nexa_http_native_core",
+  "packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi",
+  "packages/nexa_http_native_linux/native/nexa_http_native_linux_ffi",
+  "packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi",
+  "packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi",
+  "packages/nexa_http_native_android/native/nexa_http_native_android_ffi",
+]
+resolver = "2"

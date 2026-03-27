@@ -1,216 +1,186 @@
-# rust_net workspace
+# nexa_http workspace
 
-[中文文档](./README.zh-CN.md)
+[中文](./README.zh-CN.md)
 
+`nexa_http` is a Flutter HTTP SDK workspace built around:
 
-### Project Overview
+- a pure Dart public package
+- a shared Rust native core
+- one Flutter plus Rust platform package per target platform
 
-`rust_net` is a Flutter HTTP SDK workspace that keeps business-facing APIs in
-Dart while delegating transport execution to a Rust `reqwest` core.
+The public Dart API stays in Dart. Transport execution stays in Rust.
 
-This repository is designed for:
+## Workspace layout
 
-- Dart API and Flutter transport facade (`rust_net`)
-- platform carrier packages for native delivery
-- native Rust transport runtime and multi-platform packaging
-- local fixture/proxy tools for integration testing
+- `packages/nexa_http`: public Dart API, FFI bindings, Dio adapter
+- `packages/nexa_http_native_android|ios|macos|linux|windows`: platform carrier packages, build hooks, and platform Rust runtimes
+- `native/nexa_http_native_core`: shared Rust core runtime and ABI contract
+- `fixture_server/`: local HTTP fixture server and proxy smoke tooling
+- `scripts/`: native build, distribution, and workspace helper scripts
 
-### Repository Contents
+## Architecture
 
-- `packages/rust_net`: Flutter package, FFI bridge, and Dio adapter
-- `packages/rust_net_native_android|ios|macos|windows|linux`: carrier packages for platform artifacts and build hooks
-- `packages/rust_net/native/rust_net_native`: Rust `cdylib` based on `reqwest`
-- `fixture_server/`: local HTTP fixture server and proxy smoke-test tooling
-- `scripts/`: multi-platform native build scripts
+- `nexa_http` is pure Dart. It no longer builds, downloads, or discovers native artifacts by itself.
+- `nexa_http_native_core` is a pure Rust core crate. It owns runtime logic, proxy policy, DTOs, and the shared C ABI.
+- Each `nexa_http_native_<platform>` package owns:
+  - Flutter registration for that platform
+  - the platform build hook
+  - the platform Rust crate
+  - delivery of the final packaged native binary
 
-### Package Details
+Consuming apps explicitly choose the platform packages they ship.
 
-- `packages/rust_net`: the only public Dart API package, including requests, responses, exceptions, FFI bridge, and `Dio` integration.
-- `packages/rust_net_native_*`: thin Flutter/pub carrier packages for platform-specific native artifacts.
+## Consume from another app
 
-### Local development
-
-```bash
-dart pub get
-dart run scripts/workspace_tools.dart bootstrap
-dart run scripts/workspace_tools.dart analyze
-dart run scripts/workspace_tools.dart test
-```
-
-### Build Native Libraries
-
-When Rust native code changes, rebuild the platform artifacts into the carrier
-package directories. These outputs are build products and should not be
-committed:
-
-```bash
-./scripts/build_native_all.sh release
-```
-
-You can also build one platform at a time:
-
-```bash
-./scripts/build_native_macos.sh
-./scripts/build_native_android.sh
-./scripts/build_native_linux.sh
-./scripts/build_native_ios.sh
-./scripts/build_native_windows.sh
-```
-
-To build the selected carrier artifacts and then materialize a separate
-publish/debug workspace:
-
-```bash
-dart run scripts/prepare_distribution.dart \
-  --packages=rust_net,rust_net_native_android,rust_net_native_macos
-```
-
-If the artifacts already exist locally, you can materialize only:
-
-```bash
-dart run scripts/materialize_distribution.dart \
-  --packages=rust_net,rust_net_native_android,rust_net_native_macos
-```
-
-Android notes:
-
-- The Android carrier package materializes `jniLibs` during the build workflow.
-- It falls back to source build only when any ABI library is missing, or when `RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true` is set.
-- Source fallback requires Rust toolchain + Android NDK on the build machine.
-
-### Use In Flutter
-
-`pubspec.yaml`:
+Typical dependency setup:
 
 ```yaml
 dependencies:
-  dio: ^5.9.0
-  rust_net: ^2.0.0
-  rust_net_native_android: ^2.0.0 # choose the carrier packages you ship
+  nexa_http: ^2.0.0
+  nexa_http_native_android: ^2.0.0
+  nexa_http_native_ios: ^2.0.0
 ```
 
-Use as a Dio adapter:
+Use the Dart API directly:
+
+```dart
+import 'package:nexa_http/nexa_http.dart';
+
+final client = NexaHttpClient(
+  config: NexaHttpClientConfig(
+    baseUrl: Uri.parse('https://api.example.com/'),
+    timeout: const Duration(seconds: 10),
+  ),
+);
+
+final response = await client.execute(
+  NexaHttpRequest.get(uri: Uri(path: '/healthz')),
+);
+
+await client.close();
+```
+
+Or swap Dio’s transport:
 
 ```dart
 import 'package:dio/dio.dart';
-import 'package:rust_net/rust_net_dio.dart';
+import 'package:nexa_http/nexa_http_dio.dart';
 
 final dio = Dio()
-  ..httpClientAdapter = RustNetDioAdapter.client(
-    config: RustNetClientConfig(
+  ..httpClientAdapter = NexaHttpDioAdapter.client(
+    config: NexaHttpClientConfig(
       baseUrl: Uri.parse('https://api.example.com/'),
       timeout: const Duration(seconds: 10),
     ),
   );
 ```
 
-Use the core client directly:
+## Native delivery modes
 
-```dart
-import 'package:rust_net/rust_net.dart';
+The intended priority is:
 
-final client = RustNetClient(
-  config: RustNetClientConfig(baseUrl: Uri.parse('https://api.example.com/')),
-);
-final response = await client.execute(
-  RustNetRequest.get(uri: Uri(path: '/healthz')),
-);
-await client.close();
-```
+1. Published packages plus prebuilt native artifacts
+2. Git dependencies plus prebuilt native artifacts
+3. Local workspace development with path dependencies
+4. Local native override for debugging
 
-### Local Integration
+Platform hooks currently support these overrides:
 
-For local app debugging, there are two recommended modes.
+- `NEXA_HTTP_NATIVE_<PLATFORM>_LIB_PATH`
+- `NEXA_HTTP_NATIVE_<PLATFORM>_SOURCE_DIR`
+- `NEXA_HTTP_NATIVE_MANIFEST_PATH`
+- `NEXA_HTTP_NATIVE_RELEASE_BASE_URL`
 
-Use the source workspace when you want to iterate on this repository directly:
+Notes:
 
-```yaml
-dependencies:
-  rust_net:
-    path: /absolute/path/to/rust_net/packages/rust_net
-  rust_net_native_macos:
-    path: /absolute/path/to/rust_net/packages/rust_net_native_macos
-```
+- `LIB_PATH` points directly at a concrete native binary.
+- `SOURCE_DIR` points at the platform Rust crate root and expects built outputs to already exist under its `target/` tree or the repo-root `target/` tree.
+- `MANIFEST_PATH` and `RELEASE_BASE_URL` drive manifest-based artifact download.
 
-Before running the consumer app, bootstrap the workspace and build the matching
-carrier artifacts:
+## Local development
+
+Bootstrap the Dart and Flutter packages:
 
 ```bash
+dart pub get
 dart run scripts/workspace_tools.dart bootstrap
-./scripts/build_native_macos.sh debug
 ```
 
-Use the materialized distribution workspace when you want something closer to
-what will later be uploaded to pub or shared as local `path` dependencies:
+Run root Dart tests:
+
+```bash
+fvm dart test test
+```
+
+Run package tests:
+
+```bash
+cd packages/nexa_http && fvm dart test
+cd packages/nexa_http/example && fvm flutter test
+cd packages/nexa_http/example/nexa_http_dio_consumer && fvm flutter test
+```
+
+Run the Rust workspace tests:
+
+```bash
+cargo test --workspace
+```
+
+## Build native artifacts locally
+
+Build all supported platform artifacts:
+
+```bash
+./scripts/build_native_all.sh debug
+```
+
+Or build one platform:
+
+```bash
+./scripts/build_native_macos.sh debug
+./scripts/build_native_linux.sh debug
+./scripts/build_native_windows.sh debug
+./scripts/build_native_ios.sh debug
+./scripts/build_native_android.sh debug
+```
+
+Artifacts are staged into the platform packages:
+
+- Android: `packages/nexa_http_native_android/android/src/main/jniLibs/*/libnexa_http_native.so`
+- iOS: `packages/nexa_http_native_ios/ios/Frameworks/*.dylib`
+- Linux: `packages/nexa_http_native_linux/linux/Libraries/libnexa_http_native.so`
+- macOS: `packages/nexa_http_native_macos/macos/Libraries/libnexa_http_native.dylib`
+- Windows: `packages/nexa_http_native_windows/windows/Libraries/nexa_http_native.dll`
+
+These binaries are build outputs and should not be committed.
+
+## Distribution helpers
+
+Prepare a publish-like local workspace:
 
 ```bash
 dart run scripts/prepare_distribution.dart \
-  --packages=rust_net,rust_net_native_macos
+  --packages=nexa_http,nexa_http_native_macos
 ```
 
-Then point the consumer app to `.dist/materialized_workspace/packages/...`:
-
-```yaml
-dependencies:
-  rust_net:
-    path: /absolute/path/to/rust_net/.dist/materialized_workspace/packages/rust_net
-  rust_net_native_macos:
-    path: /absolute/path/to/rust_net/.dist/materialized_workspace/packages/rust_net_native_macos
-```
-
-Only include the carrier packages for the platforms you actually need to ship.
-
-### Proxy Behavior
-
-- Proxy selection runs in Rust for every request.
-- If the proxy snapshot changes, `rust_net` rebuilds the underlying `reqwest::Client`.
-- If no proxy is detected, requests go direct.
-- Priority is: platform system proxy first, then env fallback.
-- Env fallback keys: `HTTP_PROXY`/`http_proxy`, `HTTPS_PROXY`/`https_proxy`, `ALL_PROXY`/`all_proxy`, `NO_PROXY`/`no_proxy`.
-
-Platform proxy sources:
-
-- Android: `getprop` (`http.proxyHost`, `https.proxyHost`, `socksProxyHost`, `*.nonProxyHosts`)
-- iOS/macOS: Apple `SystemConfiguration`
-- Windows: `Internet Settings` registry
-- Other targets: env fallback only
-- Current scope is manual HTTP/HTTPS/SOCKS proxy settings; PAC is not evaluated yet
-
-### Network Test Tooling
-
-All local network test utilities are grouped under `fixture_server/`:
-
-- `fixture_server/http_fixture_server.dart`
-- `fixture_server/proxy_smoke_test.sh`
-- `fixture_server/docker-compose.yml`
-- `fixture_server/nginx/`
-
-To run only Rust crate compile locally:
+Materialize without rebuilding:
 
 ```bash
-cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
+dart run scripts/materialize_distribution.dart \
+  --packages=nexa_http,nexa_http_native_macos
 ```
 
-### Prebuilt strategy
-
-Native artifacts are generated into carrier package directories during build:
-
-- Android: `packages/rust_net_native_android/android/src/main/jniLibs/*/librust_net_native.so`
-- iOS: `packages/rust_net_native_ios/ios/Frameworks/*.dylib`
-- Linux: `packages/rust_net_native_linux/linux/Libraries/librust_net_native.so`
-- macOS: `packages/rust_net_native_macos/macos/Libraries/librust_net_native.dylib`
-- Windows: `packages/rust_net_native_windows/windows/Libraries/rust_net_native.dll`
-
-`packages/rust_net_native_android/android/build.gradle` uses locally built `jniLibs` when present and falls back to Rust compilation only when they are missing.
-
-To force source rebuild on Android:
+Generate the native asset manifest:
 
 ```bash
-RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true flutter build apk
+dart run scripts/generate_native_asset_manifest.dart \
+  --version 2.0.0
 ```
 
-### Compatibility shim
+## Fixture server
 
-`packages/rust_net_core` remains in the repository as a deprecated shim package.
-It re-exports `package:rust_net` for migration compatibility and should not be
-used for new integrations.
+Use the local fixture server for HTTP and proxy verification:
+
+```bash
+dart run fixture_server/http_fixture_server.dart --port 8080
+```

@@ -4,16 +4,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 WORKSPACE_ROOT="${REPO_ROOT}"
-PACKAGE_ROOT="${REPO_ROOT}/packages/rust_net"
-RUST_CRATE_DIR="${PACKAGE_ROOT}/native/rust_net_native"
-CARGO_MANIFEST_PATH="${RUST_CRATE_DIR}/Cargo.toml"
+WORKSPACE_CARGO_TARGET_DIR="${REPO_ROOT}/target"
 
 log() {
-  printf '[rust_net build] %s\n' "$*"
+  printf '[nexa_http build] %s\n' "$*"
 }
 
 die() {
-  printf '[rust_net build] ERROR: %s\n' "$*" >&2
+  printf '[nexa_http build] ERROR: %s\n' "$*" >&2
   exit 1
 }
 

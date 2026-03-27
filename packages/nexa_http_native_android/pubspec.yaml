@@ -1,0 +1,27 @@
+name: nexa_http_native_android
+description: Android native carrier package for nexa_http artifacts and build integration.
+version: 2.0.0
+publish_to: none
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.35.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  code_assets: ^1.0.0
+  hooks: ^1.0.2
+  nexa_http:
+    path: ../nexa_http
+  path: ^1.9.0
+
+dev_dependencies:
+  lints: ^5.1.1
+  test: ^1.26.3
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        dartPluginClass: NexaHttpNativeAndroidPlugin
+        ffiPlugin: true

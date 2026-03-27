@@ -8,7 +8,7 @@ import '../scripts/materialize_distribution.dart';
 void main() {
   test('materializes selected packages and their local path dependencies', () async {
     final workspace = await Directory.systemTemp.createTemp(
-      'rust_net_materialize_test_',
+      'nexa_http_materialize_test_',
     );
     addTearDown(() async {
       if (workspace.existsSync()) {
@@ -23,25 +23,30 @@ void main() {
     );
     await _writeFile(
       workspace,
-      'packages/rust_net/pubspec.yaml',
-      'name: rust_net\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http/pubspec.yaml',
+      'name: nexa_http\nenvironment:\n  sdk: ^3.11.0\n',
     );
-    await _writeFile(workspace, 'packages/rust_net/lib/rust_net.dart', 'library rust_net;\n');
+    await _writeFile(workspace, 'packages/nexa_http/lib/nexa_http.dart', 'library nexa_http;\n');
     await _writeFile(
       workspace,
-      'packages/rust_net_core/pubspec.yaml',
-      'name: rust_net_core\nenvironment:\n  sdk: ^3.11.0\ndependencies:\n  rust_net:\n    path: ../rust_net\n',
+      'packages/nexa_http_native_macos/pubspec.yaml',
+      'name: nexa_http_native_macos\nenvironment:\n  sdk: ^3.11.0\ndependencies:\n  nexa_http:\n    path: ../nexa_http\n',
     );
-    await _writeFile(workspace, 'packages/rust_net_core/lib/rust_net_core.dart', 'export \'package:rust_net/rust_net.dart\';\n');
+    await _writeFile(workspace, 'packages/nexa_http_native_macos/lib/nexa_http_native_macos.dart', 'library nexa_http_native_macos;\n');
     await _writeFile(
       workspace,
-      'packages/rust_net_core/pubspec.lock',
+      'packages/nexa_http_native_macos/pubspec.lock',
       'should_not_be_copied',
     );
     await _writeFile(
       workspace,
-      'packages/rust_net_core/.dart_tool/package_config.json',
+      'packages/nexa_http_native_macos/.dart_tool/package_config.json',
       '{}',
+    );
+    await _writeFile(
+      workspace,
+      'packages/nexa_http_native_macos/macos/Libraries/libnexa_http_native.dylib',
+      'binary',
     );
 
     final outputDir = Directory(p.join(workspace.path, '.dist', 'workspace'));
@@ -49,7 +54,7 @@ void main() {
     await materializeDistributionWorkspace(
       workspaceRoot: workspace.path,
       outputDirectory: outputDir.path,
-      requestedPackages: {'rust_net_core'},
+      requestedPackages: {'nexa_http_native_macos'},
     );
 
     expect(
@@ -59,15 +64,20 @@ void main() {
     expect(
       File(p.join(outputDir.path, 'packages', 'rust_net_core', 'pubspec.yaml'))
           .existsSync(),
-      isTrue,
+      isFalse,
     );
     expect(
-      File(p.join(outputDir.path, 'packages', 'rust_net', 'pubspec.yaml'))
+      File(p.join(outputDir.path, 'packages', 'nexa_http_native_macos', 'pubspec.yaml'))
           .existsSync(),
       isTrue,
     );
     expect(
-      File(p.join(outputDir.path, 'packages', 'rust_net_core', 'pubspec.lock'))
+      File(p.join(outputDir.path, 'packages', 'nexa_http', 'pubspec.yaml'))
+          .existsSync(),
+      isTrue,
+    );
+    expect(
+      File(p.join(outputDir.path, 'packages', 'nexa_http_native_macos', 'pubspec.lock'))
           .existsSync(),
       isFalse,
     );
@@ -76,7 +86,7 @@ void main() {
         p.join(
           outputDir.path,
           'packages',
-          'rust_net_core',
+          'nexa_http_native_macos',
           '.dart_tool',
           'package_config.json',
         ),
@@ -87,7 +97,7 @@ void main() {
 
   test('fails when a selected carrier package has missing native artifacts', () async {
     final workspace = await Directory.systemTemp.createTemp(
-      'rust_net_materialize_missing_artifacts_',
+      'nexa_http_materialize_missing_artifacts_',
     );
     addTearDown(() async {
       if (workspace.existsSync()) {
@@ -102,8 +112,8 @@ void main() {
     );
     await _writeFile(
       workspace,
-      'packages/rust_net_native_macos/pubspec.yaml',
-      'name: rust_net_native_macos\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http_native_macos/pubspec.yaml',
+      'name: nexa_http_native_macos\nenvironment:\n  sdk: ^3.11.0\n',
     );
 
     final outputDir = Directory(p.join(workspace.path, '.dist', 'workspace'));
@@ -112,7 +122,7 @@ void main() {
       () => materializeDistributionWorkspace(
         workspaceRoot: workspace.path,
         outputDirectory: outputDir.path,
-        requestedPackages: {'rust_net_native_macos'},
+        requestedPackages: {'nexa_http_native_macos'},
       ),
       throwsA(
         isA<StateError>().having(

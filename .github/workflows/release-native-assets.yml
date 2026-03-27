@@ -20,31 +20,31 @@ jobs:
       - name: Build macOS arm64 dylib
         run: |
           cargo build \
-            --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml \
+            --manifest-path packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/Cargo.toml \
             --target aarch64-apple-darwin \
             --release
           mkdir -p dist/native-assets
-          cp packages/rust_net/native/rust_net_native/target/aarch64-apple-darwin/release/librust_net_native.dylib \
-            dist/native-assets/rust_net-native-macos-arm64.dylib
+          cp packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/target/aarch64-apple-darwin/release/libnexa_http_native.dylib \
+            dist/native-assets/nexa_http-native-macos-arm64.dylib
       - name: Build macOS x64 dylib
         run: |
           cargo build \
-            --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml \
+            --manifest-path packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/Cargo.toml \
             --target x86_64-apple-darwin \
             --release
           mkdir -p dist/native-assets
-          cp packages/rust_net/native/rust_net_native/target/x86_64-apple-darwin/release/librust_net_native.dylib \
-            dist/native-assets/rust_net-native-macos-x64.dylib
+          cp packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/target/x86_64-apple-darwin/release/libnexa_http_native.dylib \
+            dist/native-assets/nexa_http-native-macos-x64.dylib
       - name: Build iOS dylibs
         run: ./scripts/build_native_ios.sh release
       - name: Stage iOS assets
         run: |
-          cp packages/rust_net/ios/Frameworks/librust_net_native-ios-arm64.dylib \
-            dist/native-assets/rust_net-native-ios-arm64.dylib
-          cp packages/rust_net/ios/Frameworks/librust_net_native-ios-sim-arm64.dylib \
-            dist/native-assets/rust_net-native-ios-sim-arm64.dylib
-          cp packages/rust_net/ios/Frameworks/librust_net_native-ios-sim-x64.dylib \
-            dist/native-assets/rust_net-native-ios-sim-x64.dylib
+          cp packages/nexa_http_native_ios/ios/Frameworks/libnexa_http_native-ios-arm64.dylib \
+            dist/native-assets/nexa_http-native-ios-arm64.dylib
+          cp packages/nexa_http_native_ios/ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib \
+            dist/native-assets/nexa_http-native-ios-sim-arm64.dylib
+          cp packages/nexa_http_native_ios/ios/Frameworks/libnexa_http_native-ios-sim-x64.dylib \
+            dist/native-assets/nexa_http-native-ios-sim-x64.dylib
       - uses: actions/upload-artifact@v4
         with:
           name: native-assets-macos
@@ -69,14 +69,14 @@ jobs:
           ./scripts/build_native_linux.sh release
           ./scripts/build_native_android.sh release
           mkdir -p dist/native-assets
-          cp packages/rust_net/linux/Libraries/librust_net_native.so \
-            dist/native-assets/rust_net-native-linux-x64.so
-          cp packages/rust_net/android/src/main/jniLibs/arm64-v8a/librust_net_native.so \
-            dist/native-assets/rust_net-native-android-arm64-v8a.so
-          cp packages/rust_net/android/src/main/jniLibs/armeabi-v7a/librust_net_native.so \
-            dist/native-assets/rust_net-native-android-armeabi-v7a.so
-          cp packages/rust_net/android/src/main/jniLibs/x86_64/librust_net_native.so \
-            dist/native-assets/rust_net-native-android-x86_64.so
+          cp packages/nexa_http_native_linux/linux/Libraries/libnexa_http_native.so \
+            dist/native-assets/nexa_http-native-linux-x64.so
+          cp packages/nexa_http_native_android/android/src/main/jniLibs/arm64-v8a/libnexa_http_native.so \
+            dist/native-assets/nexa_http-native-android-arm64-v8a.so
+          cp packages/nexa_http_native_android/android/src/main/jniLibs/armeabi-v7a/libnexa_http_native.so \
+            dist/native-assets/nexa_http-native-android-armeabi-v7a.so
+          cp packages/nexa_http_native_android/android/src/main/jniLibs/x86_64/libnexa_http_native.so \
+            dist/native-assets/nexa_http-native-android-x86_64.so
       - uses: actions/upload-artifact@v4
         with:
           name: native-assets-linux-android
@@ -95,12 +95,12 @@ jobs:
       - name: Build Windows asset
         run: |
           cargo build \
-            --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml \
+            --manifest-path packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/Cargo.toml \
             --target x86_64-pc-windows-msvc \
             --release
           mkdir -p dist/native-assets
-          cp packages/rust_net/native/rust_net_native/target/x86_64-pc-windows-msvc/release/rust_net_native.dll \
-            dist/native-assets/rust_net-native-windows-x64.dll
+          cp packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/target/x86_64-pc-windows-msvc/release/nexa_http_native.dll \
+            dist/native-assets/nexa_http-native-windows-x64.dll
       - uses: actions/upload-artifact@v4
         with:
           name: native-assets-windows
@@ -133,12 +133,12 @@ jobs:
           dart run scripts/generate_native_asset_manifest.dart \
             --version "$VERSION" \
             --dist dist/native-assets \
-            --output dist/rust_net_native_assets_manifest.json \
+            --output dist/nexa_http_native_assets_manifest.json \
             --sha-output dist/SHA256SUMS \
             --base-url "https://github.com/${REPOSITORY}/releases/download/${TAG_NAME}"
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/native-assets/*
-            dist/rust_net_native_assets_manifest.json
+            dist/nexa_http_native_assets_manifest.json
             dist/SHA256SUMS

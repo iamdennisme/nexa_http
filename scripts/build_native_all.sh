@@ -16,4 +16,4 @@ for platform_script in "${platform_scripts[@]}"; do
   "${SCRIPT_DIR}/${platform_script}" "${PROFILE}"
 done
 
-printf '[rust_net build] Completed all platform builds (%s)\n' "${PROFILE}"
+printf '[nexa_http build] Completed all platform builds (%s)\n' "${PROFILE}"

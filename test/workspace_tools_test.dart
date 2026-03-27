@@ -8,7 +8,7 @@ import '../scripts/workspace_tools.dart';
 void main() {
   test('discovers workspace packages recursively under packages/', () async {
     final workspace = await Directory.systemTemp.createTemp(
-      'rust_net_workspace_tools_',
+      'nexa_http_workspace_tools_',
     );
     addTearDown(() async {
       if (workspace.existsSync()) {
@@ -18,18 +18,18 @@ void main() {
 
     await _writeFile(
       workspace,
-      'packages/rust_net/pubspec.yaml',
-      'name: rust_net\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http/pubspec.yaml',
+      'name: nexa_http\nenvironment:\n  sdk: ^3.11.0\n',
     );
     await _writeFile(
       workspace,
-      'packages/rust_net_native_ios/pubspec.yaml',
-      'name: rust_net_native_ios\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http_native_ios/pubspec.yaml',
+      'name: nexa_http_native_ios\nenvironment:\n  sdk: ^3.11.0\n',
     );
     await _writeFile(
       workspace,
-      'packages/rust_net/example/pubspec.yaml',
-      'name: rust_net_example\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http/example/pubspec.yaml',
+      'name: nexa_http_example\nenvironment:\n  sdk: ^3.11.0\n',
     );
 
     final packages = discoverWorkspacePackageDirs(workspace.path);
@@ -39,16 +39,16 @@ void main() {
           .map((directory) => p.relative(directory.path, from: workspace.path))
           .toList(),
       <String>[
-        'packages/rust_net',
-        'packages/rust_net/example',
-        'packages/rust_net_native_ios',
+        'packages/nexa_http',
+        'packages/nexa_http/example',
+        'packages/nexa_http_native_ios',
       ],
     );
   });
 
   test('runs pub get across discovered packages', () async {
     final workspace = await Directory.systemTemp.createTemp(
-      'rust_net_workspace_bootstrap_',
+      'nexa_http_workspace_bootstrap_',
     );
     addTearDown(() async {
       if (workspace.existsSync()) {
@@ -58,18 +58,18 @@ void main() {
 
     await _writeFile(
       workspace,
-      'packages/rust_net/pubspec.yaml',
-      'name: rust_net\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http/pubspec.yaml',
+      'name: nexa_http\nenvironment:\n  sdk: ^3.11.0\n',
     );
     await _writeFile(
       workspace,
-      'packages/rust_net_native_macos/pubspec.yaml',
-      'name: rust_net_native_macos\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http_native_macos/pubspec.yaml',
+      'name: nexa_http_native_macos\nenvironment:\n  sdk: ^3.11.0\n',
     );
     await _writeFile(
       workspace,
-      'packages/rust_net/example/pubspec.yaml',
-      'name: rust_net_example\nflutter:\n  uses-material-design: true\n',
+      'packages/nexa_http/example/pubspec.yaml',
+      'name: nexa_http_example\nflutter:\n  uses-material-design: true\n',
     );
 
     final commands = <String>[];
@@ -84,16 +84,16 @@ void main() {
     expect(
       commands,
       <String>[
-        'rust_net:dart pub get',
+        'nexa_http:dart pub get',
         'example:flutter pub get',
-        'rust_net_native_macos:dart pub get',
+        'nexa_http_native_macos:dart pub get',
       ],
     );
   });
 
   test('runs analyze and test for each discovered package', () async {
     final workspace = await Directory.systemTemp.createTemp(
-      'rust_net_workspace_verify_',
+      'nexa_http_workspace_verify_',
     );
     addTearDown(() async {
       if (workspace.existsSync()) {
@@ -103,19 +103,19 @@ void main() {
 
     await _writeFile(
       workspace,
-      'packages/rust_net/pubspec.yaml',
-      'name: rust_net\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http/pubspec.yaml',
+      'name: nexa_http\nenvironment:\n  sdk: ^3.11.0\n',
     );
-    await _writeFile(workspace, 'packages/rust_net/test/sample_test.dart', 'void main() {}\n');
+    await _writeFile(workspace, 'packages/nexa_http/test/sample_test.dart', 'void main() {}\n');
     await _writeFile(
       workspace,
-      'packages/rust_net_native_linux/pubspec.yaml',
-      'name: rust_net_native_linux\nflutter:\n  plugin:\n    platforms:\n      linux:\n        pluginClass: RustNetNativeLinuxPlugin\n',
+      'packages/nexa_http_native_linux/pubspec.yaml',
+      'name: nexa_http_native_linux\nflutter:\n  plugin:\n    platforms:\n      linux:\n        pluginClass: NexaHttpNativeLinuxPlugin\n',
     );
     await _writeFile(
       workspace,
-      'packages/rust_net/example/pubspec.yaml',
-      'name: rust_net_example\ndependencies:\n  flutter:\n    sdk: flutter\n',
+      'packages/nexa_http/example/pubspec.yaml',
+      'name: nexa_http_example\ndependencies:\n  flutter:\n    sdk: flutter\n',
     );
 
     final commands = <String>[];
@@ -130,10 +130,10 @@ void main() {
     expect(
       commands,
       <String>[
-        'rust_net:dart analyze',
-        'rust_net:dart test',
+        'nexa_http:dart analyze',
+        'nexa_http:dart test',
         'example:flutter analyze',
-        'rust_net_native_linux:flutter analyze',
+        'nexa_http_native_linux:flutter analyze',
       ],
     );
   });

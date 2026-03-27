@@ -1,197 +1,186 @@
-# rust_net workspace
+# nexa_http workspace
 
 [English](./README.md)
 
+`nexa_http` 是一个 Flutter HTTP SDK 工作区，核心结构是：
 
-### 项目介绍
+- 纯 Dart 的公开 API 包
+- 共享 Rust 原生核心
+- 每个平台一个 Flutter 包 + Rust 实现 crate
 
-`rust_net` 是一个 Flutter HTTP SDK 工作区：对业务开放的 API 保持在 Dart
-层，底层传输执行交给 Rust `reqwest` 内核。
+公开 API 保留在 Dart 层，底层传输执行保留在 Rust 层。
 
-这个仓库主要用于：
+## 工作区结构
 
-- 维护唯一的 Dart/Flutter API 包（`rust_net`）
-- 维护平台原生产物载体包
-- 管理 Rust 原生运行时与多平台打包
-- 提供本地 fixture/proxy 集成测试工具
+- `packages/nexa_http`：公开 Dart API、FFI bindings、Dio 适配器
+- `packages/nexa_http_native_android|ios|macos|linux|windows`：平台载体包、build hook、平台 Rust runtime
+- `native/nexa_http_native_core`：共享 Rust 核心 runtime 和统一 ABI
+- `fixture_server/`：本地 HTTP fixture server 与代理验证工具
+- `scripts/`：原生产物构建、分发和工作区辅助脚本
 
-### 仓库内容
+## 架构说明
 
-- `packages/rust_net`：Flutter 包、FFI 桥接实现、Dio 适配器
-- `packages/rust_net_native_android|ios|macos|windows|linux`：平台原生产物与 build hook 载体包
-- `packages/rust_net/native/rust_net_native`：基于 `reqwest` 的 Rust `cdylib`
-- `fixture_server/`：本地 HTTP fixture 服务与代理冒烟测试工具
-- `scripts/`：多平台原生库构建脚本
+- `nexa_http` 现在是纯 Dart 包，不再负责构建、下载或自行探测原生产物。
+- `nexa_http_native_core` 是纯 Rust 核心 crate，负责 runtime、代理策略、DTO 和统一 C ABI。
+- 每个 `nexa_http_native_<platform>` 包都负责：
+  - 该平台的 Flutter 注册
+  - 该平台的 build hook
+  - 该平台的 Rust crate
+  - 最终原生产物的打包与提供
 
-### 包详情
+消费方需要显式依赖自己要打包的平台包。
 
-- `packages/rust_net`：唯一公开 Dart API 包，包含请求/响应模型、异常、FFI 桥接与 `Dio` 适配器。
-- `packages/rust_net_native_*`：平台特定的原生产物与 build hook 载体包。
+## 在其他项目中使用
 
-### 本地开发
-
-```bash
-dart pub get
-dart run scripts/workspace_tools.dart bootstrap
-dart run scripts/workspace_tools.dart analyze
-dart run scripts/workspace_tools.dart test
-```
-
-### 编译原生库
-
-当 Rust 原生代码变更后，可重新编译并把产物输出到各 carrier 包目录。
-这些产物属于构建输出，不应提交到仓库：
-
-```bash
-./scripts/build_native_all.sh release
-```
-
-也可以按平台单独编译：
-
-```bash
-./scripts/build_native_macos.sh
-./scripts/build_native_android.sh
-./scripts/build_native_linux.sh
-./scripts/build_native_ios.sh
-./scripts/build_native_windows.sh
-```
-
-Android 说明：
-
-- Android 载体包会在构建流程中生成 `jniLibs`。
-- 仅在 ABI 库缺失，或设置 `RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true` 时，回退到源码编译。
-- 源码回退模式需要构建机具备 Rust toolchain 和 Android NDK。
-
-### Flutter 使用方式
-
-`pubspec.yaml`：
+典型依赖方式：
 
 ```yaml
 dependencies:
-  dio: ^5.9.0
-  rust_net: ^2.0.0
-  rust_net_native_android: ^2.0.0 # 按目标平台选择载体包
+  nexa_http: ^2.0.0
+  nexa_http_native_android: ^2.0.0
+  nexa_http_native_ios: ^2.0.0
 ```
 
-作为 Dio adapter 使用：
+直接使用客户端：
+
+```dart
+import 'package:nexa_http/nexa_http.dart';
+
+final client = NexaHttpClient(
+  config: NexaHttpClientConfig(
+    baseUrl: Uri.parse('https://api.example.com/'),
+    timeout: const Duration(seconds: 10),
+  ),
+);
+
+final response = await client.execute(
+  NexaHttpRequest.get(uri: Uri(path: '/healthz')),
+);
+
+await client.close();
+```
+
+或者作为 Dio transport：
 
 ```dart
 import 'package:dio/dio.dart';
-import 'package:rust_net/rust_net_dio.dart';
+import 'package:nexa_http/nexa_http_dio.dart';
 
 final dio = Dio()
-  ..httpClientAdapter = RustNetDioAdapter.client(
-    config: RustNetClientConfig(
+  ..httpClientAdapter = NexaHttpDioAdapter.client(
+    config: NexaHttpClientConfig(
       baseUrl: Uri.parse('https://api.example.com/'),
       timeout: const Duration(seconds: 10),
     ),
   );
 ```
 
-直接使用核心客户端：
+## 原生产物交付模式
 
-```dart
-import 'package:rust_net/rust_net.dart';
+推荐优先级：
 
-final client = RustNetClient(
-  config: RustNetClientConfig(baseUrl: Uri.parse('https://api.example.com/')),
-);
-final response = await client.execute(
-  RustNetRequest.get(uri: Uri(path: '/healthz')),
-);
-await client.close();
-```
+1. 发布包 + 预编译原生产物
+2. Git 依赖 + 预编译原生产物
+3. 本地 workspace path 开发
+4. 本地 native override 调试
 
-### 本地接入
+当前平台 hook 支持这些 override：
 
-本地调试时，推荐两种接入方式。
+- `NEXA_HTTP_NATIVE_<PLATFORM>_LIB_PATH`
+- `NEXA_HTTP_NATIVE_<PLATFORM>_SOURCE_DIR`
+- `NEXA_HTTP_NATIVE_MANIFEST_PATH`
+- `NEXA_HTTP_NATIVE_RELEASE_BASE_URL`
 
-如果你要直接联调当前源码仓库，用源码工作区 `path` 依赖：
+说明：
 
-```yaml
-dependencies:
-  rust_net:
-    path: /absolute/path/to/rust_net/packages/rust_net
-  rust_net_native_macos:
-    path: /absolute/path/to/rust_net/packages/rust_net_native_macos
-```
+- `LIB_PATH`：直接指向原生二进制文件
+- `SOURCE_DIR`：指向平台 Rust crate 根目录，并要求它的 `target/` 或 repo-root `target/` 下已经有构建输出
+- `MANIFEST_PATH` / `RELEASE_BASE_URL`：用于基于 manifest 的预编译产物下载
 
-在运行消费项目之前，先初始化工作区并构建对应平台的 carrier 产物：
+## 本地开发
+
+初始化 Dart / Flutter 依赖：
 
 ```bash
+dart pub get
 dart run scripts/workspace_tools.dart bootstrap
-./scripts/build_native_macos.sh debug
 ```
 
-如果你希望本地接入形态更接近后续 `pub` 发布或对外分发，使用物化后的分发工作区：
+运行 root Dart 测试：
+
+```bash
+fvm dart test test
+```
+
+运行包测试：
+
+```bash
+cd packages/nexa_http && fvm dart test
+cd packages/nexa_http/example && fvm flutter test
+cd packages/nexa_http/example/nexa_http_dio_consumer && fvm flutter test
+```
+
+运行 Rust workspace 测试：
+
+```bash
+cargo test --workspace
+```
+
+## 本地构建原生产物
+
+构建全部平台：
+
+```bash
+./scripts/build_native_all.sh debug
+```
+
+或者单独构建：
+
+```bash
+./scripts/build_native_macos.sh debug
+./scripts/build_native_linux.sh debug
+./scripts/build_native_windows.sh debug
+./scripts/build_native_ios.sh debug
+./scripts/build_native_android.sh debug
+```
+
+产物会被放到各平台包目录中：
+
+- Android：`packages/nexa_http_native_android/android/src/main/jniLibs/*/libnexa_http_native.so`
+- iOS：`packages/nexa_http_native_ios/ios/Frameworks/*.dylib`
+- Linux：`packages/nexa_http_native_linux/linux/Libraries/libnexa_http_native.so`
+- macOS：`packages/nexa_http_native_macos/macos/Libraries/libnexa_http_native.dylib`
+- Windows：`packages/nexa_http_native_windows/windows/Libraries/nexa_http_native.dll`
+
+这些文件属于构建输出，不应提交。
+
+## 分发辅助脚本
+
+准备接近发布形态的本地 workspace：
 
 ```bash
 dart run scripts/prepare_distribution.dart \
-  --packages=rust_net,rust_net_native_macos
+  --packages=nexa_http,nexa_http_native_macos
 ```
 
-然后在消费项目里指向 `.dist/materialized_workspace/packages/...`：
-
-```yaml
-dependencies:
-  rust_net:
-    path: /absolute/path/to/rust_net/.dist/materialized_workspace/packages/rust_net
-  rust_net_native_macos:
-    path: /absolute/path/to/rust_net/.dist/materialized_workspace/packages/rust_net_native_macos
-```
-
-只需要引入你实际要发布的平台 carrier 包即可。
-
-### 代理行为
-
-- 代理选择逻辑在 Rust 层按“每次请求”执行。
-- 当代理快照变化时，`rust_net` 会重建底层 `reqwest::Client`。
-- 没有检测到代理时，请求直连。
-- 优先级：系统代理优先，其次回退环境变量。
-- 环境变量回退键：`HTTP_PROXY`/`http_proxy`、`HTTPS_PROXY`/`https_proxy`、`ALL_PROXY`/`all_proxy`、`NO_PROXY`/`no_proxy`。
-
-平台代理来源：
-
-- Android：通过 `getprop`（`http.proxyHost`、`https.proxyHost`、`socksProxyHost`、`*.nonProxyHosts`）
-- iOS/macOS：通过 Apple `SystemConfiguration`
-- Windows：读取 `Internet Settings` 注册表
-- 其他平台：仅环境变量回退
-- 当前仅覆盖手动 HTTP/HTTPS/SOCKS 代理设置，PAC 暂未执行
-
-### 网络测试工具
-
-本地网络测试工具统一放在 `fixture_server/`：
-
-- `fixture_server/http_fixture_server.dart`
-- `fixture_server/proxy_smoke_test.sh`
-- `fixture_server/docker-compose.yml`
-- `fixture_server/nginx/`
-
-如果只想单独验证 Rust crate 编译：
+只物化、不重建：
 
 ```bash
-cargo build --manifest-path packages/rust_net/native/rust_net_native/Cargo.toml
+dart run scripts/materialize_distribution.dart \
+  --packages=nexa_http,nexa_http_native_macos
 ```
 
-### 预编译策略
-
-各平台原生产物会在构建时输出到 carrier 包目录：
-
-- Android：`packages/rust_net_native_android/android/src/main/jniLibs/*/librust_net_native.so`
-- iOS：`packages/rust_net_native_ios/ios/Frameworks/*.dylib`
-- Linux：`packages/rust_net_native_linux/linux/Libraries/librust_net_native.so`
-- macOS：`packages/rust_net_native_macos/macos/Libraries/librust_net_native.dylib`
-- Windows：`packages/rust_net_native_windows/windows/Libraries/rust_net_native.dll`
-
-`packages/rust_net_native_android/android/build.gradle` 会优先使用本地已构建的 `jniLibs`，仅在缺失时回退到 Rust 编译。
-
-如需强制 Android 源码编译：
+生成 native asset manifest：
 
 ```bash
-RUST_NET_ANDROID_FORCE_SOURCE_BUILD=true flutter build apk
+dart run scripts/generate_native_asset_manifest.dart \
+  --version 2.0.0
 ```
 
-### 兼容层说明
+## Fixture server
 
-`packages/rust_net_core` 仍保留在仓库中作为兼容 shim，用于平滑迁移旧代码。
-新接入请直接依赖 `package:rust_net`。
+本地 HTTP / 代理验证：
+
+```bash
+dart run fixture_server/http_fixture_server.dart --port 8080
+```

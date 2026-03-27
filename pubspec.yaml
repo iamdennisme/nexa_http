@@ -1,5 +1,5 @@
-name: rust_net_workspace
-description: Workspace for rust_net packages.
+name: nexa_http_workspace
+description: Workspace for nexa_http packages.
 publish_to: none
 
 environment:

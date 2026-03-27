@@ -1,1 +1,0 @@
-library rust_net_native_ios;

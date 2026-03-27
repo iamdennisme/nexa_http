@@ -8,7 +8,7 @@ import '../scripts/prepare_distribution.dart';
 void main() {
   test('runs matching build scripts before materializing selected carrier packages', () async {
     final tempDir = await Directory.systemTemp.createTemp(
-      'rust_net_prepare_distribution_',
+      'nexa_http_prepare_distribution_',
     );
     addTearDown(() async {
       if (tempDir.existsSync()) {
@@ -23,9 +23,9 @@ void main() {
       workspaceRoot: tempDir.path,
       outputDirectory: p.join(tempDir.path, '.dist', 'workspace'),
       requestedPackages: {
-        'rust_net',
-        'rust_net_native_android',
-        'rust_net_native_macos',
+        'nexa_http',
+        'nexa_http_native_android',
+        'nexa_http_native_macos',
       },
       runBuildScript: (scriptPath, profile) async {
         invokedScripts.add('${p.basename(scriptPath)}:$profile');
@@ -37,9 +37,9 @@ void main() {
       }) async {
         materialized = true;
         expect(requestedPackages, {
-          'rust_net',
-          'rust_net_native_android',
-          'rust_net_native_macos',
+          'nexa_http',
+          'nexa_http_native_android',
+          'nexa_http_native_macos',
         });
       },
     );
@@ -56,7 +56,7 @@ void main() {
 
   test('runs the linux build script when the linux carrier package is selected', () async {
     final tempDir = await Directory.systemTemp.createTemp(
-      'rust_net_prepare_distribution_linux_',
+      'nexa_http_prepare_distribution_linux_',
     );
     addTearDown(() async {
       if (tempDir.existsSync()) {
@@ -69,7 +69,7 @@ void main() {
     await prepareDistributionWorkspace(
       workspaceRoot: tempDir.path,
       outputDirectory: p.join(tempDir.path, '.dist', 'workspace'),
-      requestedPackages: {'rust_net_native_linux'},
+      requestedPackages: {'nexa_http_native_linux'},
       runBuildScript: (scriptPath, profile) async {
         invokedScripts.add('${p.basename(scriptPath)}:$profile');
       },
@@ -88,7 +88,7 @@ void main() {
 
   test('skips build scripts when skipBuild is enabled', () async {
     final tempDir = await Directory.systemTemp.createTemp(
-      'rust_net_prepare_distribution_skip_',
+      'nexa_http_prepare_distribution_skip_',
     );
     addTearDown(() async {
       if (tempDir.existsSync()) {
@@ -102,7 +102,7 @@ void main() {
     await prepareDistributionWorkspace(
       workspaceRoot: tempDir.path,
       outputDirectory: p.join(tempDir.path, '.dist', 'workspace'),
-      requestedPackages: {'rust_net_native_windows'},
+      requestedPackages: {'nexa_http_native_windows'},
       skipBuild: true,
       runBuildScript: (scriptPath, profile) async {
         buildCalled = true;

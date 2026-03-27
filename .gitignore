@@ -27,6 +27,8 @@ migrate_working_dir/
 # Flutter/Dart/Pub related
 # Libraries should not include pubspec.lock, per https://dart.dev/guides/libraries/private-files#pubspeclock.
 /pubspec.lock
+/Cargo.lock
+/target/
 packages/rust_net/pubspec.lock
 packages/rust_net_core/pubspec.lock
 **/doc/api/
@@ -38,12 +40,21 @@ packages/rust_net_core/pubspec.lock
 build/
 **/native/rust_net_native/target/
 **/native/rust_net_native/Cargo.lock
+native/target/
+native/Cargo.lock
+packages/nexa_http_native_*/native/*/target/
+packages/nexa_http_native_*/native/*/Cargo.lock
 **/android/.cxx/
 packages/rust_net_native_android/android/src/main/jniLibs/*/librust_net_native.so
 packages/rust_net_native_ios/ios/Frameworks/*.dylib
 packages/rust_net_native_linux/linux/Libraries/*.so
 packages/rust_net_native_macos/macos/Libraries/*.dylib
 packages/rust_net_native_windows/windows/Libraries/*.dll
+packages/nexa_http_native_android/android/src/main/jniLibs/*/*.so
+packages/nexa_http_native_ios/ios/Frameworks/*.dylib
+packages/nexa_http_native_linux/linux/Libraries/*.so
+packages/nexa_http_native_macos/macos/Libraries/*.dylib
+packages/nexa_http_native_windows/windows/Libraries/*.dll
 packages/rust_net/android/
 packages/rust_net/ios/
 packages/rust_net/macos/

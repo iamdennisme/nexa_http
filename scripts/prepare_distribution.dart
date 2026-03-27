@@ -78,11 +78,11 @@ Future<void> _runBuildScript(String scriptPath, String profile) async {
 }
 
 const _buildScriptByPackage = <String, String>{
-  'rust_net_native_android': 'build_native_android.sh',
-  'rust_net_native_ios': 'build_native_ios.sh',
-  'rust_net_native_linux': 'build_native_linux.sh',
-  'rust_net_native_macos': 'build_native_macos.sh',
-  'rust_net_native_windows': 'build_native_windows.sh',
+  'nexa_http_native_android': 'build_native_android.sh',
+  'nexa_http_native_ios': 'build_native_ios.sh',
+  'nexa_http_native_linux': 'build_native_linux.sh',
+  'nexa_http_native_macos': 'build_native_macos.sh',
+  'nexa_http_native_windows': 'build_native_windows.sh',
 };
 
 final class _Config {

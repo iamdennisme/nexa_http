@@ -1,0 +1,8 @@
+name: NexaHttpBindings
+description: Generated bindings for the shared nexa_http native ABI.
+output: lib/nexa_http_bindings_generated.dart
+headers:
+  entry-points:
+    - ../../native/nexa_http_native_core/include/nexa_http_native.h
+comments:
+  style: any

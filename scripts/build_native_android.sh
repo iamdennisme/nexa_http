@@ -5,6 +5,9 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/build_native_common.
 
 PROFILE="$(normalize_profile "${1:-release}")"
 ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-21}"
+PACKAGE_ROOT="${REPO_ROOT}/packages/nexa_http_native_android"
+RUST_CRATE_DIR="${PACKAGE_ROOT}/native/nexa_http_native_android_ffi"
+CARGO_MANIFEST_PATH="${RUST_CRATE_DIR}/Cargo.toml"
 
 require_command cargo
 require_command rustup
@@ -98,13 +101,13 @@ for entry in "${targets[@]}"; do
     "${ar_env}=${llvm_ar}" \
     cargo "${build_args[@]}"
 
-  source_file="${RUST_CRATE_DIR}/target/${triple}/${PROFILE}/librust_net_native.so"
+  source_file="${WORKSPACE_CARGO_TARGET_DIR}/${triple}/${PROFILE}/libnexa_http_native_android_ffi.so"
   [[ -f "${source_file}" ]] || die "Expected output not found: ${source_file}"
 
-  destination_dir="${WORKSPACE_ROOT}/packages/rust_net_native_android/android/src/main/jniLibs/${abi}"
+  destination_dir="${WORKSPACE_ROOT}/packages/nexa_http_native_android/android/src/main/jniLibs/${abi}"
   mkdir -p "${destination_dir}"
-  cp "${source_file}" "${destination_dir}/librust_net_native.so"
-  "${llvm_strip}" --strip-unneeded "${destination_dir}/librust_net_native.so"
+  cp "${source_file}" "${destination_dir}/libnexa_http_native.so"
+  "${llvm_strip}" --strip-unneeded "${destination_dir}/libnexa_http_native.so"
 done
 
-log 'Prepared Android native libraries in packages/rust_net_native_android/android/src/main/jniLibs'
+log 'Prepared Android native libraries in packages/nexa_http_native_android/android/src/main/jniLibs'

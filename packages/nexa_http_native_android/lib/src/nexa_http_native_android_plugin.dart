@@ -1,0 +1,28 @@
+import 'dart:ffi';
+import 'dart:io';
+
+import 'package:nexa_http/src/loader/nexa_http_platform_registry.dart';
+
+final class NexaHttpNativeAndroidPlugin {
+  NexaHttpNativeAndroidPlugin._();
+
+  static void registerWith() {
+    NexaHttpPlatformRegistry.instance ??= const _NexaHttpNativeAndroidRuntime();
+  }
+}
+
+final class _NexaHttpNativeAndroidRuntime implements NexaHttpNativeRuntime {
+  const _NexaHttpNativeAndroidRuntime();
+
+  static const _environmentVariable = 'NEXA_HTTP_NATIVE_ANDROID_LIB_PATH';
+
+  @override
+  DynamicLibrary open() {
+    final explicitPath = Platform.environment[_environmentVariable];
+    if (explicitPath != null && explicitPath.trim().isNotEmpty) {
+      return DynamicLibrary.open(explicitPath.trim());
+    }
+
+    return DynamicLibrary.open('libnexa_http_native.so');
+  }
+}

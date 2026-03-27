@@ -39,9 +39,9 @@ void main(List<String> args) async {
 
   final manifestFile = File(config.outputPath);
   await manifestFile.parent.create(recursive: true);
-  await manifestFile.writeAsString(
+    await manifestFile.writeAsString(
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
-      'package': 'rust_net',
+      'package': 'nexa_http',
       'package_version': config.version,
       'generated_at': DateTime.now().toUtc().toIso8601String(),
       'assets': assets,
@@ -73,7 +73,7 @@ final class _Config {
   static _Config parse(List<String> args) {
     String? version;
     var distDirectory = 'dist/native-assets';
-    var outputPath = 'dist/rust_net_native_assets_manifest.json';
+    var outputPath = 'dist/nexa_http_native_assets_manifest.json';
     String? baseUrl;
     String? shaOutputPath;
 
@@ -138,54 +138,54 @@ const _descriptors = <_AssetDescriptor>[
   _AssetDescriptor(
     targetOS: 'android',
     targetArchitecture: 'arm64',
-    sourceName: 'rust_net-native-android-arm64-v8a.so',
+    sourceName: 'nexa_http-native-android-arm64-v8a.so',
   ),
   _AssetDescriptor(
     targetOS: 'android',
     targetArchitecture: 'arm',
-    sourceName: 'rust_net-native-android-armeabi-v7a.so',
+    sourceName: 'nexa_http-native-android-armeabi-v7a.so',
   ),
   _AssetDescriptor(
     targetOS: 'android',
     targetArchitecture: 'x64',
-    sourceName: 'rust_net-native-android-x86_64.so',
+    sourceName: 'nexa_http-native-android-x86_64.so',
   ),
   _AssetDescriptor(
     targetOS: 'ios',
     targetArchitecture: 'arm64',
     targetSdk: 'iphoneos',
-    sourceName: 'rust_net-native-ios-arm64.dylib',
+    sourceName: 'nexa_http-native-ios-arm64.dylib',
   ),
   _AssetDescriptor(
     targetOS: 'ios',
     targetArchitecture: 'arm64',
     targetSdk: 'iphonesimulator',
-    sourceName: 'rust_net-native-ios-sim-arm64.dylib',
+    sourceName: 'nexa_http-native-ios-sim-arm64.dylib',
   ),
   _AssetDescriptor(
     targetOS: 'ios',
     targetArchitecture: 'x64',
     targetSdk: 'iphonesimulator',
-    sourceName: 'rust_net-native-ios-sim-x64.dylib',
+    sourceName: 'nexa_http-native-ios-sim-x64.dylib',
   ),
   _AssetDescriptor(
     targetOS: 'macos',
     targetArchitecture: 'arm64',
-    sourceName: 'rust_net-native-macos-arm64.dylib',
+    sourceName: 'nexa_http-native-macos-arm64.dylib',
   ),
   _AssetDescriptor(
     targetOS: 'macos',
     targetArchitecture: 'x64',
-    sourceName: 'rust_net-native-macos-x64.dylib',
+    sourceName: 'nexa_http-native-macos-x64.dylib',
   ),
   _AssetDescriptor(
     targetOS: 'linux',
     targetArchitecture: 'x64',
-    sourceName: 'rust_net-native-linux-x64.so',
+    sourceName: 'nexa_http-native-linux-x64.so',
   ),
   _AssetDescriptor(
     targetOS: 'windows',
     targetArchitecture: 'x64',
-    sourceName: 'rust_net-native-windows-x64.dll',
+    sourceName: 'nexa_http-native-windows-x64.dll',
   ),
 ];
