@@ -36,11 +36,13 @@ void main() {
 
     await Future<void>.delayed(Duration.zero);
     expect(starts.indexOf('high'), isNonNegative);
-    expect(starts.indexOf('low-b'), greaterThan(starts.indexOf('high')));
+    expect(starts, isNot(contains('low-b')));
 
     highGate.complete();
     lowGate.complete();
     await Future.wait<void>(<Future<void>>[lowA, lowB, high]);
+
+    expect(starts.indexOf('low-b'), greaterThan(starts.indexOf('high')));
   });
 
   test('enforces bounded low-priority concurrency', () async {

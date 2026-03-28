@@ -1,9 +1,12 @@
+import 'image_request_scheduler.dart';
+
 class ImageRequestSample {
   const ImageRequestSample({
     required this.url,
     required this.elapsed,
     required this.bytes,
     required this.succeeded,
+    this.priority,
     this.statusCode,
     this.error,
   });
@@ -12,6 +15,7 @@ class ImageRequestSample {
   final Duration elapsed;
   final int bytes;
   final bool succeeded;
+  final ImageRequestPriority? priority;
   final int? statusCode;
   final String? error;
 }
@@ -35,6 +39,9 @@ class ImagePerfMetrics {
     required this.successCount,
     required this.failureCount,
     required this.totalBytes,
+    required this.highPriorityRequestCount,
+    required this.mediumPriorityRequestCount,
+    required this.lowPriorityRequestCount,
     required this.averageLatency,
     required this.p95Latency,
     required this.slowFrameCount,
@@ -54,6 +61,9 @@ class ImagePerfMetrics {
         successCount: 0,
         failureCount: 0,
         totalBytes: 0,
+        highPriorityRequestCount: 0,
+        mediumPriorityRequestCount: 0,
+        lowPriorityRequestCount: 0,
         averageLatency: Duration.zero,
         p95Latency: Duration.zero,
         slowFrameCount: 0,
@@ -68,6 +78,15 @@ class ImagePerfMetrics {
       0,
       (sum, sample) => sum + sample.bytes,
     );
+    final highPriorityRequestCount = samples
+        .where((sample) => sample.priority == ImageRequestPriority.high)
+        .length;
+    final mediumPriorityRequestCount = samples
+        .where((sample) => sample.priority == ImageRequestPriority.medium)
+        .length;
+    final lowPriorityRequestCount = samples
+        .where((sample) => sample.priority == ImageRequestPriority.low)
+        .length;
     final elapsedMicros = samples.fold<int>(
       0,
       (sum, sample) => sum + sample.elapsed.inMicroseconds,
@@ -76,10 +95,8 @@ class ImagePerfMetrics {
       microseconds: elapsedMicros ~/ samples.length,
     );
 
-    final sortedLatencies = samples
-        .map((sample) => sample.elapsed)
-        .toList(growable: false)
-      ..sort();
+    final sortedLatencies =
+        samples.map((sample) => sample.elapsed).toList(growable: false)..sort();
     final p95Index = ((sortedLatencies.length * 0.95).ceil() - 1)
         .clamp(0, sortedLatencies.length - 1);
     final p95Latency = sortedLatencies[p95Index];
@@ -97,10 +114,9 @@ class ImagePerfMetrics {
     );
     final maxElapsedMicros = samples.fold<int>(
       0,
-      (maxMicros, sample) =>
-          sample.elapsed.inMicroseconds > maxMicros
-              ? sample.elapsed.inMicroseconds
-              : maxMicros,
+      (maxMicros, sample) => sample.elapsed.inMicroseconds > maxMicros
+          ? sample.elapsed.inMicroseconds
+          : maxMicros,
     );
     final throughputMiBPerSecond = maxElapsedMicros == 0
         ? 0
@@ -113,6 +129,9 @@ class ImagePerfMetrics {
       successCount: successCount,
       failureCount: failureCount,
       totalBytes: totalBytes,
+      highPriorityRequestCount: highPriorityRequestCount,
+      mediumPriorityRequestCount: mediumPriorityRequestCount,
+      lowPriorityRequestCount: lowPriorityRequestCount,
       averageLatency: averageLatency,
       p95Latency: p95Latency,
       slowFrameCount: slowFrameCount,
@@ -126,6 +145,9 @@ class ImagePerfMetrics {
   final int successCount;
   final int failureCount;
   final int totalBytes;
+  final int highPriorityRequestCount;
+  final int mediumPriorityRequestCount;
+  final int lowPriorityRequestCount;
   final Duration averageLatency;
   final Duration p95Latency;
   final int slowFrameCount;

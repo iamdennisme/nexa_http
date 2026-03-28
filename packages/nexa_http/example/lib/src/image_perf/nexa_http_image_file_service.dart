@@ -4,22 +4,32 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:nexa_http/nexa_http.dart';
 
 import 'buffered_file_service_response.dart';
+import 'image_request_scheduler.dart';
 import 'image_perf_metrics.dart';
 import 'instrumented_http_file_service.dart';
+
+const imageRequestPriorityHeaderName = 'x-nexa-http-image-priority';
 
 final class NexaHttpImageFileService extends FileService {
   NexaHttpImageFileService({
     HttpExecutor? executor,
+    ImageRequestScheduler? scheduler,
     this.onSample,
     NexaHttpClientConfig config = const NexaHttpClientConfig(
       timeout: Duration(seconds: 20),
       userAgent: 'nexa_http_example/1.0.0',
     ),
   })  : _ownsExecutor = executor == null,
-        _executor = executor ?? NexaHttpClient(config: config);
+        _executor = executor ?? NexaHttpClient(config: config),
+        _scheduler = scheduler ??
+            ImageRequestScheduler(
+              maxConcurrentRequests: 6,
+              maxLowPriorityConcurrency: 2,
+            );
 
   final HttpExecutor _executor;
   final bool _ownsExecutor;
+  final ImageRequestScheduler _scheduler;
   final ImageRequestSampleCallback? onSample;
 
   @override
@@ -27,12 +37,29 @@ final class NexaHttpImageFileService extends FileService {
     String url, {
     Map<String, String>? headers,
   }) async {
+    final priority = resolveImageRequestPriorityFromHeaders(headers);
+    final requestHeaders = Map<String, String>.from(
+      headers ?? const <String, String>{},
+    );
+    String? priorityHeaderKey;
+    for (final key in requestHeaders.keys) {
+      if (key.toLowerCase() == imageRequestPriorityHeaderName) {
+        priorityHeaderKey = key;
+        break;
+      }
+    }
+    if (priorityHeaderKey != null) {
+      requestHeaders.remove(priorityHeaderKey);
+    }
     final stopwatch = Stopwatch()..start();
     try {
-      final response = await _executor.execute(
-        NexaHttpRequest.get(
-          uri: Uri.parse(url),
-          headers: headers ?? const <String, String>{},
+      final response = await _scheduler.schedule<NexaHttpResponse>(
+        priority: priority,
+        task: () => _executor.execute(
+          NexaHttpRequest.get(
+            uri: Uri.parse(url),
+            headers: requestHeaders,
+          ),
         ),
       );
       stopwatch.stop();
@@ -42,6 +69,7 @@ final class NexaHttpImageFileService extends FileService {
           elapsed: stopwatch.elapsed,
           bytes: response.bodyBytes.length,
           succeeded: _isSuccessfulStatus(response.statusCode),
+          priority: priority,
           statusCode: response.statusCode,
           error: _isSuccessfulStatus(response.statusCode)
               ? null
@@ -51,8 +79,8 @@ final class NexaHttpImageFileService extends FileService {
 
       return BufferedFileServiceResponse(
         bodyBytes: response.bodyBytes,
-        contentLength: _contentLengthFromHeaders(response) ??
-            response.bodyBytes.length,
+        contentLength:
+            _contentLengthFromHeaders(response) ?? response.bodyBytes.length,
         statusCode: response.statusCode,
         validTill: _validTillFromResponse(response),
         eTag: _header(response, HttpHeaders.etagHeader),
@@ -66,6 +94,7 @@ final class NexaHttpImageFileService extends FileService {
           elapsed: stopwatch.elapsed,
           bytes: 0,
           succeeded: false,
+          priority: priority,
           error: '$error',
         ),
       );
@@ -144,4 +173,21 @@ final class NexaHttpImageFileService extends FileService {
         return subtype;
     }
   }
+}
+
+ImageRequestPriority resolveImageRequestPriorityFromHeaders(
+  Map<String, String>? headers,
+) {
+  String? encodedPriority;
+  for (final entry in headers?.entries ?? const <MapEntry<String, String>>[]) {
+    if (entry.key.toLowerCase() == imageRequestPriorityHeaderName) {
+      encodedPriority = entry.value;
+      break;
+    }
+  }
+  return switch (encodedPriority) {
+    'medium' => ImageRequestPriority.medium,
+    'low' => ImageRequestPriority.low,
+    _ => ImageRequestPriority.high,
+  };
 }

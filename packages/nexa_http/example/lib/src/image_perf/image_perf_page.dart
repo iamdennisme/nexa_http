@@ -8,8 +8,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'image_cache_transport_registry.dart';
+import 'image_request_scheduler.dart';
 import 'image_perf_metrics.dart';
 import 'image_perf_result_payload.dart';
+import 'nexa_http_image_file_service.dart';
 
 final class ImagePerfPage extends StatefulWidget {
   const ImagePerfPage({
@@ -31,9 +33,30 @@ final class ImagePerfPage extends StatefulWidget {
 
 enum ImagePerfScenario { image, autoScroll }
 
-class _ImagePerfPageState extends State<ImagePerfPage> {
-  static const _firstScreenTarget = 8;
+enum ImagePerfPreviewMode { viewport, fullContent }
 
+const imagePerfFirstScreenTileCount = 8;
+const imagePerfNearViewportTileCount = 16;
+
+ImagePerfPreviewMode resolveImagePerfPreviewMode(
+  ImagePerfScenario? scenario,
+) {
+  return scenario == ImagePerfScenario.image
+      ? ImagePerfPreviewMode.fullContent
+      : ImagePerfPreviewMode.viewport;
+}
+
+ImageRequestPriority resolveImageRequestPriorityForTile(int index) {
+  if (index < imagePerfFirstScreenTileCount) {
+    return ImageRequestPriority.high;
+  }
+  if (index < imagePerfNearViewportTileCount) {
+    return ImageRequestPriority.medium;
+  }
+  return ImageRequestPriority.low;
+}
+
+class _ImagePerfPageState extends State<ImagePerfPage> {
   final ImageCacheTransportRegistry _registry = ImageCacheTransportRegistry();
   final ScrollController _scrollController = ScrollController();
   final Stopwatch _sessionStopwatch = Stopwatch();
@@ -261,13 +284,13 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
   }
 
   void _handleTileResolved(int index) {
-    if (index >= _firstScreenTarget ||
+    if (index >= imagePerfFirstScreenTileCount ||
         _firstScreenElapsed != null ||
         !_resolvedFirstScreenTiles.add(index)) {
       return;
     }
 
-    if (_resolvedFirstScreenTiles.length == _firstScreenTarget) {
+    if (_resolvedFirstScreenTiles.length == imagePerfFirstScreenTileCount) {
       setState(() {
         _firstScreenElapsed = _sessionStopwatch.elapsed;
       });
@@ -275,15 +298,13 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
   }
 
   String _imageUrlForIndex(int index) {
-    return Uri.parse(widget.baseUrl)
-        .replace(
-          path: '/image',
-          queryParameters: <String, String>{
-            'id': 'poster-$index',
-            'run': '$_runId',
-          },
-        )
-        .toString();
+    return Uri.parse(widget.baseUrl).replace(
+      path: '/image',
+      queryParameters: <String, String>{
+        'id': 'poster-$index',
+        'run': '$_runId',
+      },
+    ).toString();
   }
 
   Future<void> _runAutorunScenario(ImagePerfScenario scenario) async {
@@ -378,6 +399,75 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
     _rssSampler = null;
   }
 
+  bool get _shouldRenderAllAutorunTiles {
+    return resolveImagePerfPreviewMode(widget.autorunScenario) ==
+        ImagePerfPreviewMode.fullContent;
+  }
+
+  Widget _buildPreviewBody(CupertinoThemeData theme, BuildContext context) {
+    if (!_isSessionActive) {
+      return SizedBox(
+        height: 480,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: CupertinoColors.secondarySystemBackground.resolveFrom(
+              context,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: CupertinoColors.separator.resolveFrom(context),
+            ),
+          ),
+          child: Center(
+            child: Text(
+              'Waiting to start',
+              style: theme.textTheme.textStyle.copyWith(
+                color: CupertinoColors.secondaryLabel.resolveFrom(context),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    const gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 3,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 0.72,
+    );
+
+    if (_shouldRenderAllAutorunTiles) {
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: gridDelegate,
+        itemCount: widget.imageCount,
+        itemBuilder: _buildImageTile,
+      );
+    }
+
+    return SizedBox(
+      height: 480,
+      child: GridView.builder(
+        controller: _scrollController,
+        gridDelegate: gridDelegate,
+        itemCount: widget.imageCount,
+        itemBuilder: _buildImageTile,
+      ),
+    );
+  }
+
+  Widget _buildImageTile(BuildContext context, int index) {
+    return _ImageTile(
+      index: index,
+      url: _imageUrlForIndex(index),
+      priority: resolveImageRequestPriorityForTile(index),
+      usePriorityScheduling: _mode == ImageTransportMode.rustNet,
+      onResolved: _handleTileResolved,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = CupertinoTheme.of(context);
@@ -456,6 +546,10 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
                   'requests: ${metrics.requestCount}',
                   'success: ${metrics.successCount}',
                   'failure: ${metrics.failureCount}',
+                  'priority_counts: '
+                      'high=${metrics.highPriorityRequestCount} '
+                      'medium=${metrics.mediumPriorityRequestCount} '
+                      'low=${metrics.lowPriorityRequestCount}',
                   'avg_latency_ms: ${metrics.averageLatency.inMilliseconds}',
                   'p95_latency_ms: ${metrics.p95Latency.inMilliseconds}',
                   'bytes: ${metrics.totalBytes}',
@@ -472,47 +566,7 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
               : 'Press "Run image test" to load fixture images.',
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 480,
-          child: _isSessionActive
-              ? GridView.builder(
-                  controller: _scrollController,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.72,
-                  ),
-                  itemCount: widget.imageCount,
-                  itemBuilder: (context, index) {
-                    return _ImageTile(
-                      index: index,
-                      url: _imageUrlForIndex(index),
-                      onResolved: _handleTileResolved,
-                    );
-                  },
-                )
-              : DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.secondarySystemBackground
-                        .resolveFrom(context),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: CupertinoColors.separator.resolveFrom(context),
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'Waiting to start',
-                      style: theme.textTheme.textStyle.copyWith(
-                        color: CupertinoColors.secondaryLabel.resolveFrom(
-                          context,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-        ),
+        _buildPreviewBody(theme, context),
       ],
     );
   }
@@ -557,11 +611,15 @@ final class _ImageTile extends StatefulWidget {
   const _ImageTile({
     required this.index,
     required this.url,
+    required this.priority,
+    required this.usePriorityScheduling,
     required this.onResolved,
   });
 
   final int index;
   final String url;
+  final ImageRequestPriority priority;
+  final bool usePriorityScheduling;
   final ValueChanged<int> onResolved;
 
   @override
@@ -586,7 +644,11 @@ class _ImageTileState extends State<_ImageTile> {
             Image(
               image: CachedNetworkImageProvider(
                 widget.url,
-                headers: const <String, String>{'accept': 'image/png'},
+                headers: <String, String>{
+                  'accept': 'image/png',
+                  if (widget.usePriorityScheduling)
+                    imageRequestPriorityHeaderName: widget.priority.name,
+                },
               ),
               fit: BoxFit.cover,
               frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
