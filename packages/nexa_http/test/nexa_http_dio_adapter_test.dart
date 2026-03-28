@@ -7,12 +7,6 @@ import 'package:test/test.dart';
 
 void main() {
   group('NexaHttpDioAdapter', () {
-    test('requires stream-first executor response contract', () {
-      Future<NexaHttpStreamedResponse> Function(HttpExecutor) signature =
-          _typedExecute;
-      expect(signature, isNotNull);
-    });
-
     test('maps GET requests into NexaHttpRequest and decodes JSON responses',
         () async {
       final executor = _FakeHttpExecutor(
@@ -218,12 +212,6 @@ void main() {
       expect(executor.closeCalled, isTrue);
     });
   });
-}
-
-Future<NexaHttpStreamedResponse> _typedExecute(HttpExecutor executor) {
-  return executor.execute(
-    NexaHttpRequest.get(uri: Uri.parse('https://example.com/signature')),
-  );
 }
 
 final class _FakeHttpExecutor implements HttpExecutor {

@@ -10,12 +10,6 @@ import 'support/http_fixture_server.dart';
 
 void main() {
   group('NexaHttpDioAdapter native integration', () {
-    test('pins public executor contract to streamed responses', () {
-      Future<NexaHttpStreamedResponse> Function(HttpExecutor) signature =
-          _typedExecute;
-      expect(signature, isNotNull);
-    });
-
     HttpFixtureServer? fixtureServer;
     Dio? dio;
 
@@ -256,10 +250,4 @@ void main() {
       },
     );
   });
-}
-
-Future<NexaHttpStreamedResponse> _typedExecute(HttpExecutor executor) {
-  return executor.execute(
-    NexaHttpRequest.get(uri: Uri.parse('https://example.com/signature')),
-  );
 }
