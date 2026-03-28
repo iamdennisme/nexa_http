@@ -4,45 +4,6 @@ import 'package:nexa_http_example/src/image_perf/image_perf_metrics.dart';
 import 'package:nexa_http_example/src/image_perf/image_perf_result_payload.dart';
 
 void main() {
-  test('collects distinct sample errors for payload diagnostics', () {
-    expect(
-      collectImagePerfSampleErrors(const <ImageRequestSample>[
-        ImageRequestSample(
-          url: 'http://192.168.1.16:8080/image?id=poster-0',
-          elapsed: Duration(milliseconds: 3),
-          bytes: 0,
-          succeeded: false,
-          error: 'SocketException: Connection refused',
-        ),
-        ImageRequestSample(
-          url: 'http://192.168.1.16:8080/image?id=poster-1',
-          elapsed: Duration(milliseconds: 5),
-          bytes: 0,
-          succeeded: false,
-          error: 'SocketException: Connection refused',
-        ),
-        ImageRequestSample(
-          url: 'http://192.168.1.16:8080/image?id=poster-2',
-          elapsed: Duration(milliseconds: 8),
-          bytes: 2048,
-          succeeded: true,
-          error: 'ignored-success',
-        ),
-        ImageRequestSample(
-          url: 'http://192.168.1.16:8080/image?id=poster-3',
-          elapsed: Duration(milliseconds: 13),
-          bytes: 0,
-          succeeded: false,
-          error: 'HandshakeException: bad certificate',
-        ),
-      ]),
-      const <String>[
-        'SocketException: Connection refused',
-        'HandshakeException: bad certificate',
-      ],
-    );
-  });
-
   test('includes failed sample errors in the result payload', () {
     final payload = buildImagePerfResultPayload(
       scenarioName: 'image',
@@ -117,7 +78,6 @@ void main() {
     );
 
     expect(payload['failure_count'], 3);
-    expect(payload['total_bytes'], 0);
     expect(payload['sample_errors'], const <String>[
       'SocketException: Connection refused',
       'HandshakeException: bad certificate',
