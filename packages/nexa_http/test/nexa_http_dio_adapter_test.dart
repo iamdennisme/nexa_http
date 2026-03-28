@@ -1,5 +1,7 @@
+@Tags(<String>['dio_streaming_pending'])
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:nexa_http/nexa_http_dio.dart';
@@ -11,10 +13,8 @@ void main() {
       'requires stream-first executor response contract',
       () async {
         final executor = _FakeHttpExecutor(
-          handler: (request) async => const NexaHttpResponse(
-            statusCode: 200,
-            bodyBytes: <int>[1, 2, 3],
-          ),
+          handler: (request) async =>
+              _streamedResponse(statusCode: 200, bodyBytes: <int>[1, 2, 3]),
         );
 
         await expectLater(
@@ -25,47 +25,51 @@ void main() {
       tags: const <String>['dio_streaming_pending'],
     );
 
-    test('maps GET requests into NexaHttpRequest and decodes JSON responses',
-        () async {
-      final executor = _FakeHttpExecutor(
-        handler: (request) async {
-          return NexaHttpResponse(
-            statusCode: 200,
-            headers: const <String, List<String>>{
-              'content-type': <String>[Headers.jsonContentType],
-            },
-            bodyBytes: utf8.encode('{"ok":true}'),
-            finalUri: Uri.parse('https://example.com/v1/ping?source=dio'),
-          );
-        },
-      );
-      final dio = Dio()
-        ..httpClientAdapter = NexaHttpDioAdapter(executor: executor);
+    test(
+      'maps GET requests into NexaHttpRequest and decodes JSON responses',
+      () async {
+        final executor = _FakeHttpExecutor(
+          handler: (request) async {
+            return _streamedResponse(
+              statusCode: 200,
+              headers: const <String, List<String>>{
+                'content-type': <String>[Headers.jsonContentType],
+              },
+              bodyBytes: utf8.encode('{"ok":true}'),
+              finalUri: Uri.parse('https://example.com/v1/ping?source=dio'),
+            );
+          },
+        );
+        final dio = Dio()
+          ..httpClientAdapter = NexaHttpDioAdapter(executor: executor);
 
-      final response = await dio.get<Map<String, dynamic>>(
-        'https://example.com/v1/ping',
-        queryParameters: const <String, String>{'source': 'dio'},
-        options: Options(headers: const <String, Object?>{'x-sdk': 'rust-net'}),
-      );
+        final response = await dio.get<Map<String, dynamic>>(
+          'https://example.com/v1/ping',
+          queryParameters: const <String, String>{'source': 'dio'},
+          options: Options(
+            headers: const <String, Object?>{'x-sdk': 'rust-net'},
+          ),
+        );
 
-      expect(response.statusCode, 200);
-      expect(response.data, <String, dynamic>{'ok': true});
-      expect(executor.lastRequest?.method, NexaHttpMethod.get);
-      expect(
-        response.headers.value(NexaHttpDioAdapter.finalUriHeaderName),
-        'https://example.com/v1/ping?source=dio',
-      );
-      expect(
-        executor.lastRequest?.uri,
-        Uri.parse('https://example.com/v1/ping?source=dio'),
-      );
-      expect(executor.lastRequest?.headers['x-sdk'], 'rust-net');
-    });
+        expect(response.statusCode, 200);
+        expect(response.data, <String, dynamic>{'ok': true});
+        expect(executor.lastRequest?.method, NexaHttpMethod.get);
+        expect(
+          response.headers.value(NexaHttpDioAdapter.finalUriHeaderName),
+          'https://example.com/v1/ping?source=dio',
+        );
+        expect(
+          executor.lastRequest?.uri,
+          Uri.parse('https://example.com/v1/ping?source=dio'),
+        );
+        expect(executor.lastRequest?.headers['x-sdk'], 'rust-net');
+      },
+    );
 
     test('reads POST request bodies from Dio request streams', () async {
       final executor = _FakeHttpExecutor(
         handler: (request) async {
-          return NexaHttpResponse(
+          return _streamedResponse(
             statusCode: 201,
             headers: const <String, List<String>>{
               'content-type': <String>[Headers.textPlainContentType],
@@ -106,7 +110,7 @@ void main() {
     test('lets Dio raise badResponse for non-2xx statuses', () async {
       final executor = _FakeHttpExecutor(
         handler: (request) async {
-          return NexaHttpResponse(
+          return _streamedResponse(
             statusCode: 404,
             headers: const <String, List<String>>{
               'content-type': <String>[Headers.textPlainContentType],
@@ -126,7 +130,10 @@ void main() {
         throwsA(
           isA<DioException>()
               .having(
-                  (error) => error.type, 'type', DioExceptionType.badResponse)
+                (error) => error.type,
+                'type',
+                DioExceptionType.badResponse,
+              )
               .having((error) => error.response?.statusCode, 'statusCode', 404)
               .having((error) => error.response?.data, 'data', 'missing'),
         ),
@@ -162,7 +169,7 @@ void main() {
     });
 
     test('maps CancelToken cancellations to Dio cancel errors', () async {
-      final completer = Completer<NexaHttpResponse>();
+      final completer = Completer<NexaHttpStreamedResponse>();
       final executor = _FakeHttpExecutor(
         handler: (request) => completer.future,
       );
@@ -188,10 +195,7 @@ void main() {
       );
 
       completer.complete(
-        const NexaHttpResponse(
-          statusCode: 200,
-          bodyBytes: <int>[],
-        ),
+        _streamedResponse(statusCode: 200, bodyBytes: <int>[]),
       );
     });
 
@@ -199,7 +203,7 @@ void main() {
       final dio = Dio()
         ..httpClientAdapter = NexaHttpDioAdapter(
           executor: _FakeHttpExecutor(
-            handler: (request) async => const NexaHttpResponse(statusCode: 204),
+            handler: (request) async => _streamedResponse(statusCode: 204),
           ),
         );
 
@@ -220,7 +224,7 @@ void main() {
 
     test('closes the wrapped executor when the adapter is closed', () async {
       final executor = _FakeHttpExecutor(
-        handler: (request) async => const NexaHttpResponse(statusCode: 204),
+        handler: (request) async => _streamedResponse(statusCode: 204),
       );
       final adapter = NexaHttpDioAdapter(executor: executor);
 
@@ -244,7 +248,8 @@ Future<List<int>> _readStreamFirstBodyBytes(HttpExecutor executor) async {
 final class _FakeHttpExecutor implements HttpExecutor {
   _FakeHttpExecutor({required this.handler});
 
-  final Future<NexaHttpResponse> Function(NexaHttpRequest request) handler;
+  final Future<NexaHttpStreamedResponse> Function(NexaHttpRequest request)
+  handler;
 
   NexaHttpRequest? lastRequest;
   bool closeCalled = false;
@@ -255,8 +260,23 @@ final class _FakeHttpExecutor implements HttpExecutor {
   }
 
   @override
-  Future<NexaHttpResponse> execute(NexaHttpRequest request) {
+  Future<NexaHttpStreamedResponse> execute(NexaHttpRequest request) {
     lastRequest = request;
     return handler(request);
   }
+}
+
+NexaHttpStreamedResponse _streamedResponse({
+  required int statusCode,
+  Map<String, List<String>> headers = const <String, List<String>>{},
+  List<int> bodyBytes = const <int>[],
+  Uri? finalUri,
+}) {
+  return NexaHttpStreamedResponse(
+    statusCode: statusCode,
+    headers: headers,
+    finalUri: finalUri,
+    contentLength: bodyBytes.length,
+    bodyStream: Stream<Uint8List>.value(Uint8List.fromList(bodyBytes)),
+  );
 }

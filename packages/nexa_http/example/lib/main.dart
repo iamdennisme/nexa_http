@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:nexa_http/nexa_http.dart';
@@ -51,9 +52,7 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
       ? ExampleDemoSection.images
       : ExampleDemoSection.http;
 
-  static const _requestHeaders = <String, String>{
-    'accept': 'application/json',
-  };
+  static const _requestHeaders = <String, String>{'accept': 'application/json'};
   static const bool _autorunImagePerfEnabled = _imagePerfScenario != '';
 
   late final TextEditingController _urlController;
@@ -142,6 +141,7 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
 
     try {
       final response = await client.execute(request);
+      final responseInfo = await _formatResponse(response, stopwatch.elapsed);
       stopwatch.stop();
 
       if (!mounted) {
@@ -149,7 +149,7 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
       }
 
       setState(() {
-        _responseInfo = _formatResponse(response, stopwatch.elapsed);
+        _responseInfo = responseInfo;
       });
     } on NexaHttpException catch (error) {
       stopwatch.stop();
@@ -190,8 +190,11 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
     ].join('\n');
   }
 
-  String _formatResponse(NexaHttpResponse response, Duration elapsed) {
-    final body = response.bodyText;
+  Future<String> _formatResponse(
+    NexaHttpStreamedResponse response,
+    Duration elapsed,
+  ) async {
+    final body = utf8.decode(await response.readBytes());
     final preview = body.length > 4000
         ? '${body.substring(0, 4000)}\n...[truncated]'
         : body;
@@ -339,10 +342,7 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
   }
 }
 
-enum ExampleDemoSection {
-  http,
-  images,
-}
+enum ExampleDemoSection { http, images }
 
 class _InfoCard extends StatelessWidget {
   const _InfoCard({
@@ -366,8 +366,8 @@ class _InfoCard extends StatelessWidget {
         border: Border.all(
           color: isError
               ? CupertinoColors.systemRed
-                  .resolveFrom(context)
-                  .withValues(alpha: 0.25)
+                    .resolveFrom(context)
+                    .withValues(alpha: 0.25)
               : CupertinoColors.separator.resolveFrom(context),
         ),
       ),

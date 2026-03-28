@@ -28,15 +28,12 @@ class NexaHttpClient implements HttpExecutor {
   bool _isClosed = false;
 
   @override
-  Future<NexaHttpResponse> execute(NexaHttpRequest request) async {
+  Future<NexaHttpStreamedResponse> execute(NexaHttpRequest request) async {
     _ensureOpen();
 
     return _dataSource.execute(
       _clientId,
-      NativeHttpRequestMapper.toDto(
-        clientConfig: config,
-        request: request,
-      ),
+      NativeHttpRequestMapper.toDto(clientConfig: config, request: request),
     );
   }
 

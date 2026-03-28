@@ -1,8 +1,8 @@
 import 'nexa_http_request.dart';
-import 'nexa_http_response.dart';
+import 'nexa_http_streamed_response.dart';
 
 abstract interface class HttpExecutor {
-  Future<NexaHttpResponse> execute(NexaHttpRequest request);
+  Future<NexaHttpStreamedResponse> execute(NexaHttpRequest request);
 
   Future<void> close();
 }

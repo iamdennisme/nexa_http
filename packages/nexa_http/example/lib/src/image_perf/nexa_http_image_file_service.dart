@@ -19,13 +19,14 @@ final class NexaHttpImageFileService extends FileService {
       timeout: Duration(seconds: 20),
       userAgent: 'nexa_http_example/1.0.0',
     ),
-  })  : _ownsExecutor = executor == null,
-        _executor = executor ?? NexaHttpClient(config: config),
-        _scheduler = scheduler ??
-            ImageRequestScheduler(
-              maxConcurrentRequests: 6,
-              maxLowPriorityConcurrency: 2,
-            );
+  }) : _ownsExecutor = executor == null,
+       _executor = executor ?? NexaHttpClient(config: config),
+       _scheduler =
+           scheduler ??
+           ImageRequestScheduler(
+             maxConcurrentRequests: 6,
+             maxLowPriorityConcurrency: 2,
+           );
 
   final HttpExecutor _executor;
   final bool _ownsExecutor;
@@ -55,25 +56,23 @@ final class NexaHttpImageFileService extends FileService {
     }
     final stopwatch = Stopwatch()..start();
     try {
-      final response = await _scheduler.schedule<NexaHttpResponse>(
+      final response = await _scheduler.schedule<NexaHttpStreamedResponse>(
         priority: priority,
         task: () {
           dispatchSequence = _nextDispatchSequence;
           _nextDispatchSequence += 1;
           return _executor.execute(
-            NexaHttpRequest.get(
-              uri: Uri.parse(url),
-              headers: requestHeaders,
-            ),
+            NexaHttpRequest.get(uri: Uri.parse(url), headers: requestHeaders),
           );
         },
       );
+      final bodyBytes = await response.readBytes();
       stopwatch.stop();
       onSample?.call(
         ImageRequestSample(
           url: url,
           elapsed: stopwatch.elapsed,
-          bytes: response.bodyBytes.length,
+          bytes: bodyBytes.length,
           succeeded: _isSuccessfulStatus(response.statusCode),
           priority: priority,
           dispatchSequence: dispatchSequence,
@@ -85,9 +84,8 @@ final class NexaHttpImageFileService extends FileService {
       );
 
       return BufferedFileServiceResponse(
-        bodyBytes: response.bodyBytes,
-        contentLength:
-            _contentLengthFromHeaders(response) ?? response.bodyBytes.length,
+        bodyBytes: bodyBytes,
+        contentLength: response.contentLength ?? bodyBytes.length,
         statusCode: response.statusCode,
         validTill: _validTillFromResponse(response),
         eTag: _header(response, HttpHeaders.etagHeader),
@@ -120,7 +118,7 @@ final class NexaHttpImageFileService extends FileService {
     return statusCode >= 200 && statusCode < 400;
   }
 
-  String? _header(NexaHttpResponse response, String name) {
+  String? _header(NexaHttpStreamedResponse response, String name) {
     for (final entry in response.headers.entries) {
       if (entry.key.toLowerCase() == name.toLowerCase()) {
         return entry.value.join(',');
@@ -129,15 +127,7 @@ final class NexaHttpImageFileService extends FileService {
     return null;
   }
 
-  int? _contentLengthFromHeaders(NexaHttpResponse response) {
-    final header = _header(response, HttpHeaders.contentLengthHeader);
-    if (header == null || header.isEmpty) {
-      return null;
-    }
-    return int.tryParse(header);
-  }
-
-  DateTime _validTillFromResponse(NexaHttpResponse response) {
+  DateTime _validTillFromResponse(NexaHttpStreamedResponse response) {
     var ageDuration = const Duration(days: 7);
     final controlHeader = _header(response, HttpHeaders.cacheControlHeader);
     if (controlHeader != null) {
@@ -158,7 +148,7 @@ final class NexaHttpImageFileService extends FileService {
     return DateTime.now().add(ageDuration);
   }
 
-  String _fileExtensionFromResponse(NexaHttpResponse response) {
+  String _fileExtensionFromResponse(NexaHttpStreamedResponse response) {
     final contentTypeHeader = _header(response, HttpHeaders.contentTypeHeader);
     if (contentTypeHeader == null || contentTypeHeader.isEmpty) {
       return '';

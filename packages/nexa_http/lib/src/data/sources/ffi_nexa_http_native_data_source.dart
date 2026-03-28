@@ -24,7 +24,10 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   }
 
   final NexaHttpBindings _bindings;
-  final _pendingExecuteRequests = <int, Completer<NexaHttpResponse>>{};
+  final _pendingExecuteRequests = <int, _PendingExecuteRequest>{};
+  final _activeResponseStreams = <int, int>{};
+  final _closedClients = <int>{};
+  final _closedResponseStreams = <int>{};
 
   late final NativeCallable<NexaHttpExecuteCallbackFunction> _executeCallback;
   int _requestSequence = 0;
@@ -46,13 +49,16 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   }
 
   @override
-  Future<NexaHttpResponse> execute(
+  Future<NexaHttpStreamedResponse> execute(
     int clientId,
     NativeHttpRequestDto request,
   ) async {
     final requestId = _nextRequestId();
-    final completer = Completer<NexaHttpResponse>();
-    _pendingExecuteRequests[requestId] = completer;
+    final completer = Completer<NexaHttpStreamedResponse>();
+    _pendingExecuteRequests[requestId] = _PendingExecuteRequest(
+      clientId: clientId,
+      completer: completer,
+    );
     final requestArgs = _NativeRequestArena.fromDto(request);
 
     try {
@@ -82,6 +88,29 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
 
   @override
   void closeClient(int clientId) {
+    _closedClients.add(clientId);
+    for (final entry in _pendingExecuteRequests.entries.toList(
+      growable: false,
+    )) {
+      if (entry.value.clientId != clientId) {
+        continue;
+      }
+      _pendingExecuteRequests.remove(entry.key);
+      if (!entry.value.completer.isCompleted) {
+        entry.value.completer.completeError(_clientClosedException);
+      }
+    }
+
+    for (final entry in _activeResponseStreams.entries.toList(
+      growable: false,
+    )) {
+      if (entry.value != clientId) {
+        continue;
+      }
+      _closedResponseStreams.add(entry.key);
+      _bindings.nexa_http_response_stream_close(entry.key);
+    }
+
     _bindings.nexa_http_client_close(clientId);
   }
 
@@ -94,20 +123,23 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     int requestId,
     Pointer<NexaHttpResponseHeadResult> resultPointer,
   ) {
-    final completer = _pendingExecuteRequests.remove(requestId);
-    if (completer == null || completer.isCompleted) {
+    final pendingRequest = _pendingExecuteRequests.remove(requestId);
+    if (pendingRequest == null || pendingRequest.completer.isCompleted) {
       _disposeResponseHeadResult(resultPointer, closeOwnedStream: true);
       return;
     }
 
     try {
-      completer.complete(_decodeResponseHeadResult(resultPointer));
+      pendingRequest.completer.complete(
+        _decodeResponseHeadResult(pendingRequest.clientId, resultPointer),
+      );
     } on Object catch (error, stackTrace) {
-      completer.completeError(error, stackTrace);
+      pendingRequest.completer.completeError(error, stackTrace);
     }
   }
 
-  NexaHttpResponse _decodeResponseHeadResult(
+  NexaHttpStreamedResponse _decodeResponseHeadResult(
+    int clientId,
     Pointer<NexaHttpResponseHeadResult> resultPointer,
   ) {
     if (resultPointer == nullptr) {
@@ -151,11 +183,12 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     }
 
     try {
-      return NexaHttpResponse(
+      return NexaHttpStreamedResponse(
         statusCode: statusCode,
         headers: headers,
-        bodyBytes: _readResponseBody(streamId),
         finalUri: finalUri,
+        contentLength: _contentLengthFromHeaders(headers),
+        bodyStream: _readResponseBody(clientId, streamId),
       );
     } on Object {
       _bindings.nexa_http_response_stream_close(streamId);
@@ -181,48 +214,61 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     _bindings.nexa_http_response_head_result_free(resultPointer);
   }
 
-  List<int> _readResponseBody(int streamId) {
-    final bodyBytes = BytesBuilder(copy: false);
+  Stream<Uint8List> _readResponseBody(int clientId, int streamId) async* {
+    if (_closedClients.contains(clientId) ||
+        _closedResponseStreams.contains(streamId)) {
+      throw _clientClosedException;
+    }
 
-    while (true) {
-      final chunkResultPointer = _bindings.nexa_http_response_stream_next(
-        streamId,
-      );
-      if (chunkResultPointer == nullptr) {
-        throw const NexaHttpException(
-          code: 'ffi_invalid_response',
-          message:
-              'The nexa_http native library returned a null response chunk result.',
+    _activeResponseStreams[streamId] = clientId;
+
+    try {
+      while (true) {
+        if (_closedClients.contains(clientId) ||
+            _closedResponseStreams.contains(streamId)) {
+          throw _clientClosedException;
+        }
+
+        final chunkResultPointer = _bindings.nexa_http_response_stream_next(
+          streamId,
         );
-      }
-
-      try {
-        final chunkResult = chunkResultPointer.ref;
-        if (chunkResult.is_success == 0) {
-          throw _decodeError(chunkResult.error_json);
-        }
-        if (chunkResult.is_done != 0) {
-          return bodyBytes.takeBytes();
-        }
-        if (chunkResult.chunk_len == 0) {
-          continue;
-        }
-        if (chunkResult.chunk_ptr == nullptr) {
+        if (chunkResultPointer == nullptr) {
           throw const NexaHttpException(
             code: 'ffi_invalid_response',
             message:
-                'The nexa_http native library returned a null chunk pointer for a non-empty response chunk.',
+                'The nexa_http native library returned a null response chunk result.',
           );
         }
 
-        bodyBytes.add(
-          Uint8List.fromList(
+        try {
+          final chunkResult = chunkResultPointer.ref;
+          if (chunkResult.is_success == 0) {
+            throw _decodeError(chunkResult.error_json);
+          }
+          if (chunkResult.is_done != 0) {
+            return;
+          }
+          if (chunkResult.chunk_len == 0) {
+            continue;
+          }
+          if (chunkResult.chunk_ptr == nullptr) {
+            throw const NexaHttpException(
+              code: 'ffi_invalid_response',
+              message:
+                  'The nexa_http native library returned a null chunk pointer for a non-empty response chunk.',
+            );
+          }
+
+          yield Uint8List.fromList(
             chunkResult.chunk_ptr.asTypedList(chunkResult.chunk_len),
-          ),
-        );
-      } finally {
-        _bindings.nexa_http_response_chunk_result_free(chunkResultPointer);
+          );
+        } finally {
+          _bindings.nexa_http_response_chunk_result_free(chunkResultPointer);
+        }
       }
+    } finally {
+      _activeResponseStreams.remove(streamId);
+      _closedResponseStreams.remove(streamId);
     }
   }
 
@@ -313,7 +359,32 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     }
     return pointer.cast<Utf8>().toDartString(length: length);
   }
+
+  int? _contentLengthFromHeaders(Map<String, List<String>> headers) {
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() != 'content-length' || entry.value.isEmpty) {
+        continue;
+      }
+      return int.tryParse(entry.value.first);
+    }
+    return null;
+  }
 }
+
+final class _PendingExecuteRequest {
+  const _PendingExecuteRequest({
+    required this.clientId,
+    required this.completer,
+  });
+
+  final int clientId;
+  final Completer<NexaHttpStreamedResponse> completer;
+}
+
+const _clientClosedException = NexaHttpException(
+  code: 'client_closed',
+  message: 'client closed',
+);
 
 final class _NativeRequestArena {
   _NativeRequestArena._(this._arena, this.pointer);
