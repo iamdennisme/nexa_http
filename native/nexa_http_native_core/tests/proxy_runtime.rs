@@ -1,7 +1,8 @@
-use nexa_http_native_core::platform::ProxySettings;
 use nexa_http_native_core::platform::PlatformCapabilities;
+use nexa_http_native_core::platform::ProxySettings;
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use std::ffi::CString;
+use std::os::raw::c_char;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -42,20 +43,18 @@ fn proxy_signature_change_triggers_refresh_once() {
     let runtime = NexaHttpRuntime::new(capabilities);
     let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
         .expect("config json");
-    let request =
-        CString::new(r#"{"method":"GET","url":"http://127.0.0.1:9/ping","headers":{},"timeout_ms":1}"#)
-            .expect("request json");
+    let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
 
     let client_id = runtime.create_client(config.as_ptr());
     assert_ne!(client_id, 0);
     let calls_after_create = calls.load(Ordering::Relaxed);
 
-    let warmup = runtime.execute_binary(client_id, request.as_ptr(), std::ptr::null(), 0);
+    let warmup = runtime.execute_binary(client_id, request.as_args());
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
 
     switch.store(true, Ordering::Relaxed);
 
-    let refreshed = runtime.execute_binary(client_id, request.as_ptr(), std::ptr::null(), 0);
+    let refreshed = runtime.execute_binary(client_id, request.as_args());
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(refreshed);
 
     assert_eq!(
@@ -63,4 +62,38 @@ fn proxy_signature_change_triggers_refresh_once() {
         calls_after_create + 1,
         "signature drift should trigger one refresh lookup",
     );
+}
+
+struct TestRequestArgs {
+    _method: CString,
+    _url: CString,
+    args: nexa_http_native_core::api::ffi::NexaHttpRequestArgs,
+}
+
+impl TestRequestArgs {
+    fn new(method: &str, url: &str, timeout_ms: u64) -> Self {
+        let method = CString::new(method).expect("request method");
+        let url = CString::new(url).expect("request url");
+        let args = nexa_http_native_core::api::ffi::NexaHttpRequestArgs {
+            method_ptr: method.as_ptr() as *const c_char,
+            method_len: method.as_bytes().len(),
+            url_ptr: url.as_ptr() as *const c_char,
+            url_len: url.as_bytes().len(),
+            headers_ptr: std::ptr::null(),
+            headers_len: 0,
+            body_ptr: std::ptr::null(),
+            body_len: 0,
+            timeout_ms,
+            has_timeout: 1,
+        };
+        Self {
+            _method: method,
+            _url: url,
+            args,
+        }
+    }
+
+    fn as_args(&self) -> *const nexa_http_native_core::api::ffi::NexaHttpRequestArgs {
+        &self.args
+    }
 }

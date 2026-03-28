@@ -1,4 +1,6 @@
-use nexa_http_native_core::api::ffi::{NexaHttpBinaryResult, NexaHttpExecuteCallback};
+use nexa_http_native_core::api::ffi::{
+    NexaHttpBinaryResult, NexaHttpExecuteCallback, NexaHttpRequestArgs,
+};
 use nexa_http_native_core::platform::{PlatformCapabilities, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use once_cell::sync::Lazy;
@@ -26,29 +28,18 @@ pub extern "C" fn nexa_http_client_create(config_json: *const c_char) -> u64 {
 pub extern "C" fn nexa_http_client_execute_async(
     client_id: u64,
     request_id: u64,
-    request_json: *const c_char,
-    body_ptr: *const u8,
-    body_len: usize,
+    request_args: *const NexaHttpRequestArgs,
     callback: NexaHttpExecuteCallback,
 ) -> u8 {
-    RUNTIME.execute_async(
-        client_id,
-        request_id,
-        request_json,
-        body_ptr,
-        body_len,
-        callback,
-    )
+    RUNTIME.execute_async(client_id, request_id, request_args, callback)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn nexa_http_client_execute_binary(
     client_id: u64,
-    request_json: *const c_char,
-    body_ptr: *const u8,
-    body_len: usize,
+    request_args: *const NexaHttpRequestArgs,
 ) -> *mut NexaHttpBinaryResult {
-    RUNTIME.execute_binary(client_id, request_json, body_ptr, body_len)
+    RUNTIME.execute_binary(client_id, request_args)
 }
 
 #[unsafe(no_mangle)]
@@ -132,7 +123,12 @@ fn proxy_settings_from_apple_values(
     settings
 }
 
-fn apple_entry(enabled: bool, host: Option<&str>, port: Option<i32>, scheme: &str) -> Option<String> {
+fn apple_entry(
+    enabled: bool,
+    host: Option<&str>,
+    port: Option<i32>,
+    scheme: &str,
+) -> Option<String> {
     if !enabled {
         return None;
     }
@@ -166,7 +162,11 @@ fn clean_value(value: String) -> Option<String> {
         .trim_matches('\'')
         .trim()
         .to_string();
-    if cleaned.is_empty() { None } else { Some(cleaned) }
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned)
+    }
 }
 
 fn normalize_proxy_url(value: &str, default_scheme: &str) -> Option<String> {
@@ -230,8 +230,11 @@ mod sysconfig {
         let socks_host = dictionary_string(proxies.0, unsafe { kSCPropNetProxiesSOCKSProxy });
         let socks_port = dictionary_i32(proxies.0, unsafe { kSCPropNetProxiesSOCKSPort });
 
-        let exceptions = dictionary_string_array(proxies.0, unsafe { kSCPropNetProxiesExceptionsList });
-        let exclude_simple = dictionary_bool(proxies.0, unsafe { kSCPropNetProxiesExcludeSimpleHostnames });
+        let exceptions =
+            dictionary_string_array(proxies.0, unsafe { kSCPropNetProxiesExceptionsList });
+        let exclude_simple = dictionary_bool(proxies.0, unsafe {
+            kSCPropNetProxiesExcludeSimpleHostnames
+        });
 
         proxy_settings_from_apple_values(
             http_enabled,

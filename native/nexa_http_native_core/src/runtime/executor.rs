@@ -1,8 +1,8 @@
 use crate::api::error::{NativeError, NativeHttpError};
-use crate::api::ffi::{NexaHttpBinaryResult, NexaHttpExecuteCallback};
-use crate::api::request::{
-    NativeHttpClientConfig, NativeHttpRequest, NativeHttpRequestMetadata,
+use crate::api::ffi::{
+    NexaHttpBinaryResult, NexaHttpExecuteCallback, NexaHttpHeaderEntry, NexaHttpRequestArgs,
 };
+use crate::api::request::{NativeHttpClientConfig, NativeHttpHeader, NativeHttpRequest};
 use crate::api::response::NativeHttpRawResponse;
 use crate::platform::{
     PlatformCapabilities, PlatformFeatures, apply_proxy_strategy, merge_env_fallback,
@@ -78,16 +78,14 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
         &self,
         client_id: u64,
         request_id: u64,
-        request_json: *const c_char,
-        body_ptr: *const u8,
-        body_len: usize,
+        request_args: *const NexaHttpRequestArgs,
         callback: NexaHttpExecuteCallback,
     ) -> u8 {
         let Some(callback) = callback else {
             return 0;
         };
 
-        let request = match read_request(request_json, body_ptr, body_len) {
+        let request = match read_request(request_args) {
             Ok(request) => request,
             Err(error) => {
                 let result = build_binary_error_result(error.into_http_error());
@@ -116,11 +114,9 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
     pub fn execute_binary(
         &self,
         client_id: u64,
-        request_json: *const c_char,
-        body_ptr: *const u8,
-        body_len: usize,
+        request_args: *const NexaHttpRequestArgs,
     ) -> *mut NexaHttpBinaryResult {
-        let result = match read_request(request_json, body_ptr, body_len) {
+        let result = match read_request(request_args) {
             Ok(request) => self
                 .inner
                 .tokio
@@ -148,11 +144,9 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
 
         unsafe {
             let result = Box::from_raw(value);
-            if !result.headers_json.is_null() {
-                drop(CString::from_raw(result.headers_json));
-            }
-            if !result.final_url.is_null() {
-                drop(CString::from_raw(result.final_url));
+            free_header_entries_buffer(result.headers_ptr, result.headers_len);
+            if !result.final_url_ptr.is_null() {
+                drop(CString::from_raw(result.final_url_ptr));
             }
             if !result.error_json.is_null() {
                 drop(CString::from_raw(result.error_json));
@@ -171,7 +165,8 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
 fn current_platform_features<P: PlatformCapabilities>(
     inner: &NexaHttpRuntimeInner<P>,
 ) -> PlatformFeatures {
-    let platform_features = PlatformFeatures::from_proxy_settings(inner.capabilities.proxy_settings());
+    let platform_features =
+        PlatformFeatures::from_proxy_settings(inner.capabilities.proxy_settings());
     merge_env_fallback(platform_features)
 }
 
@@ -194,29 +189,87 @@ where
 }
 
 fn read_request(
-    request_json: *const c_char,
-    body_ptr: *const u8,
-    body_len: usize,
+    request_args: *const NexaHttpRequestArgs,
 ) -> Result<NativeHttpRequest, NativeError> {
-    let metadata = read_json::<NativeHttpRequestMetadata>(request_json)?;
-    let body = if body_len == 0 {
+    let request_args = unsafe { request_args.as_ref() }.ok_or_else(|| {
+        NativeError::new(
+            "invalid_argument",
+            "Expected a non-null request args pointer.",
+        )
+    })?;
+
+    let body = if request_args.body_len == 0 {
         Vec::new()
-    } else if body_ptr.is_null() {
+    } else if request_args.body_ptr.is_null() {
         return Err(NativeError::new(
             "invalid_argument",
             "Expected a non-null body pointer when body_len > 0.",
         ));
     } else {
-        unsafe { from_raw_parts(body_ptr, body_len) }.to_vec()
+        unsafe { from_raw_parts(request_args.body_ptr, request_args.body_len) }.to_vec()
     };
 
+    let headers = read_request_headers(request_args.headers_ptr, request_args.headers_len)?;
+
     Ok(NativeHttpRequest {
-        method: metadata.method,
-        url: metadata.url,
-        headers: metadata.headers,
+        method: read_string_parts(
+            request_args.method_ptr,
+            request_args.method_len,
+            "request method",
+        )?,
+        url: read_string_parts(request_args.url_ptr, request_args.url_len, "request URL")?,
+        headers,
         body,
-        timeout_ms: metadata.timeout_ms,
+        timeout_ms: if request_args.has_timeout == 0 {
+            None
+        } else {
+            Some(request_args.timeout_ms)
+        },
     })
+}
+
+fn read_request_headers(
+    headers_ptr: *const NexaHttpHeaderEntry,
+    headers_len: usize,
+) -> Result<HashMap<String, String>, NativeError> {
+    if headers_len == 0 {
+        return Ok(HashMap::new());
+    }
+    if headers_ptr.is_null() {
+        return Err(NativeError::new(
+            "invalid_argument",
+            "Expected a non-null headers pointer when headers_len > 0.",
+        ));
+    }
+
+    let mut headers = HashMap::with_capacity(headers_len);
+    for entry in unsafe { from_raw_parts(headers_ptr, headers_len) } {
+        let name = read_string_parts(entry.name_ptr, entry.name_len, "request header name")?;
+        let value = read_string_parts(entry.value_ptr, entry.value_len, "request header value")?;
+        headers.insert(name, value);
+    }
+    Ok(headers)
+}
+
+fn read_string_parts(
+    pointer: *const c_char,
+    length: usize,
+    field_name: &'static str,
+) -> Result<String, NativeError> {
+    if length == 0 {
+        return Ok(String::new());
+    }
+    if pointer.is_null() {
+        return Err(NativeError::new(
+            "invalid_argument",
+            format!("Expected a non-null pointer for {field_name}."),
+        ));
+    }
+
+    let bytes = unsafe { from_raw_parts(pointer.cast::<u8>(), length) };
+    let value = std::str::from_utf8(bytes)
+        .map_err(|error| NativeError::new("invalid_utf8", error.to_string()))?;
+    Ok(value.to_string())
 }
 
 fn build_client(
@@ -330,13 +383,12 @@ async fn execute_request_with_client_async(
         .map_err(|error| map_reqwest_error(error, &url))?;
     let status_code = response.status().as_u16();
 
-    let mut headers = HashMap::<String, Vec<String>>::new();
+    let mut headers = Vec::<NativeHttpHeader>::new();
     for (name, value) in response.headers() {
-        let value_string = value.to_str().unwrap_or_default().to_string();
-        headers
-            .entry(name.to_string())
-            .or_default()
-            .push(value_string);
+        headers.push(NativeHttpHeader {
+            name: name.to_string(),
+            value: value.to_str().unwrap_or_default().to_string(),
+        });
     }
 
     let final_url = Some(response.url().to_string());
@@ -354,41 +406,16 @@ async fn execute_request_with_client_async(
 }
 
 fn build_binary_success_result(response: NativeHttpRawResponse) -> NexaHttpBinaryResult {
-    let headers_json = match serde_json::to_string(&response.headers)
-        .ok()
-        .and_then(|json| CString::new(json).ok())
-    {
-        Some(value) => value.into_raw(),
-        None => {
-            return build_binary_error_result(NativeHttpError {
-                code: "serialization".to_string(),
-                message: "Failed to encode response headers.".to_string(),
-                status_code: None,
-                is_timeout: false,
-                uri: None,
-                details: None,
-            });
-        }
+    let (headers_ptr, headers_len) = match build_header_entries_buffer(response.headers) {
+        Ok(value) => value,
+        Err(error) => return build_binary_error_result(error),
     };
-
-    let final_url = match response.final_url {
-        Some(value) => match CString::new(value) {
-            Ok(value) => value.into_raw(),
-            Err(_) => {
-                unsafe {
-                    drop(CString::from_raw(headers_json));
-                }
-                return build_binary_error_result(NativeHttpError {
-                    code: "serialization".to_string(),
-                    message: "Failed to encode final URL.".to_string(),
-                    status_code: None,
-                    is_timeout: false,
-                    uri: None,
-                    details: None,
-                });
-            }
-        },
-        None => null_mut(),
+    let (final_url_ptr, final_url_len) = match build_string_buffer(response.final_url) {
+        Ok(value) => value,
+        Err(error) => {
+            free_header_entries_buffer(headers_ptr, headers_len);
+            return build_binary_error_result(error);
+        }
     };
 
     let mut body = response.body;
@@ -404,8 +431,10 @@ fn build_binary_success_result(response: NativeHttpRawResponse) -> NexaHttpBinar
     NexaHttpBinaryResult {
         is_success: 1,
         status_code: response.status_code,
-        headers_json,
-        final_url,
+        headers_ptr,
+        headers_len,
+        final_url_ptr,
+        final_url_len,
         body_ptr,
         body_len,
         error_json: null_mut(),
@@ -428,11 +457,87 @@ fn build_binary_error_result(error: NativeHttpError) -> NexaHttpBinaryResult {
     NexaHttpBinaryResult {
         is_success: 0,
         status_code: 0,
-        headers_json: null_mut(),
-        final_url: null_mut(),
+        headers_ptr: null_mut(),
+        headers_len: 0,
+        final_url_ptr: null_mut(),
+        final_url_len: 0,
         body_ptr: null_mut(),
         body_len: 0,
         error_json,
+    }
+}
+
+fn build_header_entries_buffer(
+    headers: Vec<NativeHttpHeader>,
+) -> Result<(*mut NexaHttpHeaderEntry, usize), NativeHttpError> {
+    if headers.is_empty() {
+        return Ok((null_mut(), 0));
+    }
+
+    let mut entries = Vec::<NexaHttpHeaderEntry>::with_capacity(headers.len());
+    for header in headers {
+        let name = CString::new(header.name).map_err(|_| NativeHttpError {
+            code: "serialization".to_string(),
+            message: "Failed to encode response header name.".to_string(),
+            status_code: None,
+            is_timeout: false,
+            uri: None,
+            details: None,
+        })?;
+        let value = CString::new(header.value).map_err(|_| NativeHttpError {
+            code: "serialization".to_string(),
+            message: "Failed to encode response header value.".to_string(),
+            status_code: None,
+            is_timeout: false,
+            uri: None,
+            details: None,
+        })?;
+        let entry = NexaHttpHeaderEntry {
+            name_len: name.as_bytes().len(),
+            name_ptr: name.into_raw(),
+            value_len: value.as_bytes().len(),
+            value_ptr: value.into_raw(),
+        };
+        entries.push(entry);
+    }
+
+    let len = entries.len();
+    let ptr = entries.as_mut_ptr();
+    std::mem::forget(entries);
+    Ok((ptr, len))
+}
+
+fn build_string_buffer(value: Option<String>) -> Result<(*mut c_char, usize), NativeHttpError> {
+    let Some(value) = value else {
+        return Ok((null_mut(), 0));
+    };
+    let value = CString::new(value).map_err(|_| NativeHttpError {
+        code: "serialization".to_string(),
+        message: "Failed to encode final URL.".to_string(),
+        status_code: None,
+        is_timeout: false,
+        uri: None,
+        details: None,
+    })?;
+    let length = value.as_bytes().len();
+    Ok((value.into_raw(), length))
+}
+
+fn free_header_entries_buffer(headers_ptr: *mut NexaHttpHeaderEntry, headers_len: usize) {
+    if headers_ptr.is_null() || headers_len == 0 {
+        return;
+    }
+
+    unsafe {
+        let entries = Vec::from_raw_parts(headers_ptr, headers_len, headers_len);
+        for entry in entries {
+            if !entry.name_ptr.is_null() {
+                drop(CString::from_raw(entry.name_ptr.cast_mut()));
+            }
+            if !entry.value_ptr.is_null() {
+                drop(CString::from_raw(entry.value_ptr.cast_mut()));
+            }
+        }
     }
 }
 
