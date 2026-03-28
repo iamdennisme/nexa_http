@@ -111,6 +111,56 @@ void main() {
     expect(await resolved.readAsString(), 'download-me');
   });
 
+  test('prefers manifest download over default source builds for consumers', () async {
+    final distDir = Directory('${tempDir.path}/dist')..createSync(recursive: true);
+    final sourceArtifact = File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
+    await sourceArtifact.writeAsString('manifest-first');
+    final digest = sha256OfString('manifest-first');
+
+    final manifest = File('${tempDir.path}/nexa_http_native_assets_manifest.json');
+    await manifest.writeAsString(
+      jsonEncode(<String, Object?>{
+        'package': 'nexa_http',
+        'package_version': '1.0.0',
+        'assets': <Map<String, Object?>>[
+          <String, Object?>{
+            'target_os': 'macos',
+            'target_architecture': 'arm64',
+            'file_name': 'nexa_http-native-macos-arm64.dylib',
+            'source_url': sourceArtifact.uri.toString(),
+            'sha256': digest,
+          },
+        ],
+      }),
+    );
+
+    var sourceBuildTriggered = false;
+    final resolved = await resolveNexaHttpNativeArtifactFile(
+      packageRoot: tempDir.uri,
+      cacheRoot: tempDir.uri,
+      packageVersion: '1.0.0',
+      targetOS: 'macos',
+      targetArchitecture: 'arm64',
+      targetSdk: null,
+      packagedRelativePath: 'macos/Libraries/libnexa_http_native.dylib',
+      environment: <String, String>{
+        'NEXA_HTTP_NATIVE_MANIFEST_PATH': manifest.path,
+      },
+      libPathEnvironmentVariable: 'NEXA_HTTP_NATIVE_MACOS_LIB_PATH',
+      sourceDirEnvironmentVariable: 'NEXA_HTTP_NATIVE_MACOS_SOURCE_DIR',
+      defaultSourceDir: '${tempDir.path}/nonexistent-source-dir',
+      buildDefaultSourceDir: (_) async {
+        sourceBuildTriggered = true;
+      },
+      sourceDirCandidates: (path) => <String>[
+        '$path/target/debug/libnexa_http_native_macos_ffi.dylib',
+      ],
+    );
+
+    expect(await resolved.readAsString(), 'manifest-first');
+    expect(sourceBuildTriggered, isFalse);
+  });
+
   test('default release manifest uri points at the rust_net GitHub release', () {
     final manifestUri = resolveNexaHttpNativeManifestUri(
       packageVersion: '1.0.0',
@@ -119,7 +169,7 @@ void main() {
 
     expect(
       manifestUri.toString(),
-      'https://github.com/iamdennisme/rust_net/releases/download/v1.0.0/'
+      'https://github.com/iamdennisme/nexa_http/releases/download/v1.0.0/'
       'nexa_http_native_assets_manifest.json',
     );
   });
