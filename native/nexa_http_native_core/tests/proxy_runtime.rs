@@ -1,6 +1,7 @@
 use nexa_http_native_core::platform::PlatformCapabilities;
 use nexa_http_native_core::platform::ProxySettings;
 use nexa_http_native_core::runtime::NexaHttpRuntime;
+use nexa_http_native_core::runtime::executor::mark_client_for_refresh_for_test;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Arc;
@@ -54,7 +55,7 @@ fn proxy_signature_change_triggers_refresh_once() {
 
     switch.store(true, Ordering::Relaxed);
     assert!(
-        runtime.mark_client_for_refresh_for_test(client_id),
+        mark_client_for_refresh_for_test(&runtime, client_id),
         "test should be able to mark the client for refresh",
     );
 

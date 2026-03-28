@@ -22,8 +22,4 @@ impl ClientEntry {
             needs_refresh: false,
         }
     }
-
-    pub(crate) fn mark_for_refresh(&mut self) {
-        self.needs_refresh = true;
-    }
 }

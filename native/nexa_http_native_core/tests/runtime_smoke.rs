@@ -1,5 +1,6 @@
 use nexa_http_native_core::platform::{PlatformCapabilities, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
+use nexa_http_native_core::runtime::executor::mark_client_for_refresh_for_test;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Arc;
@@ -43,6 +44,37 @@ fn repeated_requests_reuse_existing_client_without_refresh() {
         proxy_settings_calls.load(Ordering::Relaxed),
         calls_after_create,
         "steady-state requests should not re-read platform features",
+    );
+}
+
+#[test]
+fn explicit_refresh_marker_clears_after_one_stable_lookup() {
+    let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
+    let runtime = NexaHttpRuntime::new(CountingCapabilities {
+        proxy_settings_calls: Arc::clone(&proxy_settings_calls),
+    });
+    let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
+        .expect("config json");
+    let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
+
+    let client_id = runtime.create_client(config.as_ptr());
+    assert_ne!(client_id, 0);
+    let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
+
+    assert!(
+        mark_client_for_refresh_for_test(&runtime, client_id),
+        "test should be able to mark the client for refresh",
+    );
+
+    let refreshed = runtime.execute_binary(client_id, request.as_args());
+    NexaHttpRuntime::<CountingCapabilities>::binary_result_free(refreshed);
+    let steady_state = runtime.execute_binary(client_id, request.as_args());
+    NexaHttpRuntime::<CountingCapabilities>::binary_result_free(steady_state);
+
+    assert_eq!(
+        proxy_settings_calls.load(Ordering::Relaxed),
+        calls_after_create + 1,
+        "a stable-signature refresh should do one lookup and then return to the fast path",
     );
 }
 

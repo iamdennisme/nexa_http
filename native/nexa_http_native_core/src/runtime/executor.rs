@@ -131,15 +131,6 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
         self.inner.clients.lock().unwrap().remove(&client_id);
     }
 
-    pub fn mark_client_for_refresh_for_test(&self, client_id: u64) -> bool {
-        let mut clients = self.inner.clients.lock().unwrap();
-        let Some(entry) = clients.get_mut(&client_id) else {
-            return false;
-        };
-        entry.mark_for_refresh();
-        true
-    }
-
     pub fn binary_result_free(value: *mut NexaHttpBinaryResult) {
         if value.is_null() {
             return;
@@ -149,6 +140,20 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
             binary_result_free_impl(value);
         }
     }
+}
+
+#[cfg(debug_assertions)]
+#[doc(hidden)]
+pub fn mark_client_for_refresh_for_test<P: PlatformCapabilities>(
+    runtime: &NexaHttpRuntime<P>,
+    client_id: u64,
+) -> bool {
+    let mut clients = runtime.inner.clients.lock().unwrap();
+    let Some(entry) = clients.get_mut(&client_id) else {
+        return false;
+    };
+    entry.needs_refresh = true;
+    true
 }
 
 pub(crate) unsafe fn binary_result_free_impl(value: *mut NexaHttpBinaryResult) {
