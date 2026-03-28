@@ -46,6 +46,43 @@ ImagePerfPreviewMode resolveImagePerfPreviewMode(
       : ImagePerfPreviewMode.viewport;
 }
 
+String buildImagePerfMetricsCardContent({
+  required ImageTransportMode transportMode,
+  required ImagePerfMetrics metrics,
+}) {
+  if (!metrics.hasSamples) {
+    return 'No samples collected yet.';
+  }
+
+  return [
+    'transport: ${transportMode.name}',
+    'first_screen_ms: ${metrics.firstScreenElapsed?.inMilliseconds ?? '-'}',
+    'requests: ${metrics.requestCount}',
+    'success: ${metrics.successCount}',
+    'failure: ${metrics.failureCount}',
+    'priority_counts: ${metrics.priorityCountsSummary}',
+    'avg_latency_ms: ${metrics.averageLatency.inMilliseconds}',
+    'p95_latency_ms: ${metrics.p95Latency.inMilliseconds}',
+    'bytes: ${metrics.totalBytes}',
+    'throughput_mib_s: ${metrics.throughputMiBPerSecond.toStringAsFixed(2)}',
+    'slow_frames: ${metrics.slowFrameCount}',
+    'max_raster_ms: ${metrics.maxRasterDuration.inMilliseconds}',
+  ].join('\n');
+}
+
+String buildImagePerfPreviewGridContent({
+  required bool isSessionActive,
+  required int runId,
+  required int imageCount,
+  required String baseUrl,
+}) {
+  if (!isSessionActive) {
+    return 'Press "Run image test" to load fixture images.';
+  }
+
+  return 'Run #$runId loading $imageCount fixture images from $baseUrl';
+}
+
 ImageRequestPriority resolveImageRequestPriorityForTile(int index) {
   if (index < imagePerfFirstScreenTileCount) {
     return ImageRequestPriority.high;
@@ -538,32 +575,20 @@ class _ImagePerfPageState extends State<ImagePerfPage> {
         const SizedBox(height: 16),
         _PerfCard(
           title: 'Metrics',
-          content: metrics.requestCount == 0
-              ? 'No samples collected yet.'
-              : [
-                  'transport: ${_mode.name}',
-                  'first_screen_ms: ${metrics.firstScreenElapsed?.inMilliseconds ?? '-'}',
-                  'requests: ${metrics.requestCount}',
-                  'success: ${metrics.successCount}',
-                  'failure: ${metrics.failureCount}',
-                  'priority_counts: '
-                      'high=${metrics.highPriorityRequestCount} '
-                      'medium=${metrics.mediumPriorityRequestCount} '
-                      'low=${metrics.lowPriorityRequestCount}',
-                  'avg_latency_ms: ${metrics.averageLatency.inMilliseconds}',
-                  'p95_latency_ms: ${metrics.p95Latency.inMilliseconds}',
-                  'bytes: ${metrics.totalBytes}',
-                  'throughput_mib_s: ${metrics.throughputMiBPerSecond.toStringAsFixed(2)}',
-                  'slow_frames: ${metrics.slowFrameCount}',
-                  'max_raster_ms: ${metrics.maxRasterDuration.inMilliseconds}',
-                ].join('\n'),
+          content: buildImagePerfMetricsCardContent(
+            transportMode: _mode,
+            metrics: metrics,
+          ),
         ),
         const SizedBox(height: 16),
         _PerfCard(
           title: 'Preview Grid',
-          content: _isSessionActive
-              ? 'Run #$_runId loading ${widget.imageCount} fixture images from ${widget.baseUrl}'
-              : 'Press "Run image test" to load fixture images.',
+          content: buildImagePerfPreviewGridContent(
+            isSessionActive: _isSessionActive,
+            runId: _runId,
+            imageCount: widget.imageCount,
+            baseUrl: widget.baseUrl,
+          ),
         ),
         const SizedBox(height: 12),
         _buildPreviewBody(theme, context),

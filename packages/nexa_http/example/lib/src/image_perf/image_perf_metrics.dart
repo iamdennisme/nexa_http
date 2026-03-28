@@ -178,6 +178,14 @@ class ImagePerfMetrics {
   final Duration maxRasterDuration;
   final double throughputMiBPerSecond;
 
+  bool get hasSamples => requestCount > 0;
+
+  String get priorityCountsSummary {
+    return 'high=$highPriorityRequestCount '
+        'medium=$mediumPriorityRequestCount '
+        'low=$lowPriorityRequestCount';
+  }
+
   static const int _orderingHeadLimit = 8;
 
   static List<ImageRequestOrderingEntry> _buildDispatchOrderHead(

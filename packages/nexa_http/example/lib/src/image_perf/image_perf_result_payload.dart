@@ -1,5 +1,12 @@
 import 'image_perf_metrics.dart';
 
+List<String> collectImagePerfSampleErrors(List<ImageRequestSample> samples) {
+  return <String>{
+    for (final sample in samples)
+      if (!sample.succeeded && sample.error != null) sample.error!,
+  }.take(3).toList(growable: false);
+}
+
 Map<String, Object?> buildImagePerfResultPayload({
   required String scenarioName,
   required String transportName,
@@ -11,10 +18,7 @@ Map<String, Object?> buildImagePerfResultPayload({
   required int? rssAfterBytes,
   required int rssPeakBytes,
 }) {
-  final sampleErrors = <String>{
-    for (final sample in samples)
-      if (!sample.succeeded && sample.error != null) sample.error!,
-  }.take(3).toList(growable: false);
+  final sampleErrors = collectImagePerfSampleErrors(samples);
   final dispatchOrderHead = <Map<String, Object?>>[
     for (final entry in metrics.dispatchOrderHead)
       <String, Object?>{

@@ -55,6 +55,8 @@ void main() {
     expect(report.highPriorityRequestCount, 1);
     expect(report.mediumPriorityRequestCount, 1);
     expect(report.lowPriorityRequestCount, 1);
+    expect(report.hasSamples, isTrue);
+    expect(report.priorityCountsSummary, 'high=1 medium=1 low=1');
     expect(
       report.dispatchOrderHead.map((entry) => entry.priority),
       <ImageRequestPriority>[
@@ -93,6 +95,8 @@ void main() {
     expect(report.highPriorityRequestCount, 0);
     expect(report.mediumPriorityRequestCount, 0);
     expect(report.lowPriorityRequestCount, 0);
+    expect(report.hasSamples, isFalse);
+    expect(report.priorityCountsSummary, 'high=0 medium=0 low=0');
     expect(report.dispatchOrderHead, isEmpty);
     expect(report.completionOrderHead, isEmpty);
     expect(report.averageLatency, Duration.zero);
