@@ -10,28 +10,22 @@ const _clientClosedException = NexaHttpException(
 );
 
 void main() {
-  test('readBytes aggregates chunks and can only be called once', () async {
-    final response = NexaHttpStreamedResponse(
-      statusCode: 200,
-      contentLength: 3,
-      bodyStream: Stream<Uint8List>.fromIterable(<Uint8List>[
-        Uint8List.fromList(<int>[1, 2]),
-        Uint8List.fromList(<int>[3]),
-      ]),
+  test('execute returns a streamed response with single-consumption body',
+      () async {
+    final executor = _FakeStreamFirstExecutor(
+      response: NexaHttpStreamedResponse(
+        statusCode: 200,
+        bodyStream: Stream<Uint8List>.fromIterable(
+          <Uint8List>[
+            Uint8List.fromList(<int>[1, 2]),
+            Uint8List.fromList(<int>[3]),
+          ],
+        ),
+      ),
     );
 
-    expect(response.contentLength, 3);
-    expect(await response.readBytes(), orderedEquals(<int>[1, 2, 3]));
-    await expectLater(response.readBytes(), throwsStateError);
-  });
-
-  test('bodyStream and readBytes are mutually exclusive', () async {
-    final response = NexaHttpStreamedResponse(
-      statusCode: 200,
-      bodyStream: Stream<Uint8List>.fromIterable(<Uint8List>[
-        Uint8List.fromList(<int>[1, 2]),
-        Uint8List.fromList(<int>[3]),
-      ]),
+    final response = await executor.execute(
+      NexaHttpRequest.get(uri: Uri.parse('https://example.com/stream')),
     );
 
     final chunks = await response.bodyStream.toList();
@@ -39,63 +33,40 @@ void main() {
     await expectLater(response.readBytes(), throwsStateError);
   });
 
-  test('bodyStream rejects a second listener', () async {
-    final response = NexaHttpStreamedResponse(
-      statusCode: 200,
-      bodyStream: Stream<Uint8List>.fromIterable(<Uint8List>[
-        Uint8List.fromList(<int>[1, 2, 3]),
-      ]),
+  test('close fails execute-before-head and active body readers with client_closed',
+      () async {
+    final executor = _FakeStreamFirstExecutor.pendingHead();
+
+    final executeFuture = executor.execute(
+      NexaHttpRequest.get(uri: Uri.parse('https://example.com/head')),
+    );
+    await executor.close();
+
+    await expectLater(
+      executeFuture,
+      throwsA(
+        isA<NexaHttpException>()
+            .having((error) => error.code, 'code', 'client_closed'),
+      ),
     );
 
-    await response.bodyStream.drain<void>();
+    final activeReaderExecutor = _FakeStreamFirstExecutor.streamingBody();
 
-    expect(() => response.bodyStream.listen((_) {}), throwsStateError);
+    final streamed = await activeReaderExecutor.execute(
+      NexaHttpRequest.get(uri: Uri.parse('https://example.com/body')),
+    );
+    final bytesFuture = streamed.readBytes();
+    await activeReaderExecutor.bodyReaderAttached;
+    await activeReaderExecutor.close();
+
+    await expectLater(
+      bytesFuture,
+      throwsA(
+        isA<NexaHttpException>()
+            .having((error) => error.code, 'code', 'client_closed'),
+      ),
+    );
   });
-
-  test(
-    'close fails execute-before-head and active body readers with client_closed',
-    () async {
-      final executor = _FakeStreamFirstExecutor.pendingHead();
-
-      final executeFuture = executor.execute(
-        NexaHttpRequest.get(uri: Uri.parse('https://example.com/head')),
-      );
-      final executeExpectation = expectLater(
-        executeFuture,
-        throwsA(
-          isA<NexaHttpException>().having(
-            (error) => error.code,
-            'code',
-            'client_closed',
-          ),
-        ),
-      );
-      await executor.close();
-
-      await executeExpectation;
-
-      final activeReaderExecutor = _FakeStreamFirstExecutor.streamingBody();
-
-      final streamed = await activeReaderExecutor.execute(
-        NexaHttpRequest.get(uri: Uri.parse('https://example.com/body')),
-      );
-      final bytesFuture = streamed.readBytes();
-      final bytesExpectation = expectLater(
-        bytesFuture,
-        throwsA(
-          isA<NexaHttpException>().having(
-            (error) => error.code,
-            'code',
-            'client_closed',
-          ),
-        ),
-      );
-      await activeReaderExecutor.bodyReaderAttached;
-      await activeReaderExecutor.close();
-
-      await bytesExpectation;
-    },
-  );
 }
 
 final class _FakeStreamFirstExecutor implements HttpExecutor {

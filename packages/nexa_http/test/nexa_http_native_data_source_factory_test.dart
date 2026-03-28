@@ -1,6 +1,6 @@
 import 'dart:ffi';
 
-import 'package:nexa_http/src/api/nexa_http_streamed_response.dart';
+import 'package:nexa_http/src/api/nexa_http_response.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
@@ -20,16 +20,11 @@ void main() {
       createDataSource: _FakeNexaHttpNativeDataSource.new,
     );
 
-    final dataSource = factory.create(
-      libraryPath: '/tmp/libnexa_http_native.so',
-    );
+    final dataSource = factory.create(libraryPath: '/tmp/libnexa_http_native.so');
 
     expect(dataSource, isA<_FakeNexaHttpNativeDataSource>());
     expect(resolvedExplicitPath, '/tmp/libnexa_http_native.so');
-    expect(
-      (dataSource as _FakeNexaHttpNativeDataSource).library,
-      same(loadedLibrary),
-    );
+    expect((dataSource as _FakeNexaHttpNativeDataSource).library, same(loadedLibrary));
   });
 
   test('uses the default loader when no explicit library path is provided', () {
@@ -49,10 +44,7 @@ void main() {
 
     expect(loadCallCount, 1);
     expect(dataSource, isA<NexaHttpNativeDataSource>());
-    expect(
-      (dataSource as _FakeNexaHttpNativeDataSource).library,
-      same(loadedLibrary),
-    );
+    expect((dataSource as _FakeNexaHttpNativeDataSource).library, same(loadedLibrary));
   });
 }
 
@@ -68,7 +60,7 @@ final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   int createClient(NativeHttpClientConfigDto config) => 1;
 
   @override
-  Future<NexaHttpStreamedResponse> execute(
+  Future<NexaHttpResponse> execute(
     int clientId,
     NativeHttpRequestDto request,
   ) async {

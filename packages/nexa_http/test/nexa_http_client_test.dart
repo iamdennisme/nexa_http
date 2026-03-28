@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
@@ -10,7 +9,7 @@ import 'package:test/test.dart';
 void main() {
   test('resolves relative URLs and maps successful responses', () async {
     final dataSource = _FakeNexaHttpNativeDataSource(
-      response: _streamedResponse(
+      response: NexaHttpResponse(
         statusCode: 200,
         headers: const <String, List<String>>{
           'content-type': <String>['application/json'],
@@ -36,7 +35,7 @@ void main() {
     expect(dataSource.lastRequest?.headers['x-sdk'], 'rust-net');
     expect(dataSource.lastRequest?.headers['user-agent'], 'rust-net-test');
     expect(response.statusCode, 200);
-    expect(utf8.decode(await response.readBytes()), 'ok');
+    expect(response.bodyText, 'ok');
   });
 
   test('maps native transport errors to NexaHttpException', () async {
@@ -67,7 +66,7 @@ void main() {
   test('rejects relative URLs when baseUrl is missing', () async {
     final client = NexaHttpClient(
       dataSource: _FakeNexaHttpNativeDataSource(
-        response: _streamedResponse(
+        response: const NexaHttpResponse(
           statusCode: 200,
           headers: <String, List<String>>{},
           bodyBytes: <int>[],
@@ -90,7 +89,7 @@ void main() {
   test('does not allow requests after close', () async {
     final client = NexaHttpClient(
       dataSource: _FakeNexaHttpNativeDataSource(
-        response: _streamedResponse(
+        response: const NexaHttpResponse(
           statusCode: 204,
           headers: <String, List<String>>{},
           bodyBytes: <int>[],
@@ -108,35 +107,32 @@ void main() {
     );
   });
 
-  test(
-    'execute is stream-first and returns NexaHttpStreamedResponse',
-    () async {
-      final client = NexaHttpClient(
-        dataSource: _FakeNexaHttpNativeDataSource(
-          response: _streamedResponse(
-            statusCode: 200,
-            headers: <String, List<String>>{},
-            bodyBytes: <int>[1, 2, 3],
-          ),
+  test('execute is stream-first and returns NexaHttpStreamedResponse', () async {
+    final client = NexaHttpClient(
+      dataSource: _FakeNexaHttpNativeDataSource(
+        response: const NexaHttpResponse(
+          statusCode: 200,
+          headers: <String, List<String>>{},
+          bodyBytes: <int>[1, 2, 3],
         ),
-      );
+      ),
+    );
 
-      final Future<NexaHttpStreamedResponse> Function(NexaHttpRequest) execute =
-          client.execute;
-      final response = await execute(
-        NexaHttpRequest.get(uri: Uri.parse('https://example.com/body')),
-      );
-      final bytes = await response.readBytes();
+    final Future<NexaHttpStreamedResponse> Function(NexaHttpRequest) execute =
+        client.execute;
+    final response = await execute(
+      NexaHttpRequest.get(uri: Uri.parse('https://example.com/body')),
+    );
+    final bytes = await response.readBytes();
 
-      expect(bytes, <int>[1, 2, 3]);
-    },
-  );
+    expect(bytes, <int>[1, 2, 3]);
+  });
 }
 
 class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   _FakeNexaHttpNativeDataSource({this.response, this.error});
 
-  final NexaHttpStreamedResponse? response;
+  final NexaHttpResponse? response;
   final NexaHttpException? error;
   NativeHttpRequestDto? lastRequest;
 
@@ -147,7 +143,7 @@ class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   int createClient(NativeHttpClientConfigDto config) => 1;
 
   @override
-  Future<NexaHttpStreamedResponse> execute(
+  Future<NexaHttpResponse> execute(
     int clientId,
     NativeHttpRequestDto request,
   ) async {
@@ -158,19 +154,4 @@ class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     }
     return response!;
   }
-}
-
-NexaHttpStreamedResponse _streamedResponse({
-  required int statusCode,
-  Map<String, List<String>> headers = const <String, List<String>>{},
-  List<int> bodyBytes = const <int>[],
-  Uri? finalUri,
-}) {
-  return NexaHttpStreamedResponse(
-    statusCode: statusCode,
-    headers: headers,
-    finalUri: finalUri,
-    contentLength: bodyBytes.length,
-    bodyStream: Stream<Uint8List>.value(Uint8List.fromList(bodyBytes)),
-  );
 }

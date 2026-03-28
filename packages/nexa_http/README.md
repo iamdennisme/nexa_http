@@ -6,7 +6,7 @@ It provides:
 
 - `NexaHttpClient`
 - `NexaHttpRequest`
-- `NexaHttpStreamedResponse`
+- `NexaHttpResponse`
 - `NexaHttpDioAdapter`
 
 It does not build or locate native binaries by itself. Native loading now happens through the matching platform package:
@@ -46,7 +46,6 @@ final client = NexaHttpClient(
 final response = await client.execute(
   NexaHttpRequest.get(uri: Uri(path: '/healthz')),
 );
-final bodyBytes = await response.readBytes();
 
 await client.close();
 ```

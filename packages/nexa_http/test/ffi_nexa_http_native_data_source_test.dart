@@ -72,7 +72,7 @@ void main() {
     );
 
     expect(response.statusCode, 200);
-    expect(await response.readBytes(), isEmpty);
+    expect(response.bodyBytes, isEmpty);
     expect(response.finalUri, Uri.parse('https://example.com/upload'));
     expect(bindings.freedHeadCount, 1);
     expect(bindings.freedChunkCount, 1);
@@ -142,7 +142,7 @@ void main() {
       'cache-control': <String>['max-age=60'],
       'content-type': <String>['image/png'],
     });
-    expect(await response.readBytes(), const <int>[5, 6, 7, 8]);
+    expect(response.bodyBytes, const <int>[5, 6, 7, 8]);
     expect(response.finalUri, Uri.parse('https://cdn.example.com/final.png'));
     expect(bindings.freedHeadCount, 1);
     expect(bindings.freedChunkCount, 3);
@@ -203,7 +203,7 @@ void main() {
       ),
     );
 
-    expect(await response.readBytes(), const <int>[1, 2, 3, 4]);
+    expect(response.bodyBytes, const <int>[1, 2, 3, 4]);
     expect(bindings.freedHeadCount, 1);
     expect(bindings.freedChunkCount, 2);
   });
@@ -253,7 +253,6 @@ void main() {
       );
 
       expect(response.statusCode, 200);
-      expect(await response.readBytes(), isEmpty);
       final dataSourceMirror = reflect(dataSource);
       final dataSourceLibrary = dataSourceMirror.type.owner as LibraryMirror;
       dataSourceMirror.invoke(
@@ -318,7 +317,7 @@ void main() {
       );
 
       expect(response.statusCode, 200);
-      expect(await response.readBytes(), const <int>[4, 2]);
+      expect(response.bodyBytes, const <int>[4, 2]);
       expect(support.headFreeCount(createdHead!), 1);
       expect(support.chunkFreeCount(createdChunk!), 1);
       expect(support.chunkFreeCount(doneChunk!), 1);

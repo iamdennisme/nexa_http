@@ -1,4 +1,3 @@
-@Tags(<String>['dio_streaming_pending'])
 import 'dart:convert';
 import 'dart:io';
 
@@ -45,9 +44,10 @@ void main() {
         await expectLater(
           _readStreamFirstBodyText(
             client,
-            fixtureServer!.uri('/get', <String, String>{
-              'source': 'dio_streaming_pending',
-            }),
+            fixtureServer!.uri(
+              '/get',
+              <String, String>{'source': 'dio_streaming_pending'},
+            ),
           ),
           completion(contains('"message":"hello from fixture"')),
         );
@@ -55,69 +55,79 @@ void main() {
       tags: const <String>['dio_streaming_pending'],
     );
 
-    test('supports the common HTTP method matrix through Dio', () async {
-      final getResponse = await dio!.get<Map<String, dynamic>>(
-        fixtureServer!.uri('/get', <String, String>{
-          'source': 'dio_integration',
-        }).toString(),
-      );
-      expect(getResponse.statusCode, HttpStatus.ok);
-      expect(getResponse.data?['message'], 'hello from fixture');
-      expect(getResponse.data?['query']['source'], 'dio_integration');
+    test(
+      'supports the common HTTP method matrix through Dio',
+      () async {
+        final getResponse = await dio!.get<Map<String, dynamic>>(
+          fixtureServer!.uri(
+            '/get',
+            <String, String>{'source': 'dio_integration'},
+          ).toString(),
+        );
+        expect(getResponse.statusCode, HttpStatus.ok);
+        expect(getResponse.data?['message'], 'hello from fixture');
+        expect(getResponse.data?['query']['source'], 'dio_integration');
 
-      final postPayload = '{"method":"POST"}';
-      final postResponse = await dio!.post<String>(
-        fixtureServer!.uri('/echo').toString(),
-        data: postPayload,
-        options: Options(
-          contentType: Headers.jsonContentType,
-          responseType: ResponseType.plain,
-        ),
-      );
-      expect(postResponse.statusCode, HttpStatus.created);
-      expect(postResponse.data, postPayload);
-      expect(postResponse.headers.map['x-request-method'], contains('POST'));
-
-      for (final method in <String>['PUT', 'PATCH']) {
-        final payload = '{"method":"$method"}';
-        final response = await dio!.request<String>(
+        final postPayload = '{"method":"POST"}';
+        final postResponse = await dio!.post<String>(
           fixtureServer!.uri('/echo').toString(),
-          data: payload,
+          data: postPayload,
           options: Options(
-            method: method,
             contentType: Headers.jsonContentType,
             responseType: ResponseType.plain,
           ),
         );
-        expect(response.statusCode, HttpStatus.ok);
-        expect(response.data, payload);
-        expect(response.headers.map['x-request-method'], contains(method));
-      }
+        expect(postResponse.statusCode, HttpStatus.created);
+        expect(postResponse.data, postPayload);
+        expect(
+          postResponse.headers.map['x-request-method'],
+          contains('POST'),
+        );
 
-      final deleteResponse = await dio!.delete<Map<String, dynamic>>(
-        fixtureServer!.uri('/delete').toString(),
-      );
-      expect(deleteResponse.statusCode, HttpStatus.ok);
-      expect(deleteResponse.data?['deleted'], isTrue);
+        for (final method in <String>['PUT', 'PATCH']) {
+          final payload = '{"method":"$method"}';
+          final response = await dio!.request<String>(
+            fixtureServer!.uri('/echo').toString(),
+            data: payload,
+            options: Options(
+              method: method,
+              contentType: Headers.jsonContentType,
+              responseType: ResponseType.plain,
+            ),
+          );
+          expect(response.statusCode, HttpStatus.ok);
+          expect(response.data, payload);
+          expect(response.headers.map['x-request-method'], contains(method));
+        }
 
-      final headResponse = await dio!.head<String>(
-        fixtureServer!.uri('/head').toString(),
-        options: Options(responseType: ResponseType.plain),
-      );
-      expect(headResponse.statusCode, HttpStatus.ok);
-      expect(headResponse.data, anyOf(isNull, isEmpty));
-      expect(headResponse.headers.map['x-fixture-head'], contains('true'));
+        final deleteResponse = await dio!.delete<Map<String, dynamic>>(
+          fixtureServer!.uri('/delete').toString(),
+        );
+        expect(deleteResponse.statusCode, HttpStatus.ok);
+        expect(deleteResponse.data?['deleted'], isTrue);
 
-      final optionsResponse = await dio!.request<void>(
-        fixtureServer!.uri('/options').toString(),
-        options: Options(method: 'OPTIONS', responseType: ResponseType.plain),
-      );
-      expect(optionsResponse.statusCode, HttpStatus.noContent);
-      expect(
-        optionsResponse.headers.map[HttpHeaders.allowHeader.toLowerCase()],
-        contains(contains('DELETE')),
-      );
-    });
+        final headResponse = await dio!.head<String>(
+          fixtureServer!.uri('/head').toString(),
+          options: Options(responseType: ResponseType.plain),
+        );
+        expect(headResponse.statusCode, HttpStatus.ok);
+        expect(headResponse.data, anyOf(isNull, isEmpty));
+        expect(headResponse.headers.map['x-fixture-head'], contains('true'));
+
+        final optionsResponse = await dio!.request<void>(
+          fixtureServer!.uri('/options').toString(),
+          options: Options(
+            method: 'OPTIONS',
+            responseType: ResponseType.plain,
+          ),
+        );
+        expect(optionsResponse.statusCode, HttpStatus.noContent);
+        expect(
+          optionsResponse.headers.map[HttpHeaders.allowHeader.toLowerCase()],
+          contains(contains('DELETE')),
+        );
+      },
+    );
 
     test(
       'preserves representative status codes when Dio validateStatus allows them',
@@ -156,101 +166,119 @@ void main() {
       },
     );
 
-    test('follows GET redirects through the Rust core', () async {
-      for (final statusCode in <int>[301, 302, 303, 307, 308]) {
-        final expectedFinalUri = fixtureServer!.uri('/get', <String, String>{
-          'source': 'redirected_$statusCode',
-        });
-        final response = await dio!.get<Map<String, dynamic>>(
-          fixtureServer!.uri('/redirect/$statusCode', <String, String>{
-            'location': expectedFinalUri.toString(),
-          }).toString(),
-        );
+    test(
+      'follows GET redirects through the Rust core',
+      () async {
+        for (final statusCode in <int>[301, 302, 303, 307, 308]) {
+          final expectedFinalUri = fixtureServer!.uri(
+            '/get',
+            <String, String>{'source': 'redirected_$statusCode'},
+          );
+          final response = await dio!.get<Map<String, dynamic>>(
+            fixtureServer!.uri(
+              '/redirect/$statusCode',
+              <String, String>{'location': expectedFinalUri.toString()},
+            ).toString(),
+          );
 
-        expect(response.statusCode, HttpStatus.ok);
-        expect(response.data?['query']['source'], 'redirected_$statusCode');
-        expect(
-          response.headers.value(NexaHttpDioAdapter.finalUriHeaderName),
-          expectedFinalUri.toString(),
-        );
-      }
-    });
-
-    test('follows POST redirects through the Rust core', () async {
-      const payload = '{"message":"redirect me"}';
-      final expectations = <int, String>{
-        301: 'GET',
-        302: 'GET',
-        303: 'GET',
-        307: 'POST',
-        308: 'POST',
-      };
-
-      for (final entry in expectations.entries) {
-        final expectedFinalUri = fixtureServer!.uri(
-          '/redirect-target',
-          <String, String>{'source': 'redirected_${entry.key}'},
-        );
-        final response = await dio!.post<Map<String, dynamic>>(
-          fixtureServer!.uri('/redirect/${entry.key}', <String, String>{
-            'location': expectedFinalUri.toString(),
-          }).toString(),
-          data: payload,
-          options: Options(contentType: Headers.jsonContentType),
-        );
-
-        expect(response.statusCode, HttpStatus.ok);
-        expect(response.data?['method'], entry.value);
-        expect(
-          response.headers.value(NexaHttpDioAdapter.finalUriHeaderName),
-          expectedFinalUri.toString(),
-        );
-        if (entry.value == 'POST') {
-          expect(response.data?['body_text'], payload);
-        } else {
-          expect(response.data?['body_text'], isEmpty);
+          expect(response.statusCode, HttpStatus.ok);
+          expect(response.data?['query']['source'], 'redirected_$statusCode');
+          expect(
+            response.headers.value(NexaHttpDioAdapter.finalUriHeaderName),
+            expectedFinalUri.toString(),
+          );
         }
-      }
-    });
+      },
+    );
 
-    test('maps Rust request timeouts to Dio receiveTimeout', () async {
-      await expectLater(
-        () => dio!.get<void>(
-          fixtureServer!.uri('/slow', <String, String>{
-            'delay_ms': '200',
-          }).toString(),
-          options: Options(receiveTimeout: const Duration(milliseconds: 20)),
-        ),
-        throwsA(
-          isA<DioException>().having(
-            (error) => error.type,
-            'type',
-            DioExceptionType.receiveTimeout,
+    test(
+      'follows POST redirects through the Rust core',
+      () async {
+        const payload = '{"message":"redirect me"}';
+        final expectations = <int, String>{
+          301: 'GET',
+          302: 'GET',
+          303: 'GET',
+          307: 'POST',
+          308: 'POST',
+        };
+
+        for (final entry in expectations.entries) {
+          final expectedFinalUri = fixtureServer!.uri(
+            '/redirect-target',
+            <String, String>{'source': 'redirected_${entry.key}'},
+          );
+          final response = await dio!.post<Map<String, dynamic>>(
+            fixtureServer!.uri(
+              '/redirect/${entry.key}',
+              <String, String>{'location': expectedFinalUri.toString()},
+            ).toString(),
+            data: payload,
+            options: Options(contentType: Headers.jsonContentType),
+          );
+
+          expect(response.statusCode, HttpStatus.ok);
+          expect(response.data?['method'], entry.value);
+          expect(
+            response.headers.value(NexaHttpDioAdapter.finalUriHeaderName),
+            expectedFinalUri.toString(),
+          );
+          if (entry.value == 'POST') {
+            expect(response.data?['body_text'], payload);
+          } else {
+            expect(response.data?['body_text'], isEmpty);
+          }
+        }
+      },
+    );
+
+    test(
+      'maps Rust request timeouts to Dio receiveTimeout',
+      () async {
+        await expectLater(
+          () => dio!.get<void>(
+            fixtureServer!.uri(
+              '/slow',
+              <String, String>{'delay_ms': '200'},
+            ).toString(),
+            options: Options(
+              receiveTimeout: const Duration(milliseconds: 20),
+            ),
           ),
-        ),
-      );
-    });
+          throwsA(
+            isA<DioException>().having(
+              (error) => error.type,
+              'type',
+              DioExceptionType.receiveTimeout,
+            ),
+          ),
+        );
+      },
+    );
 
-    test('keeps byte responses intact for Dio callers', () async {
-      final payload = utf8.encode('{"method":"PATCH"}');
-      final response = await dio!.request<List<int>>(
-        fixtureServer!.uri('/echo').toString(),
-        data: jsonEncode(<String, String>{'method': 'PATCH'}),
-        options: Options(
-          method: 'PATCH',
-          contentType: Headers.jsonContentType,
-          responseType: ResponseType.bytes,
-        ),
-      );
+    test(
+      'keeps byte responses intact for Dio callers',
+      () async {
+        final payload = utf8.encode('{"method":"PATCH"}');
+        final response = await dio!.request<List<int>>(
+          fixtureServer!.uri('/echo').toString(),
+          data: jsonEncode(<String, String>{'method': 'PATCH'}),
+          options: Options(
+            method: 'PATCH',
+            contentType: Headers.jsonContentType,
+            responseType: ResponseType.bytes,
+          ),
+        );
 
-      expect(response.statusCode, HttpStatus.ok);
-      expect(response.data, payload);
-    });
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.data, payload);
+      },
+    );
   });
 }
 
 Future<String> _readStreamFirstBodyText(HttpExecutor executor, Uri uri) async {
   final response = await executor.execute(NexaHttpRequest.get(uri: uri));
-  final bytes = await response.readBytes();
+  final bytes = await (response as dynamic).readBytes() as List<int>;
   return utf8.decode(bytes);
 }

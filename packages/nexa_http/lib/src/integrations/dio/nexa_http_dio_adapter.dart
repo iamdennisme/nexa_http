@@ -55,7 +55,6 @@ class NexaHttpDioAdapter implements HttpClientAdapter {
         options: options,
         cancelFuture: cancelFuture,
       );
-      final bodyBytes = await response.readBytes();
       final headers = <String, List<String>>{
         ...response.headers,
         if (response.finalUri != null)
@@ -63,7 +62,7 @@ class NexaHttpDioAdapter implements HttpClientAdapter {
       };
 
       return ResponseBody(
-        Stream<Uint8List>.value(bodyBytes),
+        Stream<Uint8List>.value(Uint8List.fromList(response.bodyBytes)),
         response.statusCode,
         headers: headers,
         isRedirect: _isRedirectStatus(response.statusCode),
@@ -103,7 +102,7 @@ class NexaHttpDioAdapter implements HttpClientAdapter {
     }
   }
 
-  Future<NexaHttpStreamedResponse> _executeWithCancellation({
+  Future<NexaHttpResponse> _executeWithCancellation({
     required NexaHttpRequest request,
     required RequestOptions options,
     required Future<void>? cancelFuture,
@@ -113,9 +112,9 @@ class NexaHttpDioAdapter implements HttpClientAdapter {
       return requestFuture;
     }
 
-    return Future.any(<Future<NexaHttpStreamedResponse>>[
+    return Future.any(<Future<NexaHttpResponse>>[
       requestFuture,
-      cancelFuture.then<NexaHttpStreamedResponse>((_) {
+      cancelFuture.then<NexaHttpResponse>((_) {
         throw DioException.requestCancelled(
           requestOptions: options,
           reason: options.cancelToken?.cancelError,
@@ -280,10 +279,17 @@ class NexaHttpDioAdapter implements HttpClientAdapter {
   }
 }
 
-enum _TimeoutKind { connection, send, receive }
+enum _TimeoutKind {
+  connection,
+  send,
+  receive,
+}
 
 final class _TimeoutResolution {
-  const _TimeoutResolution({required this.duration, required this.kind});
+  const _TimeoutResolution({
+    required this.duration,
+    required this.kind,
+  });
 
   final Duration duration;
   final _TimeoutKind kind;

@@ -6,10 +6,9 @@ import '../dto/native_http_request_dto.dart';
 abstract interface class NexaHttpNativeDataSource {
   int createClient(NativeHttpClientConfigDto config);
 
-  Future<NexaHttpStreamedResponse> execute(
-    int clientId,
-    NativeHttpRequestDto request,
-  );
+  /// Buffers the native streamed head/chunk response protocol into a single
+  /// [NexaHttpResponse] until Task 3 switches the public contract to streaming.
+  Future<NexaHttpResponse> execute(int clientId, NativeHttpRequestDto request);
 
   void closeClient(int clientId);
 }
