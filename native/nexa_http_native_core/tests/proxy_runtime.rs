@@ -53,14 +53,20 @@ fn proxy_signature_change_triggers_refresh_once() {
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
 
     switch.store(true, Ordering::Relaxed);
+    assert!(
+        runtime.mark_client_for_refresh_for_test(client_id),
+        "test should be able to mark the client for refresh",
+    );
 
     let refreshed = runtime.execute_binary(client_id, request.as_args());
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(refreshed);
+    let steady_state = runtime.execute_binary(client_id, request.as_args());
+    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(steady_state);
 
     assert_eq!(
         calls.load(Ordering::Relaxed),
         calls_after_create + 1,
-        "signature drift should trigger one refresh lookup",
+        "an explicit refresh marker should trigger one refresh lookup",
     );
 }
 

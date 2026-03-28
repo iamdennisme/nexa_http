@@ -15,6 +15,10 @@ impl PlatformFeatures {
         Self { proxy }
     }
 
+    pub fn with_env_fallback(proxy: ProxySettings) -> Self {
+        merge_env_fallback(Self::from_proxy_settings(proxy))
+    }
+
     pub fn signature(&self) -> String {
         self.proxy.signature()
     }

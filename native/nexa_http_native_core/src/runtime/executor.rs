@@ -4,9 +4,7 @@ use crate::api::ffi::{
 };
 use crate::api::request::{NativeHttpClientConfig, NativeHttpHeader, NativeHttpRequest};
 use crate::api::response::{NativeHttpOwnedBody, NativeHttpRawResponse};
-use crate::platform::{
-    PlatformCapabilities, PlatformFeatures, apply_proxy_strategy, merge_env_fallback,
-};
+use crate::platform::{PlatformCapabilities, PlatformFeatures, apply_proxy_strategy};
 use crate::runtime::client_registry::ClientEntry;
 use crate::runtime::tokio_runtime::{build_runtime, default_max_inflight_requests};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -58,18 +56,14 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
             Err(_) => return 0,
         };
 
-        let platform_features = current_platform_features(&self.inner);
+        let platform_features = self.inner.capabilities.platform_features();
         let client = match build_client(&config, &platform_features) {
             Ok(client) => client,
             Err(_) => return 0,
         };
 
         let client_id = self.inner.next_client_id.fetch_add(1, Ordering::Relaxed);
-        let entry = ClientEntry {
-            client,
-            config,
-            platform_features_signature: platform_features.signature(),
-        };
+        let entry = ClientEntry::new(client, config, platform_features.signature());
         self.inner.clients.lock().unwrap().insert(client_id, entry);
         client_id
     }
@@ -137,6 +131,15 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
         self.inner.clients.lock().unwrap().remove(&client_id);
     }
 
+    pub fn mark_client_for_refresh_for_test(&self, client_id: u64) -> bool {
+        let mut clients = self.inner.clients.lock().unwrap();
+        let Some(entry) = clients.get_mut(&client_id) else {
+            return false;
+        };
+        entry.mark_for_refresh();
+        true
+    }
+
     pub fn binary_result_free(value: *mut NexaHttpBinaryResult) {
         if value.is_null() {
             return;
@@ -160,14 +163,6 @@ pub(crate) unsafe fn binary_result_free_impl(value: *mut NexaHttpBinaryResult) {
         }
         result.free_owned_body();
     }
-}
-
-fn current_platform_features<P: PlatformCapabilities>(
-    inner: &NexaHttpRuntimeInner<P>,
-) -> PlatformFeatures {
-    let platform_features =
-        PlatformFeatures::from_proxy_settings(inner.capabilities.proxy_settings());
-    merge_env_fallback(platform_features)
 }
 
 fn read_json<T>(pointer: *const c_char) -> Result<T, NativeError>
@@ -321,21 +316,65 @@ async fn execute_request<P: PlatformCapabilities>(
     request: NativeHttpRequest,
 ) -> Result<NativeHttpRawResponse, NativeError> {
     let client = {
-        let mut clients = inner.clients.lock().unwrap();
+        let clients = inner.clients.lock().unwrap();
         let entry = clients
-            .get_mut(&client_id)
+            .get(&client_id)
             .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
-        let platform_features = current_platform_features(&inner);
-        let signature = platform_features.signature();
-        if signature != entry.platform_features_signature {
-            entry.client = build_client(&entry.config, &platform_features)
-                .map_err(|error| error.with_uri(request.url.clone()))?;
-            entry.platform_features_signature = signature;
+        if !entry.needs_refresh {
+            entry.client.clone()
+        } else {
+            drop(clients);
+            refresh_client_and_clone(&inner, client_id, &request.url)?
         }
-        entry.client.clone()
     };
 
     execute_request_with_client_async(&client, request).await
+}
+
+fn refresh_client_and_clone<P: PlatformCapabilities>(
+    inner: &Arc<NexaHttpRuntimeInner<P>>,
+    client_id: u64,
+    request_url: &str,
+) -> Result<Client, NativeError> {
+    let (config, previous_signature) = {
+        let clients = inner.clients.lock().unwrap();
+        let entry = clients
+            .get(&client_id)
+            .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
+        if !entry.needs_refresh {
+            return Ok(entry.client.clone());
+        }
+        (
+            entry.config.clone(),
+            entry.platform_features_signature.clone(),
+        )
+    };
+
+    let platform_features = inner.capabilities.platform_features();
+    let signature = platform_features.signature();
+    let rebuilt_client = if signature == previous_signature {
+        None
+    } else {
+        Some(
+            build_client(&config, &platform_features)
+                .map_err(|error| error.with_uri(request_url.to_string()))?,
+        )
+    };
+
+    let mut clients = inner.clients.lock().unwrap();
+    let entry = clients
+        .get_mut(&client_id)
+        .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
+    if !entry.needs_refresh {
+        return Ok(entry.client.clone());
+    }
+
+    if let Some(client) = rebuilt_client {
+        entry.client = client;
+        entry.platform_features_signature = signature;
+    }
+    entry.needs_refresh = false;
+    Ok(entry.client.clone())
 }
 
 async fn execute_request_with_client_async(
