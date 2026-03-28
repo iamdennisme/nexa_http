@@ -54,6 +54,7 @@ void main() {
     expect(capturedSample!.url, 'https://example.com/poster.png');
     expect(capturedSample!.bytes, 4);
     expect(capturedSample!.succeeded, isTrue);
+    expect(capturedSample!.dispatchSequence, 0);
     expect(capturedSample!.statusCode, 200);
   });
 }

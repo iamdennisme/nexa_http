@@ -31,6 +31,7 @@ final class NexaHttpImageFileService extends FileService {
   final bool _ownsExecutor;
   final ImageRequestScheduler _scheduler;
   final ImageRequestSampleCallback? onSample;
+  int _nextDispatchSequence = 0;
 
   @override
   Future<FileServiceResponse> get(
@@ -38,6 +39,7 @@ final class NexaHttpImageFileService extends FileService {
     Map<String, String>? headers,
   }) async {
     final priority = resolveImageRequestPriorityFromHeaders(headers);
+    int? dispatchSequence;
     final requestHeaders = Map<String, String>.from(
       headers ?? const <String, String>{},
     );
@@ -55,12 +57,16 @@ final class NexaHttpImageFileService extends FileService {
     try {
       final response = await _scheduler.schedule<NexaHttpResponse>(
         priority: priority,
-        task: () => _executor.execute(
-          NexaHttpRequest.get(
-            uri: Uri.parse(url),
-            headers: requestHeaders,
-          ),
-        ),
+        task: () {
+          dispatchSequence = _nextDispatchSequence;
+          _nextDispatchSequence += 1;
+          return _executor.execute(
+            NexaHttpRequest.get(
+              uri: Uri.parse(url),
+              headers: requestHeaders,
+            ),
+          );
+        },
       );
       stopwatch.stop();
       onSample?.call(
@@ -70,6 +76,7 @@ final class NexaHttpImageFileService extends FileService {
           bytes: response.bodyBytes.length,
           succeeded: _isSuccessfulStatus(response.statusCode),
           priority: priority,
+          dispatchSequence: dispatchSequence,
           statusCode: response.statusCode,
           error: _isSuccessfulStatus(response.statusCode)
               ? null
@@ -95,6 +102,7 @@ final class NexaHttpImageFileService extends FileService {
           bytes: 0,
           succeeded: false,
           priority: priority,
+          dispatchSequence: dispatchSequence,
           error: '$error',
         ),
       );

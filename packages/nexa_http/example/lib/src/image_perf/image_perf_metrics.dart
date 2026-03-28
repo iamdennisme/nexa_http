@@ -7,6 +7,7 @@ class ImageRequestSample {
     required this.bytes,
     required this.succeeded,
     this.priority,
+    this.dispatchSequence,
     this.statusCode,
     this.error,
   });
@@ -16,8 +17,21 @@ class ImageRequestSample {
   final int bytes;
   final bool succeeded;
   final ImageRequestPriority? priority;
+  final int? dispatchSequence;
   final int? statusCode;
   final String? error;
+}
+
+class ImageRequestOrderingEntry {
+  const ImageRequestOrderingEntry({
+    required this.index,
+    required this.priority,
+    required this.url,
+  });
+
+  final int index;
+  final ImageRequestPriority priority;
+  final String url;
 }
 
 class FramePerfSample {
@@ -42,6 +56,8 @@ class ImagePerfMetrics {
     required this.highPriorityRequestCount,
     required this.mediumPriorityRequestCount,
     required this.lowPriorityRequestCount,
+    required this.dispatchOrderHead,
+    required this.completionOrderHead,
     required this.averageLatency,
     required this.p95Latency,
     required this.slowFrameCount,
@@ -64,6 +80,8 @@ class ImagePerfMetrics {
         highPriorityRequestCount: 0,
         mediumPriorityRequestCount: 0,
         lowPriorityRequestCount: 0,
+        dispatchOrderHead: const <ImageRequestOrderingEntry>[],
+        completionOrderHead: const <ImageRequestOrderingEntry>[],
         averageLatency: Duration.zero,
         p95Latency: Duration.zero,
         slowFrameCount: 0,
@@ -87,6 +105,8 @@ class ImagePerfMetrics {
     final lowPriorityRequestCount = samples
         .where((sample) => sample.priority == ImageRequestPriority.low)
         .length;
+    final dispatchOrderHead = _buildDispatchOrderHead(samples);
+    final completionOrderHead = _buildCompletionOrderHead(samples);
     final elapsedMicros = samples.fold<int>(
       0,
       (sum, sample) => sum + sample.elapsed.inMicroseconds,
@@ -132,6 +152,8 @@ class ImagePerfMetrics {
       highPriorityRequestCount: highPriorityRequestCount,
       mediumPriorityRequestCount: mediumPriorityRequestCount,
       lowPriorityRequestCount: lowPriorityRequestCount,
+      dispatchOrderHead: dispatchOrderHead,
+      completionOrderHead: completionOrderHead,
       averageLatency: averageLatency,
       p95Latency: p95Latency,
       slowFrameCount: slowFrameCount,
@@ -148,9 +170,62 @@ class ImagePerfMetrics {
   final int highPriorityRequestCount;
   final int mediumPriorityRequestCount;
   final int lowPriorityRequestCount;
+  final List<ImageRequestOrderingEntry> dispatchOrderHead;
+  final List<ImageRequestOrderingEntry> completionOrderHead;
   final Duration averageLatency;
   final Duration p95Latency;
   final int slowFrameCount;
   final Duration maxRasterDuration;
   final double throughputMiBPerSecond;
+
+  static const int _orderingHeadLimit = 8;
+
+  static List<ImageRequestOrderingEntry> _buildDispatchOrderHead(
+    List<ImageRequestSample> samples,
+  ) {
+    final orderedSamples = samples
+        .where(
+          (sample) =>
+              sample.priority != null && sample.dispatchSequence != null,
+        )
+        .toList(growable: false)
+      ..sort(
+        (left, right) =>
+            left.dispatchSequence!.compareTo(right.dispatchSequence!),
+      );
+
+    final head = <ImageRequestOrderingEntry>[];
+    for (final sample in orderedSamples.take(_orderingHeadLimit)) {
+      head.add(
+        ImageRequestOrderingEntry(
+          index: sample.dispatchSequence!,
+          priority: sample.priority!,
+          url: sample.url,
+        ),
+      );
+    }
+    return head;
+  }
+
+  static List<ImageRequestOrderingEntry> _buildCompletionOrderHead(
+    List<ImageRequestSample> samples,
+  ) {
+    final head = <ImageRequestOrderingEntry>[];
+    for (final sample in samples) {
+      if (sample.priority == null) {
+        continue;
+      }
+      head.add(
+        ImageRequestOrderingEntry(
+          index: head.length,
+          priority: sample.priority!,
+          url: sample.url,
+        ),
+      );
+      if (head.length == _orderingHeadLimit) {
+        break;
+      }
+    }
+    return head;
+  }
 }

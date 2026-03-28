@@ -13,6 +13,7 @@ void main() {
           bytes: 100 * 1024,
           succeeded: true,
           priority: ImageRequestPriority.high,
+          dispatchSequence: 1,
         ),
         ImageRequestSample(
           url: 'https://example.com/b.png',
@@ -20,6 +21,7 @@ void main() {
           bytes: 150 * 1024,
           succeeded: true,
           priority: ImageRequestPriority.medium,
+          dispatchSequence: 2,
         ),
         ImageRequestSample(
           url: 'https://example.com/c.png',
@@ -29,6 +31,7 @@ void main() {
           statusCode: 500,
           error: 'boom',
           priority: ImageRequestPriority.low,
+          dispatchSequence: 0,
         ),
       ],
       frameSamples: const <FramePerfSample>[
@@ -52,6 +55,22 @@ void main() {
     expect(report.highPriorityRequestCount, 1);
     expect(report.mediumPriorityRequestCount, 1);
     expect(report.lowPriorityRequestCount, 1);
+    expect(
+      report.dispatchOrderHead.map((entry) => entry.priority),
+      <ImageRequestPriority>[
+        ImageRequestPriority.low,
+        ImageRequestPriority.high,
+        ImageRequestPriority.medium,
+      ],
+    );
+    expect(
+      report.completionOrderHead.map((entry) => entry.priority),
+      <ImageRequestPriority>[
+        ImageRequestPriority.high,
+        ImageRequestPriority.medium,
+        ImageRequestPriority.low,
+      ],
+    );
     expect(report.averageLatency, const Duration(milliseconds: 250));
     expect(report.p95Latency, const Duration(milliseconds: 400));
     expect(report.firstScreenElapsed, const Duration(milliseconds: 420));
@@ -74,6 +93,8 @@ void main() {
     expect(report.highPriorityRequestCount, 0);
     expect(report.mediumPriorityRequestCount, 0);
     expect(report.lowPriorityRequestCount, 0);
+    expect(report.dispatchOrderHead, isEmpty);
+    expect(report.completionOrderHead, isEmpty);
     expect(report.averageLatency, Duration.zero);
     expect(report.p95Latency, Duration.zero);
     expect(report.firstScreenElapsed, isNull);
