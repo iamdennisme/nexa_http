@@ -15,6 +15,22 @@ Map<String, Object?> buildImagePerfResultPayload({
     for (final sample in samples)
       if (!sample.succeeded && sample.error != null) sample.error!,
   }.take(3).toList(growable: false);
+  final dispatchOrderHead = <Map<String, Object?>>[
+    for (final entry in metrics.dispatchOrderHead)
+      <String, Object?>{
+        'dispatch_index': entry.index,
+        'priority': entry.priority.name,
+        'url': entry.url,
+      },
+  ];
+  final completionOrderHead = <Map<String, Object?>>[
+    for (final entry in metrics.completionOrderHead)
+      <String, Object?>{
+        'completion_index': entry.index,
+        'priority': entry.priority.name,
+        'url': entry.url,
+      },
+  ];
 
   return <String, Object?>{
     'kind': 'image_perf_result',
@@ -36,6 +52,9 @@ Map<String, Object?> buildImagePerfResultPayload({
     'rss_after_bytes': rssAfterBytes,
     'rss_peak_bytes': rssPeakBytes,
     'failed_urls': metrics.failureCount,
+    if (dispatchOrderHead.isNotEmpty) 'dispatch_order_head': dispatchOrderHead,
+    if (completionOrderHead.isNotEmpty)
+      'completion_order_head': completionOrderHead,
     if (sampleErrors.isNotEmpty) 'sample_errors': sampleErrors,
   };
 }

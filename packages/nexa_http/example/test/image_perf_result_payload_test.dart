@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexa_http_example/src/image_perf/image_request_scheduler.dart';
 import 'package:nexa_http_example/src/image_perf/image_perf_metrics.dart';
 import 'package:nexa_http_example/src/image_perf/image_perf_result_payload.dart';
 
@@ -18,6 +19,8 @@ void main() {
             bytes: 0,
             succeeded: false,
             error: 'SocketException: Connection refused',
+            priority: ImageRequestPriority.low,
+            dispatchSequence: 2,
           ),
           ImageRequestSample(
             url: 'http://192.168.1.16:8080/image?id=poster-1',
@@ -25,6 +28,8 @@ void main() {
             bytes: 0,
             succeeded: false,
             error: 'SocketException: Connection refused',
+            priority: ImageRequestPriority.high,
+            dispatchSequence: 0,
           ),
           ImageRequestSample(
             url: 'http://192.168.1.16:8080/image?id=poster-2',
@@ -32,6 +37,8 @@ void main() {
             bytes: 0,
             succeeded: false,
             error: 'HandshakeException: bad certificate',
+            priority: ImageRequestPriority.medium,
+            dispatchSequence: 1,
           ),
         ],
         frameSamples: const <FramePerfSample>[],
@@ -43,6 +50,8 @@ void main() {
           bytes: 0,
           succeeded: false,
           error: 'SocketException: Connection refused',
+          priority: ImageRequestPriority.low,
+          dispatchSequence: 2,
         ),
         ImageRequestSample(
           url: 'http://192.168.1.16:8080/image?id=poster-1',
@@ -50,6 +59,8 @@ void main() {
           bytes: 0,
           succeeded: false,
           error: 'SocketException: Connection refused',
+          priority: ImageRequestPriority.high,
+          dispatchSequence: 0,
         ),
         ImageRequestSample(
           url: 'http://192.168.1.16:8080/image?id=poster-2',
@@ -57,6 +68,8 @@ void main() {
           bytes: 0,
           succeeded: false,
           error: 'HandshakeException: bad certificate',
+          priority: ImageRequestPriority.medium,
+          dispatchSequence: 1,
         ),
       ],
       rssBeforeBytes: 1,
@@ -70,5 +83,39 @@ void main() {
       'HandshakeException: bad certificate',
     ]);
     expect(payload['failed_urls'], 3);
+    expect(payload['dispatch_order_head'], const <Map<String, Object?>>[
+      <String, Object?>{
+        'dispatch_index': 0,
+        'priority': 'high',
+        'url': 'http://192.168.1.16:8080/image?id=poster-1',
+      },
+      <String, Object?>{
+        'dispatch_index': 1,
+        'priority': 'medium',
+        'url': 'http://192.168.1.16:8080/image?id=poster-2',
+      },
+      <String, Object?>{
+        'dispatch_index': 2,
+        'priority': 'low',
+        'url': 'http://192.168.1.16:8080/image?id=poster-0',
+      },
+    ]);
+    expect(payload['completion_order_head'], const <Map<String, Object?>>[
+      <String, Object?>{
+        'completion_index': 0,
+        'priority': 'low',
+        'url': 'http://192.168.1.16:8080/image?id=poster-0',
+      },
+      <String, Object?>{
+        'completion_index': 1,
+        'priority': 'high',
+        'url': 'http://192.168.1.16:8080/image?id=poster-1',
+      },
+      <String, Object?>{
+        'completion_index': 2,
+        'priority': 'medium',
+        'url': 'http://192.168.1.16:8080/image?id=poster-2',
+      },
+    ]);
   });
 }

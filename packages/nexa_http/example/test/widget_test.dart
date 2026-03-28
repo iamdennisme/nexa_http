@@ -25,6 +25,8 @@ void main() {
     expect(find.text('Transport'), findsOneWidget);
     expect(find.text('Default'), findsOneWidget);
     expect(find.text('nexa_http'), findsOneWidget);
+    expect(find.text('Metrics'), findsOneWidget);
+    expect(find.text('Preview Grid'), findsOneWidget);
     expect(find.text('Run image test'), findsOneWidget);
     expect(find.text('Auto scroll'), findsOneWidget);
     expect(find.text('Clear caches'), findsOneWidget);

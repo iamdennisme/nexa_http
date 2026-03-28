@@ -33,17 +33,13 @@ class NexaHttpBindings {
   int nexa_http_client_execute_async(
     int client_id,
     int request_id,
-    ffi.Pointer<ffi.Char> request_json,
-    ffi.Pointer<ffi.Uint8> body_ptr,
-    int body_len,
+    ffi.Pointer<NexaHttpRequestArgs> request_args,
     NexaHttpExecuteCallback callback,
   ) {
     return _nexa_http_client_execute_async(
       client_id,
       request_id,
-      request_json,
-      body_ptr,
-      body_len,
+      request_args,
       callback,
     );
   }
@@ -54,9 +50,7 @@ class NexaHttpBindings {
           ffi.Uint8 Function(
             ffi.Uint64,
             ffi.Uint64,
-            ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.UintPtr,
+            ffi.Pointer<NexaHttpRequestArgs>,
             NexaHttpExecuteCallback,
           )
         >
@@ -67,25 +61,16 @@ class NexaHttpBindings {
             int Function(
               int,
               int,
-              ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Uint8>,
-              int,
+              ffi.Pointer<NexaHttpRequestArgs>,
               NexaHttpExecuteCallback,
             )
           >();
 
   ffi.Pointer<NexaHttpBinaryResult> nexa_http_client_execute_binary(
     int client_id,
-    ffi.Pointer<ffi.Char> request_json,
-    ffi.Pointer<ffi.Uint8> body_ptr,
-    int body_len,
+    ffi.Pointer<NexaHttpRequestArgs> request_args,
   ) {
-    return _nexa_http_client_execute_binary(
-      client_id,
-      request_json,
-      body_ptr,
-      body_len,
-    );
+    return _nexa_http_client_execute_binary(client_id, request_args);
   }
 
   late final _nexa_http_client_execute_binaryPtr =
@@ -93,9 +78,7 @@ class NexaHttpBindings {
         ffi.NativeFunction<
           ffi.Pointer<NexaHttpBinaryResult> Function(
             ffi.Uint64,
-            ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.UintPtr,
+            ffi.Pointer<NexaHttpRequestArgs>,
           )
         >
       >('nexa_http_client_execute_binary');
@@ -104,9 +87,7 @@ class NexaHttpBindings {
           .asFunction<
             ffi.Pointer<NexaHttpBinaryResult> Function(
               int,
-              ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Uint8>,
-              int,
+              ffi.Pointer<NexaHttpRequestArgs>,
             )
           >();
 
@@ -391,6 +372,46 @@ typedef ptrdiff_t = __darwin_ptrdiff_t;
 typedef rsize_t = __darwin_size_t;
 typedef wint_t = __darwin_wint_t;
 
+final class NexaHttpHeaderEntry extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> name_ptr;
+
+  @ffi.UintPtr()
+  external int name_len;
+
+  external ffi.Pointer<ffi.Char> value_ptr;
+
+  @ffi.UintPtr()
+  external int value_len;
+}
+
+final class NexaHttpRequestArgs extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> method_ptr;
+
+  @ffi.UintPtr()
+  external int method_len;
+
+  external ffi.Pointer<ffi.Char> url_ptr;
+
+  @ffi.UintPtr()
+  external int url_len;
+
+  external ffi.Pointer<NexaHttpHeaderEntry> headers_ptr;
+
+  @ffi.UintPtr()
+  external int headers_len;
+
+  external ffi.Pointer<ffi.Uint8> body_ptr;
+
+  @ffi.UintPtr()
+  external int body_len;
+
+  @ffi.Uint64()
+  external int timeout_ms;
+
+  @ffi.Uint8()
+  external int has_timeout;
+}
+
 final class NexaHttpBinaryResult extends ffi.Struct {
   @ffi.Uint8()
   external int is_success;
@@ -398,9 +419,15 @@ final class NexaHttpBinaryResult extends ffi.Struct {
   @ffi.Uint16()
   external int status_code;
 
-  external ffi.Pointer<ffi.Char> headers_json;
+  external ffi.Pointer<NexaHttpHeaderEntry> headers_ptr;
 
-  external ffi.Pointer<ffi.Char> final_url;
+  @ffi.UintPtr()
+  external int headers_len;
+
+  external ffi.Pointer<ffi.Char> final_url_ptr;
+
+  @ffi.UintPtr()
+  external int final_url_len;
 
   external ffi.Pointer<ffi.Uint8> body_ptr;
 
