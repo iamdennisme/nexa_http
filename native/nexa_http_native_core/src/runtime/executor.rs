@@ -98,10 +98,14 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
         let request = match read_request(request_args) {
             Ok(request) => request,
             Err(error) => {
-                let result = build_binary_error_result(error.into_http_error());
-                unsafe {
-                    callback(request_id, Box::into_raw(Box::new(result)));
-                }
+                let result =
+                    Box::into_raw(Box::new(build_binary_error_result(error.into_http_error())))
+                        as usize;
+                self.inner.tokio.spawn(async move {
+                    unsafe {
+                        callback(request_id, result as *mut NexaHttpBinaryResult);
+                    }
+                });
                 return 1;
             }
         };

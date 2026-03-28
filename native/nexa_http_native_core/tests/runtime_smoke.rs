@@ -3,7 +3,11 @@ use nexa_http_native_core::runtime::NexaHttpRuntime;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Arc;
+use std::sync::LazyLock;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Sender};
+use std::time::Duration;
 
 #[derive(Clone, Default)]
 struct TestCapabilities;
@@ -120,4 +124,59 @@ impl TestRequestArgs {
     fn as_args(&self) -> *const nexa_http_native_core::api::ffi::NexaHttpRequestArgs {
         &self.args
     }
+}
+
+static EXECUTE_ASYNC_THREAD_SENDER: LazyLock<Mutex<Option<Sender<String>>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+unsafe extern "C" fn capture_execute_async_thread(
+    _request_id: u64,
+    result: *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult,
+) {
+    if let Some(sender) = EXECUTE_ASYNC_THREAD_SENDER.lock().unwrap().as_ref() {
+        let thread_name = format!("{:?}", std::thread::current().id());
+        let _ = sender.send(thread_name);
+    }
+    NexaHttpRuntime::<TestCapabilities>::binary_result_free(result);
+}
+
+#[test]
+fn invalid_request_error_callback_does_not_run_on_the_caller_thread() {
+    let runtime = NexaHttpRuntime::new(TestCapabilities);
+    let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
+        .expect("config json");
+    let client_id = runtime.create_client(config.as_ptr());
+    assert_ne!(client_id, 0);
+
+    let request = nexa_http_native_core::api::ffi::NexaHttpRequestArgs {
+        method_ptr: std::ptr::null(),
+        method_len: 1,
+        url_ptr: std::ptr::null(),
+        url_len: 0,
+        headers_ptr: std::ptr::null(),
+        headers_len: 0,
+        body_ptr: std::ptr::null(),
+        body_len: 0,
+        timeout_ms: 0,
+        has_timeout: 0,
+    };
+
+    let (sender, receiver) = mpsc::channel();
+    *EXECUTE_ASYNC_THREAD_SENDER.lock().unwrap() = Some(sender);
+
+    let caller_thread = format!("{:?}", std::thread::current().id());
+    assert_eq!(
+        runtime.execute_async(client_id, 7, &request, Some(capture_execute_async_thread),),
+        1,
+    );
+
+    let callback_thread = receiver
+        .recv_timeout(Duration::from_secs(1))
+        .expect("execute_async should deliver an error callback");
+    *EXECUTE_ASYNC_THREAD_SENDER.lock().unwrap() = None;
+
+    assert_ne!(
+        callback_thread, caller_thread,
+        "error callbacks should not re-enter Dart on the originating FFI thread",
+    );
 }
