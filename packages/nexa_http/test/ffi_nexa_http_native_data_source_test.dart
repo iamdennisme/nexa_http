@@ -1,5 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'dart:async';
 import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:mirrors';
@@ -207,6 +208,71 @@ void main() {
     expect(bindings.freedHeadCount, 1);
     expect(bindings.freedChunkCount, 2);
   });
+
+  test(
+    'closes native response streams when body stream subscriptions are cancelled',
+    () async {
+      late final _FakeNexaHttpBindings bindings;
+      bindings = _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 14);
+              expect(requestId, 1);
+              expect(structuredRequest, isNotNull);
+
+              final resultPointer = bindings.newSuccessHead(
+                statusCode: 200,
+                streamId: 81,
+              );
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpResponseHeadResult>)
+                  >()(requestId, resultPointer);
+              return 1;
+            },
+        onStreamNext: ({required int streamId, required int pullCount}) {
+          expect(streamId, 81);
+          return switch (pullCount) {
+            1 => bindings.newSuccessChunk(const <int>[9, 8, 7]),
+            _ => throw StateError(
+              'stream should have been cancelled after the first chunk',
+            ),
+          };
+        },
+      );
+
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: bindings,
+      );
+
+      final response = await dataSource.execute(
+        14,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/cancel-stream',
+        ),
+      );
+
+      late final StreamSubscription<Uint8List> subscription;
+      final cancelCompleter = Completer<void>();
+      subscription = response.bodyStream.listen((chunk) {
+        expect(chunk, Uint8List.fromList(const <int>[9, 8, 7]));
+        subscription.cancel().then(cancelCompleter.complete);
+      });
+
+      await cancelCompleter.future;
+
+      expect(bindings.closedStreamIds, <int>[81]);
+      expect(bindings.freedHeadCount, 1);
+      expect(bindings.freedChunkCount, 1);
+    },
+  );
 
   test(
     'closes orphaned native streams when an async callback arrives after completion',

@@ -107,8 +107,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       if (entry.value != clientId) {
         continue;
       }
-      _closedResponseStreams.add(entry.key);
-      _bindings.nexa_http_response_stream_close(entry.key);
+      _closeResponseStream(entry.key);
     }
 
     _bindings.nexa_http_client_close(clientId);
@@ -221,6 +220,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     }
 
     _activeResponseStreams[streamId] = clientId;
+    var reachedStreamEnd = false;
 
     try {
       while (true) {
@@ -246,6 +246,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
             throw _decodeError(chunkResult.error_json);
           }
           if (chunkResult.is_done != 0) {
+            reachedStreamEnd = true;
             return;
           }
           if (chunkResult.chunk_len == 0) {
@@ -268,7 +269,16 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       }
     } finally {
       _activeResponseStreams.remove(streamId);
+      if (!reachedStreamEnd) {
+        _closeResponseStream(streamId);
+      }
       _closedResponseStreams.remove(streamId);
+    }
+  }
+
+  void _closeResponseStream(int streamId) {
+    if (_closedResponseStreams.add(streamId)) {
+      _bindings.nexa_http_response_stream_close(streamId);
     }
   }
 
