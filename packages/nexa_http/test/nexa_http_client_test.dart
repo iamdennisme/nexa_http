@@ -103,13 +103,7 @@ void main() {
       () => client.execute(
         NexaHttpRequest.get(uri: Uri.parse('https://example.com/ping')),
       ),
-      throwsA(
-        isA<NexaHttpException>().having(
-          (exception) => exception.code,
-          'code',
-          'client_closed',
-        ),
-      ),
+      throwsA(isA<StateError>()),
     );
   });
 

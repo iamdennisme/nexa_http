@@ -1,1 +1,3 @@
 concurrency: 1
+tags:
+  dio_streaming_pending:

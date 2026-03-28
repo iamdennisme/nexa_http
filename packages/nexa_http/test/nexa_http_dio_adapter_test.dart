@@ -7,11 +7,23 @@ import 'package:test/test.dart';
 
 void main() {
   group('NexaHttpDioAdapter', () {
-    test('requires stream-first executor response contract', () {
-      Future<NexaHttpStreamedResponse> Function(HttpExecutor) signature =
-          _typedExecute;
-      expect(signature, isNotNull);
-    });
+    test(
+      'requires stream-first executor response contract',
+      () async {
+        final executor = _FakeHttpExecutor(
+          handler: (request) async => const NexaHttpResponse(
+            statusCode: 200,
+            bodyBytes: <int>[1, 2, 3],
+          ),
+        );
+
+        await expectLater(
+          _readStreamFirstBodyBytes(executor),
+          completion(orderedEquals(<int>[1, 2, 3])),
+        );
+      },
+      tags: const <String>['dio_streaming_pending'],
+    );
 
     test('maps GET requests into NexaHttpRequest and decodes JSON responses',
         () async {
@@ -220,10 +232,13 @@ void main() {
   });
 }
 
-Future<NexaHttpStreamedResponse> _typedExecute(HttpExecutor executor) {
-  return executor.execute(
+Future<List<int>> _readStreamFirstBodyBytes(HttpExecutor executor) async {
+  final response = await executor.execute(
     NexaHttpRequest.get(uri: Uri.parse('https://example.com/signature')),
   );
+  final bodyStream = (response as dynamic).bodyStream as Stream<List<int>>;
+  final chunks = await bodyStream.toList();
+  return chunks.expand((chunk) => chunk).toList(growable: false);
 }
 
 final class _FakeHttpExecutor implements HttpExecutor {
