@@ -8,7 +8,8 @@ pub(crate) struct ClientEntry {
     pub(crate) config: NativeHttpClientConfig,
     pub(crate) platform_features_signature: String,
     pub(crate) needs_refresh: bool,
-    pub(crate) last_refresh_probe_at: Instant,
+    pub(crate) refresh_in_progress: bool,
+    pub(crate) next_refresh_probe_at: Instant,
 }
 
 impl ClientEntry {
@@ -16,13 +17,15 @@ impl ClientEntry {
         client: Client,
         config: NativeHttpClientConfig,
         platform_features_signature: String,
+        next_refresh_probe_at: Instant,
     ) -> Self {
         Self {
             client,
             config,
             platform_features_signature,
             needs_refresh: false,
-            last_refresh_probe_at: Instant::now(),
+            refresh_in_progress: false,
+            next_refresh_probe_at,
         }
     }
 }
