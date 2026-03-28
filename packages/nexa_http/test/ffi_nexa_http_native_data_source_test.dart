@@ -363,6 +363,47 @@ void main() {
         ? 'real native finalizer coverage requires the host macOS dylib'
         : false,
   );
+
+  test('preferSynchronousExecution uses the binary execution path', () async {
+    var executeAsyncCalls = 0;
+    final dataSource = FfiNexaHttpNativeDataSource(
+      library: ffi.DynamicLibrary.process(),
+      bindings: _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              executeAsyncCalls += 1;
+              return 0;
+            },
+      ),
+      binaryResultFinalizer: ffi.nullptr,
+      preferSynchronousExecution: true,
+      binaryExecutor: (clientId, request) async {
+        expect(clientId, 21);
+        expect(request.method, 'GET');
+        expect(request.url, 'https://example.com/sync');
+        return const NexaHttpResponse(
+          statusCode: 204,
+          bodyBytes: <int>[],
+        );
+      },
+    );
+
+    final response = await dataSource.execute(
+      21,
+      const NativeHttpRequestDto(
+        method: 'GET',
+        url: 'https://example.com/sync',
+      ),
+    );
+
+    expect(response.statusCode, 204);
+    expect(executeAsyncCalls, 0);
+  });
 }
 
 class _FakeNexaHttpBindings extends NexaHttpBindings {
@@ -435,7 +476,7 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     freedResultCount += 1;
     if (value.ref.headers_ptr != ffi.nullptr && value.ref.headers_len > 0) {
       for (var index = 0; index < value.ref.headers_len; index += 1) {
-        final entry = value.ref.headers_ptr.elementAt(index).ref;
+      final entry = (value.ref.headers_ptr + index).ref;
         if (entry.name_ptr != ffi.nullptr) {
           calloc.free(entry.name_ptr.cast<Utf8>());
         }
@@ -477,7 +518,7 @@ class _StructuredRequestWire {
     final request = pointer.ref;
     final headers = <String, String>{};
     for (var index = 0; index < request.headers_len; index += 1) {
-      final entry = request.headers_ptr.elementAt(index).ref;
+      final entry = (request.headers_ptr + index).ref;
       headers[_readUtf8(entry.name_ptr, entry.name_len)] = _readUtf8(
         entry.value_ptr,
         entry.value_len,
@@ -508,7 +549,7 @@ ffi.Pointer<NexaHttpHeaderEntry> _allocateHeaders(
   final pointer = calloc<NexaHttpHeaderEntry>(headers.length);
   for (var index = 0; index < headers.length; index += 1) {
     final header = headers[index];
-    pointer[index]
+    (pointer + index).ref
       ..name_ptr = header.key.toNativeUtf8().cast()
       ..name_len = header.key.length
       ..value_ptr = header.value.toNativeUtf8().cast()

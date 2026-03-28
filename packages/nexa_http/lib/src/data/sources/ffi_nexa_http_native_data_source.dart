@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:isolate';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -13,31 +15,58 @@ import '../dto/native_http_request_dto.dart';
 import '../mappers/native_http_error_mapper.dart';
 import 'nexa_http_native_data_source.dart';
 
-typedef _BinaryResultFinalizerNative = Void Function(Pointer<Void> token);
+typedef BinaryResultFinalizerNative = Void Function(Pointer<Void> token);
 
 final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   FfiNexaHttpNativeDataSource({
     required DynamicLibrary library,
     NexaHttpBindings? bindings,
-    Pointer<NativeFunction<_BinaryResultFinalizerNative>>?
+    Pointer<NativeFunction<BinaryResultFinalizerNative>>?
     binaryResultFinalizer,
+    bool? preferSynchronousExecution,
+    Future<NexaHttpResponse> Function(
+      int clientId,
+      NativeHttpRequestDto request,
+    )?
+    binaryExecutor,
   }) : _bindings = bindings ?? NexaHttpBindings(library),
        _binaryResultFinalizer =
            binaryResultFinalizer ??
-           library.lookup<NativeFunction<_BinaryResultFinalizerNative>>(
+           library.lookup<NativeFunction<BinaryResultFinalizerNative>>(
              'nexa_http_binary_result_free',
-           ) {
-    _executeCallback = NativeCallable<NexaHttpExecuteCallbackFunction>.listener(
-      _handleExecuteCallback,
-    );
+           ),
+       _preferSynchronousExecution =
+           preferSynchronousExecution ?? Platform.isAndroid,
+       _binaryExecutor =
+           binaryExecutor ??
+           ((clientId, request) => _executeBinaryInBackgroundIsolate(
+             _BinaryExecuteRequest(
+               libraryPath: Platform.isAndroid
+                   ? 'libnexa_http_native.so'
+                   : (throw UnsupportedError(
+                       'A binaryExecutor or explicit preferSynchronousExecution=false '
+                       'is required off Android.',
+                     )),
+               clientId: clientId,
+               requestJson: request.toJson(),
+             ),
+           )) {
+    if (!_preferSynchronousExecution) {
+      _executeCallback = NativeCallable<NexaHttpExecuteCallbackFunction>.listener(
+        _handleExecuteCallback,
+      );
+    }
   }
 
   final NexaHttpBindings _bindings;
-  final Pointer<NativeFunction<_BinaryResultFinalizerNative>>
+  final Pointer<NativeFunction<BinaryResultFinalizerNative>>
   _binaryResultFinalizer;
+  final bool _preferSynchronousExecution;
+  final Future<NexaHttpResponse> Function(int clientId, NativeHttpRequestDto request)
+  _binaryExecutor;
   final _pendingExecuteRequests = <int, Completer<NexaHttpResponse>>{};
 
-  late final NativeCallable<NexaHttpExecuteCallbackFunction> _executeCallback;
+  NativeCallable<NexaHttpExecuteCallbackFunction>? _executeCallback;
   int _requestSequence = 0;
 
   @override
@@ -61,6 +90,10 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     int clientId,
     NativeHttpRequestDto request,
   ) async {
+    if (_preferSynchronousExecution) {
+      return _binaryExecutor(clientId, request);
+    }
+
     final requestId = _nextRequestId();
     final completer = Completer<NexaHttpResponse>();
     _pendingExecuteRequests[requestId] = completer;
@@ -71,7 +104,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
         clientId,
         requestId,
         requestArgs.pointer,
-        _executeCallback.nativeFunction,
+        _executeCallback!.nativeFunction,
       );
 
       if (dispatched == 0) {
@@ -172,7 +205,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
 
     final headers = <String, List<String>>{};
     for (var index = 0; index < headersLength; index += 1) {
-      final entry = headersPointer.elementAt(index).ref;
+      final entry = (headersPointer + index).ref;
       final name = _decodeSizedString(
         entry.name_ptr,
         entry.name_len,
@@ -342,4 +375,144 @@ final class _NativeUtf8Slice {
       utf8.encode(value).length,
     );
   }
+}
+
+final class _BinaryExecuteRequest {
+  const _BinaryExecuteRequest({
+    required this.libraryPath,
+    required this.clientId,
+    required this.requestJson,
+  });
+
+  final String libraryPath;
+  final int clientId;
+  final Map<String, dynamic> requestJson;
+}
+
+Future<NexaHttpResponse> _executeBinaryInBackgroundIsolate(
+  _BinaryExecuteRequest request,
+) {
+  return Isolate.run(() {
+    final library = DynamicLibrary.open(request.libraryPath);
+    final bindings = NexaHttpBindings(library);
+    final arena = _NativeRequestArena.fromDto(
+      NativeHttpRequestDto.fromJson(request.requestJson),
+    );
+    try {
+      final resultPointer = bindings.nexa_http_client_execute_binary(
+        request.clientId,
+        arena.pointer,
+      );
+      return _decodeBinaryResultForSynchronousExecution(bindings, resultPointer);
+    } finally {
+      arena.dispose();
+    }
+  });
+}
+
+NexaHttpResponse _decodeBinaryResultForSynchronousExecution(
+  NexaHttpBindings bindings,
+  Pointer<NexaHttpBinaryResult> resultPointer,
+) {
+  if (resultPointer == nullptr) {
+    throw const NexaHttpException(
+      code: 'ffi_invalid_response',
+      message: 'The nexa_http native library returned a null binary result.',
+    );
+  }
+
+  try {
+    final result = resultPointer.ref;
+    if (result.is_success == 0) {
+      throw _decodeBinaryErrorForSynchronousExecution(result.error_json);
+    }
+
+  final headers = <String, List<String>>{};
+  for (var index = 0; index < result.headers_len; index += 1) {
+      final entry = (result.headers_ptr + index).ref;
+      final name = _decodeUtf8FromSizedPointer(
+        entry.name_ptr,
+        entry.name_len,
+        fieldName: 'response header name',
+      );
+      final value = _decodeUtf8FromSizedPointer(
+        entry.value_ptr,
+        entry.value_len,
+        fieldName: 'response header value',
+      );
+      (headers[name] ??= <String>[]).add(value);
+    }
+
+    final finalUrl = result.final_url_len == 0
+        ? null
+        : Uri.tryParse(
+            _decodeUtf8FromSizedPointer(
+              result.final_url_ptr,
+              result.final_url_len,
+              fieldName: 'final response URL',
+            ),
+          );
+
+    final bodyBytes = result.body_len == 0
+        ? const <int>[]
+        : result.body_ptr == nullptr
+        ? (throw const NexaHttpException(
+            code: 'ffi_invalid_response',
+            message:
+                'The nexa_http native library returned a null body pointer for a non-empty response body.',
+          ))
+        : Uint8List.fromList(result.body_ptr.asTypedList(result.body_len));
+
+    return NexaHttpResponse(
+      statusCode: result.status_code,
+      headers: headers,
+      bodyBytes: bodyBytes,
+      finalUri: finalUrl,
+    );
+  } finally {
+    bindings.nexa_http_binary_result_free(resultPointer);
+  }
+}
+
+NexaHttpException _decodeBinaryErrorForSynchronousExecution(
+  Pointer<Char> errorPointer,
+) {
+  if (errorPointer == nullptr) {
+    return const NexaHttpException(
+      code: 'ffi_invalid_response',
+      message: 'The nexa_http native library returned an invalid error result.',
+    );
+  }
+
+  final decoded = jsonDecode(errorPointer.cast<Utf8>().toDartString());
+  if (decoded is! Map) {
+    return const NexaHttpException(
+      code: 'ffi_invalid_response',
+      message: 'The nexa_http native library returned invalid error payload.',
+    );
+  }
+
+  return NativeHttpErrorMapper.toDomain(
+    NativeHttpErrorDto.fromJson(
+      Map<String, dynamic>.from(decoded.cast<String, Object?>()),
+    ),
+  );
+}
+
+String _decodeUtf8FromSizedPointer(
+  Pointer<Char> pointer,
+  int length, {
+  required String fieldName,
+}) {
+  if (length == 0) {
+    return '';
+  }
+  if (pointer == nullptr) {
+    throw NexaHttpException(
+      code: 'ffi_invalid_response',
+      message:
+          'The nexa_http native library returned a null pointer for $fieldName.',
+    );
+  }
+  return pointer.cast<Utf8>().toDartString(length: length);
 }
