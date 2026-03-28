@@ -16,7 +16,10 @@ fn ios_builds_proxy_settings_from_systemconfiguration_values() {
         true,
     );
 
-    assert_eq!(settings.http.as_deref(), Some("http://proxy.example.com:3128/"));
+    assert_eq!(
+        settings.http.as_deref(),
+        Some("http://proxy.example.com:3128/")
+    );
     assert_eq!(settings.https.as_deref(), None);
     assert_eq!(settings.all.as_deref(), Some("socks5://127.0.0.1:1080"));
 }

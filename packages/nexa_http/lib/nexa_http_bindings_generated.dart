@@ -66,7 +66,7 @@ class NexaHttpBindings {
             )
           >();
 
-  ffi.Pointer<NexaHttpBinaryResult> nexa_http_client_execute_binary(
+  ffi.Pointer<NexaHttpResponseHeadResult> nexa_http_client_execute_binary(
     int client_id,
     ffi.Pointer<NexaHttpRequestArgs> request_args,
   ) {
@@ -76,7 +76,7 @@ class NexaHttpBindings {
   late final _nexa_http_client_execute_binaryPtr =
       _lookup<
         ffi.NativeFunction<
-          ffi.Pointer<NexaHttpBinaryResult> Function(
+          ffi.Pointer<NexaHttpResponseHeadResult> Function(
             ffi.Uint64,
             ffi.Pointer<NexaHttpRequestArgs>,
           )
@@ -85,11 +85,38 @@ class NexaHttpBindings {
   late final _nexa_http_client_execute_binary =
       _nexa_http_client_execute_binaryPtr
           .asFunction<
-            ffi.Pointer<NexaHttpBinaryResult> Function(
+            ffi.Pointer<NexaHttpResponseHeadResult> Function(
               int,
               ffi.Pointer<NexaHttpRequestArgs>,
             )
           >();
+
+  ffi.Pointer<NexaHttpResponseChunkResult> nexa_http_response_stream_next(
+    int stream_id,
+  ) {
+    return _nexa_http_response_stream_next(stream_id);
+  }
+
+  late final _nexa_http_response_stream_nextPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<NexaHttpResponseChunkResult> Function(ffi.Uint64)
+        >
+      >('nexa_http_response_stream_next');
+  late final _nexa_http_response_stream_next =
+      _nexa_http_response_stream_nextPtr
+          .asFunction<ffi.Pointer<NexaHttpResponseChunkResult> Function(int)>();
+
+  void nexa_http_response_stream_close(int stream_id) {
+    return _nexa_http_response_stream_close(stream_id);
+  }
+
+  late final _nexa_http_response_stream_closePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Uint64)>>(
+        'nexa_http_response_stream_close',
+      );
+  late final _nexa_http_response_stream_close =
+      _nexa_http_response_stream_closePtr.asFunction<void Function(int)>();
 
   void nexa_http_client_close(int client_id) {
     return _nexa_http_client_close(client_id);
@@ -102,16 +129,39 @@ class NexaHttpBindings {
   late final _nexa_http_client_close = _nexa_http_client_closePtr
       .asFunction<void Function(int)>();
 
-  void nexa_http_binary_result_free(ffi.Pointer<NexaHttpBinaryResult> result) {
-    return _nexa_http_binary_result_free(result);
+  void nexa_http_response_head_result_free(
+    ffi.Pointer<NexaHttpResponseHeadResult> result,
+  ) {
+    return _nexa_http_response_head_result_free(result);
   }
 
-  late final _nexa_http_binary_result_freePtr =
+  late final _nexa_http_response_head_result_freePtr =
       _lookup<
-        ffi.NativeFunction<ffi.Void Function(ffi.Pointer<NexaHttpBinaryResult>)>
-      >('nexa_http_binary_result_free');
-  late final _nexa_http_binary_result_free = _nexa_http_binary_result_freePtr
-      .asFunction<void Function(ffi.Pointer<NexaHttpBinaryResult>)>();
+        ffi.NativeFunction<
+          ffi.Void Function(ffi.Pointer<NexaHttpResponseHeadResult>)
+        >
+      >('nexa_http_response_head_result_free');
+  late final _nexa_http_response_head_result_free =
+      _nexa_http_response_head_result_freePtr
+          .asFunction<void Function(ffi.Pointer<NexaHttpResponseHeadResult>)>();
+
+  void nexa_http_response_chunk_result_free(
+    ffi.Pointer<NexaHttpResponseChunkResult> result,
+  ) {
+    return _nexa_http_response_chunk_result_free(result);
+  }
+
+  late final _nexa_http_response_chunk_result_freePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(ffi.Pointer<NexaHttpResponseChunkResult>)
+        >
+      >('nexa_http_response_chunk_result_free');
+  late final _nexa_http_response_chunk_result_free =
+      _nexa_http_response_chunk_result_freePtr
+          .asFunction<
+            void Function(ffi.Pointer<NexaHttpResponseChunkResult>)
+          >();
 }
 
 /// 7.18.1.2 Minimum-width integer types
@@ -412,7 +462,7 @@ final class NexaHttpRequestArgs extends ffi.Struct {
   external int has_timeout;
 }
 
-final class NexaHttpBinaryResult extends ffi.Struct {
+final class NexaHttpResponseHeadResult extends ffi.Struct {
   @ffi.Uint8()
   external int is_success;
 
@@ -429,10 +479,23 @@ final class NexaHttpBinaryResult extends ffi.Struct {
   @ffi.UintPtr()
   external int final_url_len;
 
-  external ffi.Pointer<ffi.Uint8> body_ptr;
+  @ffi.Uint64()
+  external int stream_id;
+
+  external ffi.Pointer<ffi.Char> error_json;
+}
+
+final class NexaHttpResponseChunkResult extends ffi.Struct {
+  @ffi.Uint8()
+  external int is_success;
+
+  @ffi.Uint8()
+  external int is_done;
+
+  external ffi.Pointer<ffi.Uint8> chunk_ptr;
 
   @ffi.UintPtr()
-  external int body_len;
+  external int chunk_len;
 
   external ffi.Pointer<ffi.Char> error_json;
 }
@@ -440,10 +503,13 @@ final class NexaHttpBinaryResult extends ffi.Struct {
 typedef NexaHttpExecuteCallbackFunction =
     ffi.Void Function(
       ffi.Uint64 request_id,
-      ffi.Pointer<NexaHttpBinaryResult> result,
+      ffi.Pointer<NexaHttpResponseHeadResult> result,
     );
 typedef DartNexaHttpExecuteCallbackFunction =
-    void Function(int request_id, ffi.Pointer<NexaHttpBinaryResult> result);
+    void Function(
+      int request_id,
+      ffi.Pointer<NexaHttpResponseHeadResult> result,
+    );
 typedef NexaHttpExecuteCallback =
     ffi.Pointer<ffi.NativeFunction<NexaHttpExecuteCallbackFunction>>;
 

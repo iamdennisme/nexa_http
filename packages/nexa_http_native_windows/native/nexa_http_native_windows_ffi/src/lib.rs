@@ -1,5 +1,6 @@
 use nexa_http_native_core::api::ffi::{
-    NexaHttpBinaryResult, NexaHttpExecuteCallback, NexaHttpRequestArgs,
+    NexaHttpExecuteCallback, NexaHttpRequestArgs, NexaHttpResponseChunkResult,
+    NexaHttpResponseHeadResult,
 };
 use nexa_http_native_core::platform::{PlatformCapabilities, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
@@ -41,7 +42,7 @@ pub extern "C" fn nexa_http_client_execute_async(
 pub extern "C" fn nexa_http_client_execute_binary(
     client_id: u64,
     request_args: *const NexaHttpRequestArgs,
-) -> *mut NexaHttpBinaryResult {
+) -> *mut NexaHttpResponseHeadResult {
     RUNTIME.execute_binary(client_id, request_args)
 }
 
@@ -51,8 +52,25 @@ pub extern "C" fn nexa_http_client_close(client_id: u64) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_binary_result_free(value: *mut NexaHttpBinaryResult) {
-    NexaHttpRuntime::<WindowsPlatformCapabilities>::binary_result_free(value);
+pub extern "C" fn nexa_http_response_stream_next(
+    stream_id: u64,
+) -> *mut NexaHttpResponseChunkResult {
+    RUNTIME.response_stream_next(stream_id)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn nexa_http_response_stream_close(stream_id: u64) {
+    RUNTIME.close_response_stream(stream_id);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn nexa_http_response_head_result_free(value: *mut NexaHttpResponseHeadResult) {
+    NexaHttpRuntime::<WindowsPlatformCapabilities>::response_head_result_free(value);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn nexa_http_response_chunk_result_free(value: *mut NexaHttpResponseChunkResult) {
+    NexaHttpRuntime::<WindowsPlatformCapabilities>::response_chunk_result_free(value);
 }
 
 pub fn current_proxy_settings_for_test(server: &str, bypass: Option<&str>) -> ProxySettings {

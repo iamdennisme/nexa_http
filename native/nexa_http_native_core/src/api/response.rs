@@ -1,16 +1,17 @@
 use crate::api::request::NativeHttpHeader;
+use reqwest::Response;
 use std::ptr::{null_mut, slice_from_raw_parts_mut};
 
 #[derive(Debug)]
-pub(crate) struct NativeHttpOwnedBody {
+pub(crate) struct NativeHttpOwnedBytes {
     bytes: Box<[u8]>,
 }
 
-impl NativeHttpOwnedBody {
+impl NativeHttpOwnedBytes {
     pub(crate) fn from_bytes(bytes: &[u8]) -> Self {
         Self {
-            // The FFI result only tracks a pointer and length, so use a boxed
-            // slice with a single explicit owner for the native body buffer.
+            // The FFI ABI only tracks a pointer and length, so use a boxed
+            // slice with a single explicit owner for the native byte buffer.
             bytes: bytes.to_vec().into_boxed_slice(),
         }
     }
@@ -35,9 +36,9 @@ impl NativeHttpOwnedBody {
 }
 
 #[derive(Debug)]
-pub(crate) struct NativeHttpRawResponse {
+pub(crate) struct NativeHttpPendingResponse {
     pub(crate) status_code: u16,
     pub(crate) headers: Vec<NativeHttpHeader>,
-    pub(crate) body: NativeHttpOwnedBody,
     pub(crate) final_url: Option<String>,
+    pub(crate) response: Response,
 }

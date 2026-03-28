@@ -53,7 +53,10 @@ def rustNetRequiredAndroidSymbols = [
     'nexa_http_client_create',
     'nexa_http_client_execute_async',
     'nexa_http_client_execute_binary',
-    'nexa_http_binary_result_free',
+    'nexa_http_response_stream_next',
+    'nexa_http_response_stream_close',
+    'nexa_http_response_head_result_free',
+    'nexa_http_response_chunk_result_free',
 ]
 
 def latestRustSourceTimestamp = {
