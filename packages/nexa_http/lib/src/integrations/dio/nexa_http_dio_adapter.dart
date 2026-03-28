@@ -55,19 +55,35 @@ class NexaHttpDioAdapter implements HttpClientAdapter {
         options: options,
         cancelFuture: cancelFuture,
       );
-      final bodyBytes = await response.readBytes();
       final headers = <String, List<String>>{
         ...response.headers,
         if (response.finalUri != null)
           finalUriHeaderName: <String>[response.finalUri.toString()],
       };
+      final responseBody = switch (options.responseType) {
+        ResponseType.bytes => ResponseBody.fromBytes(
+          await _readResponseBytesWithCancellation(
+            response: response,
+            options: options,
+            cancelFuture: cancelFuture,
+          ),
+          response.statusCode,
+          headers: headers,
+          isRedirect: _isRedirectStatus(response.statusCode),
+        ),
+        _ => ResponseBody(
+          _mapResponseBodyStream(
+            response: response,
+            options: options,
+            timeoutResolution: timeoutResolution,
+          ),
+          response.statusCode,
+          headers: headers,
+          isRedirect: _isRedirectStatus(response.statusCode),
+        ),
+      };
 
-      return ResponseBody(
-        Stream<Uint8List>.value(bodyBytes),
-        response.statusCode,
-        headers: headers,
-        isRedirect: _isRedirectStatus(response.statusCode),
-      );
+      return responseBody;
     } on DioException {
       rethrow;
     } on NexaHttpException catch (error, stackTrace) {
@@ -122,6 +138,64 @@ class NexaHttpDioAdapter implements HttpClientAdapter {
         );
       }),
     ]);
+  }
+
+  Future<Uint8List> _readResponseBytesWithCancellation({
+    required NexaHttpStreamedResponse response,
+    required RequestOptions options,
+    required Future<void>? cancelFuture,
+  }) {
+    final responseBytesFuture = response.readBytes();
+    if (cancelFuture == null) {
+      return responseBytesFuture;
+    }
+
+    return Future.any(<Future<Uint8List>>[
+      responseBytesFuture,
+      cancelFuture.then<Uint8List>((_) {
+        throw DioException.requestCancelled(
+          requestOptions: options,
+          reason: options.cancelToken?.cancelError,
+        );
+      }),
+    ]);
+  }
+
+  Stream<Uint8List> _mapResponseBodyStream({
+    required NexaHttpStreamedResponse response,
+    required RequestOptions options,
+    required _TimeoutResolution? timeoutResolution,
+  }) {
+    return response.bodyStream.transform(
+      StreamTransformer<Uint8List, Uint8List>.fromHandlers(
+        handleError: (error, stackTrace, sink) {
+          if (error is DioException) {
+            sink.addError(error, stackTrace);
+            return;
+          }
+          if (error is NexaHttpException) {
+            sink.addError(
+              _mapNexaHttpException(
+                error: error,
+                options: options,
+                timeoutResolution: timeoutResolution,
+              ),
+              stackTrace,
+            );
+            return;
+          }
+          sink.addError(
+            DioException(
+              requestOptions: options,
+              error: error,
+              stackTrace: stackTrace,
+              message: error.toString(),
+            ),
+            stackTrace,
+          );
+        },
+      ),
+    );
   }
 
   void _ensureOpen(RequestOptions options) {
