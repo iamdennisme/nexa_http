@@ -103,8 +103,35 @@ void main() {
       () => client.execute(
         NexaHttpRequest.get(uri: Uri.parse('https://example.com/ping')),
       ),
-      throwsA(isA<StateError>()),
+      throwsA(
+        isA<NexaHttpException>().having(
+          (exception) => exception.code,
+          'code',
+          'client_closed',
+        ),
+      ),
     );
+  });
+
+  test('execute is stream-first and returns NexaHttpStreamedResponse', () async {
+    final client = NexaHttpClient(
+      dataSource: _FakeNexaHttpNativeDataSource(
+        response: const NexaHttpResponse(
+          statusCode: 200,
+          headers: <String, List<String>>{},
+          bodyBytes: <int>[1, 2, 3],
+        ),
+      ),
+    );
+
+    final Future<NexaHttpStreamedResponse> Function(NexaHttpRequest) execute =
+        client.execute;
+    final response = await execute(
+      NexaHttpRequest.get(uri: Uri.parse('https://example.com/body')),
+    );
+    final bytes = await response.readBytes();
+
+    expect(bytes, <int>[1, 2, 3]);
   });
 }
 
