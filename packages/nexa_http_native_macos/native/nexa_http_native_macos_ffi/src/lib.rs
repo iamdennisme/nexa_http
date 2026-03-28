@@ -1,15 +1,13 @@
 use nexa_http_native_core::api::ffi::{
-    NexaHttpExecuteCallback, NexaHttpHeaderEntry, NexaHttpRequestArgs, NexaHttpResponseChunkResult,
+    NexaHttpExecuteCallback, NexaHttpRequestArgs, NexaHttpResponseChunkResult,
     NexaHttpResponseHeadResult,
 };
 use nexa_http_native_core::platform::{PlatformCapabilities, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use once_cell::sync::Lazy;
 use reqwest::Url;
-use std::collections::{BTreeSet, HashMap};
-use std::ffi::{c_char, CString};
-use std::ptr::null_mut;
-use std::sync::Mutex;
+use std::collections::BTreeSet;
+use std::ffi::c_char;
 
 struct MacosPlatformCapabilities;
 
@@ -21,10 +19,6 @@ impl PlatformCapabilities for MacosPlatformCapabilities {
 
 static RUNTIME: Lazy<NexaHttpRuntime<MacosPlatformCapabilities>> =
     Lazy::new(|| NexaHttpRuntime::new(MacosPlatformCapabilities));
-static TEST_RESPONSE_HEAD_FREE_COUNTS: Lazy<Mutex<HashMap<usize, usize>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
-static TEST_RESPONSE_CHUNK_FREE_COUNTS: Lazy<Mutex<HashMap<usize, usize>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[unsafe(no_mangle)]
 pub extern "C" fn nexa_http_client_create(config_json: *const c_char) -> u64 {
@@ -68,85 +62,12 @@ pub extern "C" fn nexa_http_response_stream_close(stream_id: u64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn nexa_http_response_head_result_free(value: *mut NexaHttpResponseHeadResult) {
-    if should_free_tracked_pointer(&TEST_RESPONSE_HEAD_FREE_COUNTS, value.cast()) {
-        NexaHttpRuntime::<MacosPlatformCapabilities>::response_head_result_free(value);
-    }
+    NexaHttpRuntime::<MacosPlatformCapabilities>::response_head_result_free(value);
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn nexa_http_response_chunk_result_free(value: *mut NexaHttpResponseChunkResult) {
-    if should_free_tracked_pointer(&TEST_RESPONSE_CHUNK_FREE_COUNTS, value.cast()) {
-        NexaHttpRuntime::<MacosPlatformCapabilities>::response_chunk_result_free(value);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_test_response_head_result_new_success(
-    stream_id: u64,
-) -> *mut NexaHttpResponseHeadResult {
-    let (headers_ptr, headers_len) = build_test_header_entries(&[
-        ("content-type", "application/octet-stream"),
-        ("cache-control", "max-age=60"),
-    ]);
-    let final_url = CString::new("https://example.com/native-stream-result").unwrap();
-    let final_url_len = final_url.as_bytes().len();
-    let result = Box::into_raw(Box::new(NexaHttpResponseHeadResult {
-        is_success: 1,
-        status_code: 200,
-        headers_ptr,
-        headers_len,
-        final_url_ptr: final_url.into_raw(),
-        final_url_len,
-        stream_id,
-        error_json: null_mut(),
-    }));
-    track_test_pointer(&TEST_RESPONSE_HEAD_FREE_COUNTS, result.cast());
-    result
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_test_response_head_result_free_count(
-    value: *mut NexaHttpResponseHeadResult,
-) -> usize {
-    tracked_pointer_free_count(&TEST_RESPONSE_HEAD_FREE_COUNTS, value.cast())
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_test_response_chunk_result_new_success(
-    chunk_ptr: *const u8,
-    chunk_len: usize,
-) -> *mut NexaHttpResponseChunkResult {
-    let (chunk_ptr, chunk_len) = clone_chunk_bytes(chunk_ptr, chunk_len);
-    let result = Box::into_raw(Box::new(NexaHttpResponseChunkResult {
-        is_success: 1,
-        is_done: 0,
-        chunk_ptr,
-        chunk_len,
-        error_json: null_mut(),
-    }));
-    track_test_pointer(&TEST_RESPONSE_CHUNK_FREE_COUNTS, result.cast());
-    result
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_test_response_chunk_result_new_done() -> *mut NexaHttpResponseChunkResult
-{
-    let result = Box::into_raw(Box::new(NexaHttpResponseChunkResult {
-        is_success: 1,
-        is_done: 1,
-        chunk_ptr: null_mut(),
-        chunk_len: 0,
-        error_json: null_mut(),
-    }));
-    track_test_pointer(&TEST_RESPONSE_CHUNK_FREE_COUNTS, result.cast());
-    result
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_test_response_chunk_result_free_count(
-    value: *mut NexaHttpResponseChunkResult,
-) -> usize {
-    tracked_pointer_free_count(&TEST_RESPONSE_CHUNK_FREE_COUNTS, value.cast())
+    NexaHttpRuntime::<MacosPlatformCapabilities>::response_chunk_result_free(value);
 }
 
 pub fn current_proxy_settings_for_test(
@@ -187,80 +108,6 @@ fn current_proxy_settings() -> ProxySettings {
     {
         ProxySettings::default()
     }
-}
-
-fn track_test_pointer(
-    registry: &Lazy<Mutex<HashMap<usize, usize>>>,
-    pointer: *mut std::ffi::c_void,
-) {
-    registry.lock().unwrap().insert(pointer as usize, 0);
-}
-
-fn should_free_tracked_pointer(
-    registry: &Lazy<Mutex<HashMap<usize, usize>>>,
-    pointer: *mut std::ffi::c_void,
-) -> bool {
-    if pointer.is_null() {
-        return false;
-    }
-
-    let mut tracked = registry.lock().unwrap();
-    match tracked.get_mut(&(pointer as usize)) {
-        Some(count) => {
-            *count += 1;
-            *count == 1
-        }
-        None => true,
-    }
-}
-
-fn tracked_pointer_free_count(
-    registry: &Lazy<Mutex<HashMap<usize, usize>>>,
-    pointer: *mut std::ffi::c_void,
-) -> usize {
-    registry
-        .lock()
-        .unwrap()
-        .get(&(pointer as usize))
-        .copied()
-        .unwrap_or(0)
-}
-
-fn build_test_header_entries(headers: &[(&str, &str)]) -> (*mut NexaHttpHeaderEntry, usize) {
-    if headers.is_empty() {
-        return (null_mut(), 0);
-    }
-
-    let mut entries = Vec::<NexaHttpHeaderEntry>::with_capacity(headers.len());
-    for (name, value) in headers {
-        let name = CString::new(*name).unwrap();
-        let value = CString::new(*value).unwrap();
-        let name_len = name.as_bytes().len();
-        let value_len = value.as_bytes().len();
-        entries.push(NexaHttpHeaderEntry {
-            name_ptr: name.into_raw(),
-            name_len,
-            value_ptr: value.into_raw(),
-            value_len,
-        });
-    }
-
-    let len = entries.len();
-    let ptr = entries.as_mut_ptr();
-    std::mem::forget(entries);
-    (ptr, len)
-}
-
-fn clone_chunk_bytes(chunk_ptr: *const u8, chunk_len: usize) -> (*mut u8, usize) {
-    if chunk_ptr.is_null() || chunk_len == 0 {
-        return (null_mut(), 0);
-    }
-
-    let bytes = unsafe { std::slice::from_raw_parts(chunk_ptr, chunk_len) }
-        .to_vec()
-        .into_boxed_slice();
-    let ptr = Box::into_raw(bytes).cast::<u8>();
-    (ptr, chunk_len)
 }
 
 fn proxy_settings_from_apple_values(
