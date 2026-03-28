@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -7,10 +8,16 @@ import 'package:nexa_http_example/src/image_perf/nexa_http_image_file_service.da
 
 void main() {
   test(
-    'forwards request headers, maps response, and records a sample',
+    'returns a streaming content response and records a sample after content completes',
     () async {
       late NexaHttpRequest capturedRequest;
       ImageRequestSample? capturedSample;
+      final bodyController = StreamController<Uint8List>();
+      addTearDown(() async {
+        if (!bodyController.isClosed) {
+          await bodyController.close();
+        }
+      });
       final service = NexaHttpImageFileService(
         executor: _FakeHttpExecutor((request) async {
           capturedRequest = request;
@@ -22,9 +29,7 @@ void main() {
               'Content-Type': <String>['image/png'],
             },
             contentLength: 4,
-            bodyStream: Stream<Uint8List>.value(
-              Uint8List.fromList(const <int>[1, 2, 3, 4]),
-            ),
+            bodyStream: bodyController.stream,
           );
         }),
         onSample: (sample) {
@@ -32,20 +37,29 @@ void main() {
         },
       );
 
-      final response = await service.get(
+      final responseFuture = service.get(
         'https://example.com/poster.png',
         headers: const <String, String>{'accept': 'image/*'},
+      );
+      bodyController.add(Uint8List.fromList(const <int>[1, 2]));
+      final response = await responseFuture.timeout(
+        const Duration(milliseconds: 100),
       );
 
       expect(capturedRequest.uri, Uri.parse('https://example.com/poster.png'));
       expect(capturedRequest.headers['accept'], 'image/*');
       expect(response.statusCode, 200);
+      expect(capturedSample, isNull);
+
+      bodyController.add(Uint8List.fromList(const <int>[3, 4]));
+      final closeFuture = bodyController.close();
       expect(await response.content.expand((chunk) => chunk).toList(), <int>[
         1,
         2,
         3,
         4,
       ]);
+      await closeFuture;
       expect(response.contentLength, 4);
       expect(response.eTag, '"image-etag"');
       expect(response.fileExtension, 'png');
@@ -69,7 +83,7 @@ final class _FakeHttpExecutor implements HttpExecutor {
   _FakeHttpExecutor(this._handler);
 
   final Future<NexaHttpStreamedResponse> Function(NexaHttpRequest request)
-  _handler;
+      _handler;
 
   @override
   Future<void> close() async {}

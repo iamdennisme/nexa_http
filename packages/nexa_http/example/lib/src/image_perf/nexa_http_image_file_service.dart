@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:nexa_http/nexa_http.dart';
 
-import 'buffered_file_service_response.dart';
 import 'image_request_scheduler.dart';
 import 'image_perf_metrics.dart';
 import 'instrumented_http_file_service.dart';
@@ -19,14 +18,13 @@ final class NexaHttpImageFileService extends FileService {
       timeout: Duration(seconds: 20),
       userAgent: 'nexa_http_example/1.0.0',
     ),
-  }) : _ownsExecutor = executor == null,
-       _executor = executor ?? NexaHttpClient(config: config),
-       _scheduler =
-           scheduler ??
-           ImageRequestScheduler(
-             maxConcurrentRequests: 6,
-             maxLowPriorityConcurrency: 2,
-           );
+  })  : _ownsExecutor = executor == null,
+        _executor = executor ?? NexaHttpClient(config: config),
+        _scheduler = scheduler ??
+            ImageRequestScheduler(
+              maxConcurrentRequests: 6,
+              maxLowPriorityConcurrency: 2,
+            );
 
   final HttpExecutor _executor;
   final bool _ownsExecutor;
@@ -55,6 +53,32 @@ final class NexaHttpImageFileService extends FileService {
       requestHeaders.remove(priorityHeaderKey);
     }
     final stopwatch = Stopwatch()..start();
+    var sampleRecorded = false;
+    void recordSample({
+      required int bytes,
+      required bool succeeded,
+      int? statusCode,
+      String? error,
+    }) {
+      if (sampleRecorded) {
+        return;
+      }
+      sampleRecorded = true;
+      stopwatch.stop();
+      onSample?.call(
+        ImageRequestSample(
+          url: url,
+          elapsed: stopwatch.elapsed,
+          bytes: bytes,
+          succeeded: succeeded,
+          priority: priority,
+          dispatchSequence: dispatchSequence,
+          statusCode: statusCode,
+          error: error,
+        ),
+      );
+    }
+
     try {
       final response = await _scheduler.schedule<NexaHttpStreamedResponse>(
         priority: priority,
@@ -66,43 +90,30 @@ final class NexaHttpImageFileService extends FileService {
           );
         },
       );
-      final bodyBytes = await response.readBytes();
-      stopwatch.stop();
-      onSample?.call(
-        ImageRequestSample(
-          url: url,
-          elapsed: stopwatch.elapsed,
-          bytes: bodyBytes.length,
-          succeeded: _isSuccessfulStatus(response.statusCode),
-          priority: priority,
-          dispatchSequence: dispatchSequence,
-          statusCode: response.statusCode,
-          error: _isSuccessfulStatus(response.statusCode)
-              ? null
-              : 'HTTP ${response.statusCode}',
-        ),
-      );
-
-      return BufferedFileServiceResponse(
-        bodyBytes: bodyBytes,
-        contentLength: response.contentLength ?? bodyBytes.length,
+      return MeasuredFileServiceResponse(
+        content: response.bodyStream,
+        contentLength: response.contentLength,
         statusCode: response.statusCode,
         validTill: _validTillFromResponse(response),
         eTag: _header(response, HttpHeaders.etagHeader),
         fileExtension: _fileExtensionFromResponse(response),
+        onReadFinished: ({required bytes, error, stackTrace}) {
+          recordSample(
+            bytes: bytes,
+            succeeded:
+                _isSuccessfulStatus(response.statusCode) && error == null,
+            statusCode: response.statusCode,
+            error: error == null && _isSuccessfulStatus(response.statusCode)
+                ? null
+                : error?.toString() ?? 'HTTP ${response.statusCode}',
+          );
+        },
       );
     } catch (error) {
-      stopwatch.stop();
-      onSample?.call(
-        ImageRequestSample(
-          url: url,
-          elapsed: stopwatch.elapsed,
-          bytes: 0,
-          succeeded: false,
-          priority: priority,
-          dispatchSequence: dispatchSequence,
-          error: '$error',
-        ),
+      recordSample(
+        bytes: 0,
+        succeeded: false,
+        error: '$error',
       );
       rethrow;
     }
