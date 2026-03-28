@@ -64,15 +64,12 @@ pub(crate) fn track_test_binary_result(value: *mut NexaHttpBinaryResult) {
     TEST_BINARY_RESULT_FREE_COUNTS
         .lock()
         .unwrap()
-        .entry(value as usize)
-        .or_insert(0);
+        .insert(value as usize, 0);
 }
 
 pub(crate) fn record_test_binary_result_free(value: *mut NexaHttpBinaryResult) -> bool {
     let mut tracked = TEST_BINARY_RESULT_FREE_COUNTS.lock().unwrap();
-    let Some(count) = tracked.get_mut(&(value as usize)) else {
-        return true;
-    };
+    let count = tracked.entry(value as usize).or_insert(0);
     *count += 1;
     *count == 1
 }
@@ -126,4 +123,16 @@ pub extern "C" fn nexa_http_test_binary_result_free_count(
         .get(&(value as usize))
         .copied()
         .unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn nexa_http_test_binary_result_free(value: *mut NexaHttpBinaryResult) {
+    if value.is_null() {
+        return;
+    }
+    if record_test_binary_result_free(value) {
+        unsafe {
+            crate::runtime::executor::binary_result_free_impl(value);
+        }
+    }
 }

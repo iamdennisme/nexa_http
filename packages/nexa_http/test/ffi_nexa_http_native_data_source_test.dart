@@ -238,10 +238,6 @@ void main() {
   test(
     'releases adopted native response buffers through the production finalizer',
     () async {
-      if (!Platform.isMacOS) {
-        return;
-      }
-
       final support = await _NativeBinaryResultTestSupport.load();
       final bindings = _FakeNexaHttpBindings(
         onExecuteAsync:
@@ -269,33 +265,44 @@ void main() {
       final dataSource = FfiNexaHttpNativeDataSource(
         library: support.library,
         bindings: bindings,
+        binaryResultFinalizer: support.finalizer,
       );
 
-      NexaHttpResponse? response = await dataSource.execute(
-        12,
-        const NativeHttpRequestDto(
+      final (
+        bodyReference,
+        resultPointer,
+      ) = await _executeAndReleaseAdoptedResponse(
+        dataSource,
+        support,
+        clientId: 12,
+        request: const NativeHttpRequestDto(
           method: 'GET',
           url: 'https://example.com/finalizer-success',
         ),
+        expectedBody: const <int>[3, 1, 4, 1],
       );
 
-      final adoptedBody = response.bodyBytes;
-      final resultPointer = support.lastCreatedResultPointer;
-      expect(adoptedBody, const <int>[3, 1, 4, 1]);
       expect(support.freeCount(resultPointer), 0);
-
-      response = null;
-      await _waitForNativeFreeCount(support, resultPointer, expectedCount: 1);
+      await _waitForNativeFinalizer(
+        support,
+        resultPointer,
+        bodyReference: bodyReference,
+        expectedCount: 1,
+      );
+      await _assertNativeFreeCountRemains(
+        support,
+        resultPointer,
+        expectedCount: 1,
+      );
     },
+    skip: !Platform.isMacOS
+        ? 'real native finalizer coverage requires the host macOS dylib'
+        : false,
   );
 
   test(
     'does not double free adopted native buffers when later metadata decoding fails',
     () async {
-      if (!Platform.isMacOS) {
-        return;
-      }
-
       final support = await _NativeBinaryResultTestSupport.load();
       final bindings = _FakeNexaHttpBindings(
         onExecuteAsync:
@@ -323,6 +330,7 @@ void main() {
       final dataSource = FfiNexaHttpNativeDataSource(
         library: support.library,
         bindings: bindings,
+        binaryResultFinalizer: support.finalizer,
       );
 
       await expectLater(
@@ -351,6 +359,9 @@ void main() {
             'decode errors after body adoption must not leave a second finalizer-triggered free behind',
       );
     },
+    skip: !Platform.isMacOS
+        ? 'real native finalizer coverage requires the host macOS dylib'
+        : false,
   );
 }
 
@@ -533,6 +544,8 @@ typedef _NativeBinaryResultFreeDart =
     void Function(ffi.Pointer<NexaHttpBinaryResult>);
 typedef _NativeBinaryResultFreeC =
     ffi.Void Function(ffi.Pointer<NexaHttpBinaryResult>);
+typedef _NativeTestBinaryResultFinalizerNative =
+    ffi.Void Function(ffi.Pointer<ffi.Void>);
 
 final class _NativeBinaryResultTestSupport {
   _NativeBinaryResultTestSupport._({
@@ -540,6 +553,7 @@ final class _NativeBinaryResultTestSupport {
     required _NativeCreateBinaryResultDart createBinaryResult,
     required _NativeBinaryResultFreeCountDart freeCount,
     required _NativeBinaryResultFreeDart freeResult,
+    required this.finalizer,
   }) : _createBinaryResult = createBinaryResult,
        _freeCount = freeCount,
        _freeResult = freeResult;
@@ -548,6 +562,8 @@ final class _NativeBinaryResultTestSupport {
   final _NativeCreateBinaryResultDart _createBinaryResult;
   final _NativeBinaryResultFreeCountDart _freeCount;
   final _NativeBinaryResultFreeDart _freeResult;
+  final ffi.Pointer<ffi.NativeFunction<_NativeTestBinaryResultFinalizerNative>>
+  finalizer;
   ffi.Pointer<NexaHttpBinaryResult> lastCreatedResultPointer = ffi.nullptr;
 
   static Future<_NativeBinaryResultTestSupport> load() async {
@@ -569,7 +585,11 @@ final class _NativeBinaryResultTestSupport {
           .lookupFunction<
             _NativeBinaryResultFreeC,
             _NativeBinaryResultFreeDart
-          >('nexa_http_binary_result_free'),
+          >('nexa_http_test_binary_result_free'),
+      finalizer: library
+          .lookup<ffi.NativeFunction<_NativeTestBinaryResultFinalizerNative>>(
+            'nexa_http_test_binary_result_free',
+          ),
     );
   }
 
@@ -618,6 +638,41 @@ Future<String> _resolveHostNativeLibraryPath() async {
   );
 }
 
+Future<(WeakReference<Object>, ffi.Pointer<NexaHttpBinaryResult>)>
+_executeAndReleaseAdoptedResponse(
+  FfiNexaHttpNativeDataSource dataSource,
+  _NativeBinaryResultTestSupport support, {
+  required int clientId,
+  required NativeHttpRequestDto request,
+  required List<int> expectedBody,
+}) async {
+  final response = await dataSource.execute(clientId, request);
+  final bodyReference = WeakReference<Object>(response.bodyBytes as Object);
+  expect(response.bodyBytes, expectedBody);
+  return (bodyReference, support.lastCreatedResultPointer);
+}
+
+Future<void> _waitForNativeFinalizer(
+  _NativeBinaryResultTestSupport support,
+  ffi.Pointer<NexaHttpBinaryResult> resultPointer, {
+  required int expectedCount,
+  required WeakReference<Object> bodyReference,
+}) async {
+  for (var attempt = 0; attempt < 20; attempt += 1) {
+    await _collectAllGarbage();
+    if (bodyReference.target == null &&
+        support.freeCount(resultPointer) == expectedCount) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+
+  fail(
+    'expected collected body and native free count $expectedCount for ${resultPointer.address}, '
+    'got bodyReference=${bodyReference.target} freeCount=${support.freeCount(resultPointer)}',
+  );
+}
+
 Future<void> _waitForNativeFreeCount(
   _NativeBinaryResultTestSupport support,
   ffi.Pointer<NexaHttpBinaryResult> resultPointer, {
@@ -629,6 +684,22 @@ Future<void> _waitForNativeFreeCount(
       return;
     }
     await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+
+  fail(
+    'expected native free count $expectedCount for ${resultPointer.address}, '
+    'got ${support.freeCount(resultPointer)}',
+  );
+}
+
+Future<void> _assertNativeFreeCountRemains(
+  _NativeBinaryResultTestSupport support,
+  ffi.Pointer<NexaHttpBinaryResult> resultPointer, {
+  required int expectedCount,
+}) async {
+  for (var attempt = 0; attempt < 3; attempt += 1) {
+    await _collectAllGarbage();
+    expect(support.freeCount(resultPointer), expectedCount);
   }
 }
 
