@@ -140,11 +140,18 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       throw _decodeError(result.error_json);
     }
 
+    final headers = _decodeHeaders(result.headers_ptr, result.headers_len);
+    final finalUri = _decodeFinalUri(
+      result.final_url_ptr,
+      result.final_url_len,
+    );
+    final bodyBytes = _takeResponseBody(resultPointer, result);
+
     return NexaHttpResponse(
       statusCode: result.status_code,
-      headers: _decodeHeaders(result.headers_ptr, result.headers_len),
-      bodyBytes: _takeResponseBody(resultPointer, result),
-      finalUri: _decodeFinalUri(result.final_url_ptr, result.final_url_len),
+      headers: headers,
+      bodyBytes: bodyBytes,
+      finalUri: finalUri,
     );
   }
 

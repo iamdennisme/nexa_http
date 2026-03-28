@@ -1,6 +1,7 @@
 use crate::api::error::{NativeError, NativeHttpError};
 use crate::api::ffi::{
     NexaHttpBinaryResult, NexaHttpExecuteCallback, NexaHttpHeaderEntry, NexaHttpRequestArgs,
+    record_test_binary_result_free,
 };
 use crate::api::request::{NativeHttpClientConfig, NativeHttpHeader, NativeHttpRequest};
 use crate::api::response::{NativeHttpOwnedBody, NativeHttpRawResponse};
@@ -144,6 +145,9 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
 
         unsafe {
             let mut result = Box::from_raw(value);
+            if !record_test_binary_result_free(value) {
+                return;
+            }
             free_header_entries_buffer(result.headers_ptr, result.headers_len);
             if !result.final_url_ptr.is_null() {
                 drop(CString::from_raw(result.final_url_ptr));

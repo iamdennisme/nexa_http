@@ -1,6 +1,11 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'dart:async';
+import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:ffi' as ffi;
+import 'dart:isolate';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -229,10 +234,128 @@ void main() {
       expect(bindings.freedResultCount, 1);
     },
   );
+
+  test(
+    'releases adopted native response buffers through the production finalizer',
+    () async {
+      if (!Platform.isMacOS) {
+        return;
+      }
+
+      final support = await _NativeBinaryResultTestSupport.load();
+      final bindings = _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 12);
+              final resultPointer = support.createSuccessResult(const <int>[
+                3,
+                1,
+                4,
+                1,
+              ]);
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                  >()(requestId, resultPointer);
+              return 1;
+            },
+        onFreeBinaryResult: support.freeResult,
+      );
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: support.library,
+        bindings: bindings,
+      );
+
+      NexaHttpResponse? response = await dataSource.execute(
+        12,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/finalizer-success',
+        ),
+      );
+
+      final adoptedBody = response.bodyBytes;
+      final resultPointer = support.lastCreatedResultPointer;
+      expect(adoptedBody, const <int>[3, 1, 4, 1]);
+      expect(support.freeCount(resultPointer), 0);
+
+      response = null;
+      await _waitForNativeFreeCount(support, resultPointer, expectedCount: 1);
+    },
+  );
+
+  test(
+    'does not double free adopted native buffers when later metadata decoding fails',
+    () async {
+      if (!Platform.isMacOS) {
+        return;
+      }
+
+      final support = await _NativeBinaryResultTestSupport.load();
+      final bindings = _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 13);
+              final resultPointer = support.createSuccessResult(const <int>[
+                8,
+                6,
+                7,
+                5,
+              ], invalidFinalUrl: true);
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                  >()(requestId, resultPointer);
+              return 1;
+            },
+        onFreeBinaryResult: support.freeResult,
+      );
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: support.library,
+        bindings: bindings,
+      );
+
+      await expectLater(
+        () => dataSource.execute(
+          13,
+          const NativeHttpRequestDto(
+            method: 'GET',
+            url: 'https://example.com/finalizer-error',
+          ),
+        ),
+        throwsA(
+          isA<NexaHttpException>().having(
+            (error) => error.code,
+            'code',
+            'ffi_invalid_response',
+          ),
+        ),
+      );
+
+      final resultPointer = support.lastCreatedResultPointer;
+      await _waitForNativeFreeCount(support, resultPointer, expectedCount: 1);
+      expect(
+        support.freeCount(resultPointer),
+        1,
+        reason:
+            'decode errors after body adoption must not leave a second finalizer-triggered free behind',
+      );
+    },
+  );
 }
 
 class _FakeNexaHttpBindings extends NexaHttpBindings {
-  _FakeNexaHttpBindings({required this.onExecuteAsync})
+  _FakeNexaHttpBindings({required this.onExecuteAsync, this.onFreeBinaryResult})
     : super.fromLookup(_unimplementedLookup);
 
   final int Function({
@@ -242,6 +365,8 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     required NexaHttpExecuteCallback callback,
   })
   onExecuteAsync;
+  final void Function(ffi.Pointer<NexaHttpBinaryResult> value)?
+  onFreeBinaryResult;
 
   int freedResultCount = 0;
   ffi.Pointer<NexaHttpBinaryResult> _trackedResultPointer = ffi.nullptr;
@@ -283,6 +408,14 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
 
   @override
   void nexa_http_binary_result_free(ffi.Pointer<NexaHttpBinaryResult> value) {
+    if (onFreeBinaryResult case final onFreeBinaryResult?) {
+      onFreeBinaryResult(value);
+      if (_trackedResultPointer.address == value.address) {
+        _trackedResultPointer = ffi.nullptr;
+      }
+      return;
+    }
+
     if (!_freedResultAddresses.add(value.address)) {
       throw StateError(
         'native result ${value.address} was freed more than once',
@@ -378,4 +511,165 @@ String _readUtf8(ffi.Pointer<ffi.Char> pointer, int length) {
     return '';
   }
   return pointer.cast<Utf8>().toDartString(length: length);
+}
+
+typedef _NativeCreateBinaryResultDart =
+    ffi.Pointer<NexaHttpBinaryResult> Function(
+      ffi.Pointer<ffi.Uint8>,
+      int,
+      int,
+    );
+typedef _NativeCreateBinaryResultC =
+    ffi.Pointer<NexaHttpBinaryResult> Function(
+      ffi.Pointer<ffi.Uint8>,
+      ffi.UintPtr,
+      ffi.Uint8,
+    );
+typedef _NativeBinaryResultFreeCountDart =
+    int Function(ffi.Pointer<NexaHttpBinaryResult>);
+typedef _NativeBinaryResultFreeCountC =
+    ffi.UintPtr Function(ffi.Pointer<NexaHttpBinaryResult>);
+typedef _NativeBinaryResultFreeDart =
+    void Function(ffi.Pointer<NexaHttpBinaryResult>);
+typedef _NativeBinaryResultFreeC =
+    ffi.Void Function(ffi.Pointer<NexaHttpBinaryResult>);
+
+final class _NativeBinaryResultTestSupport {
+  _NativeBinaryResultTestSupport._({
+    required this.library,
+    required _NativeCreateBinaryResultDart createBinaryResult,
+    required _NativeBinaryResultFreeCountDart freeCount,
+    required _NativeBinaryResultFreeDart freeResult,
+  }) : _createBinaryResult = createBinaryResult,
+       _freeCount = freeCount,
+       _freeResult = freeResult;
+
+  final ffi.DynamicLibrary library;
+  final _NativeCreateBinaryResultDart _createBinaryResult;
+  final _NativeBinaryResultFreeCountDart _freeCount;
+  final _NativeBinaryResultFreeDart _freeResult;
+  ffi.Pointer<NexaHttpBinaryResult> lastCreatedResultPointer = ffi.nullptr;
+
+  static Future<_NativeBinaryResultTestSupport> load() async {
+    final libraryPath = await _resolveHostNativeLibraryPath();
+    final library = ffi.DynamicLibrary.open(libraryPath);
+    return _NativeBinaryResultTestSupport._(
+      library: library,
+      createBinaryResult: library
+          .lookupFunction<
+            _NativeCreateBinaryResultC,
+            _NativeCreateBinaryResultDart
+          >('nexa_http_test_binary_result_new_success'),
+      freeCount: library
+          .lookupFunction<
+            _NativeBinaryResultFreeCountC,
+            _NativeBinaryResultFreeCountDart
+          >('nexa_http_test_binary_result_free_count'),
+      freeResult: library
+          .lookupFunction<
+            _NativeBinaryResultFreeC,
+            _NativeBinaryResultFreeDart
+          >('nexa_http_binary_result_free'),
+    );
+  }
+
+  ffi.Pointer<NexaHttpBinaryResult> createSuccessResult(
+    List<int> bodyBytes, {
+    bool invalidFinalUrl = false,
+  }) {
+    final bodyPointer = calloc<ffi.Uint8>(bodyBytes.length);
+    bodyPointer.asTypedList(bodyBytes.length).setAll(0, bodyBytes);
+    try {
+      lastCreatedResultPointer = _createBinaryResult(
+        bodyPointer,
+        bodyBytes.length,
+        invalidFinalUrl ? 1 : 0,
+      );
+      return lastCreatedResultPointer;
+    } finally {
+      calloc.free(bodyPointer);
+    }
+  }
+
+  int freeCount(ffi.Pointer<NexaHttpBinaryResult> resultPointer) {
+    return _freeCount(resultPointer);
+  }
+
+  void freeResult(ffi.Pointer<NexaHttpBinaryResult> resultPointer) {
+    _freeResult(resultPointer);
+  }
+}
+
+Future<String> _resolveHostNativeLibraryPath() async {
+  final candidates = <String>[
+    '${Directory.current.path}/../../target/debug/libnexa_http_native_macos_ffi.dylib',
+    '${Directory.current.path}/../../target/release/libnexa_http_native_macos_ffi.dylib',
+    '${Directory.current.path}/../nexa_http_native_macos/macos/Libraries/libnexa_http_native.dylib',
+  ];
+
+  for (final candidate in candidates) {
+    if (File(candidate).existsSync()) {
+      return candidate;
+    }
+  }
+
+  throw StateError(
+    'Unable to locate the host nexa_http macOS test library for FFI ownership tests.',
+  );
+}
+
+Future<void> _waitForNativeFreeCount(
+  _NativeBinaryResultTestSupport support,
+  ffi.Pointer<NexaHttpBinaryResult> resultPointer, {
+  required int expectedCount,
+}) async {
+  for (var attempt = 0; attempt < 20; attempt += 1) {
+    await _collectAllGarbage();
+    if (support.freeCount(resultPointer) == expectedCount) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+}
+
+Future<void> _collectAllGarbage() async {
+  final serviceInfo = await developer.Service.controlWebServer(
+    enable: true,
+    silenceOutput: true,
+  );
+  final serverUri = serviceInfo.serverWebSocketUri;
+  final isolateId = developer.Service.getIsolateId(Isolate.current);
+  if (serverUri == null || isolateId == null) {
+    throw StateError('The Dart VM service is unavailable for forcing GC.');
+  }
+
+  final socket = await WebSocket.connect(serverUri.toString());
+  try {
+    final response = Completer<void>();
+    late final StreamSubscription<dynamic> subscription;
+    subscription = socket.listen((message) {
+      final decoded = jsonDecode(message as String) as Map<String, dynamic>;
+      if (decoded['id'] == 'gc') {
+        subscription.cancel();
+        if (decoded.containsKey('error')) {
+          response.completeError(
+            StateError('VM service GC failed: ${decoded['error']}'),
+          );
+        } else {
+          response.complete();
+        }
+      }
+    });
+    socket.add(
+      jsonEncode(<String, Object?>{
+        'jsonrpc': '2.0',
+        'id': 'gc',
+        'method': '_collectAllGarbage',
+        'params': <String, Object?>{'isolateId': isolateId},
+      }),
+    );
+    await response.future.timeout(const Duration(seconds: 2));
+  } finally {
+    await socket.close();
+  }
 }
