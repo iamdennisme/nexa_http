@@ -1,4 +1,6 @@
+use crate::api::response::NativeHttpOwnedBody;
 use std::ffi::c_char;
+use std::ptr::null_mut;
 
 #[repr(C)]
 pub struct NexaHttpHeaderEntry {
@@ -36,3 +38,19 @@ pub struct NexaHttpBinaryResult {
 }
 
 pub type NexaHttpExecuteCallback = Option<unsafe extern "C" fn(u64, *mut NexaHttpBinaryResult)>;
+
+impl NexaHttpBinaryResult {
+    pub(crate) fn set_owned_body(&mut self, body: NativeHttpOwnedBody) {
+        let (body_ptr, body_len) = body.into_raw_parts();
+        self.body_ptr = body_ptr;
+        self.body_len = body_len;
+    }
+
+    pub(crate) unsafe fn free_owned_body(&mut self) {
+        unsafe {
+            NativeHttpOwnedBody::free_raw_parts(self.body_ptr, self.body_len);
+        }
+        self.body_ptr = null_mut();
+        self.body_len = 0;
+    }
+}

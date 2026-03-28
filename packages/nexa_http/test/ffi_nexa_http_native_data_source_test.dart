@@ -5,62 +5,69 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 import 'package:nexa_http/nexa_http_bindings_generated.dart';
+import 'package:nexa_http/src/api/api.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/ffi_nexa_http_native_data_source.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('encodes structured native request fields without request json',
-      () async {
-    final bindings = _FakeNexaHttpBindings(
-      onExecuteAsync: ({
-        required int clientId,
-        required int requestId,
-        required _StructuredRequestWire? structuredRequest,
-        required NexaHttpExecuteCallback callback,
-      }) {
-        expect(clientId, 7);
-        expect(
-          structuredRequest,
-          isNotNull,
-          reason:
-              'method/url/headers/timeout should be passed through request args',
-        );
-        expect(structuredRequest!.method, 'POST');
-        expect(structuredRequest.url, 'https://example.com/upload');
-        expect(structuredRequest.headers, const <String, String>{});
-        expect(structuredRequest.timeoutMs, isNull);
-        expect(structuredRequest.bodyBytes,
-            Uint8List.fromList(const <int>[1, 2, 3, 4]));
+  test('encodes structured native request fields without request json', () async {
+    late final _FakeNexaHttpBindings bindings;
+    bindings = _FakeNexaHttpBindings(
+      onExecuteAsync:
+          ({
+            required int clientId,
+            required int requestId,
+            required _StructuredRequestWire? structuredRequest,
+            required NexaHttpExecuteCallback callback,
+          }) {
+            expect(clientId, 7);
+            expect(
+              structuredRequest,
+              isNotNull,
+              reason:
+                  'method/url/headers/timeout should be passed through request args',
+            );
+            expect(structuredRequest!.method, 'POST');
+            expect(structuredRequest.url, 'https://example.com/upload');
+            expect(structuredRequest.headers, const <String, String>{});
+            expect(structuredRequest.timeoutMs, isNull);
+            expect(
+              structuredRequest.bodyBytes,
+              Uint8List.fromList(const <int>[1, 2, 3, 4]),
+            );
 
-        final resultPointer = calloc<NexaHttpBinaryResult>();
-        resultPointer.ref
-          ..is_success = 1
-          ..status_code = 200
-          ..headers_ptr = ffi.nullptr
-          ..headers_len = 0
-          ..final_url_ptr = 'https://example.com/upload'.toNativeUtf8().cast()
-          ..final_url_len = 'https://example.com/upload'.length
-          ..error_json = ffi.nullptr;
+            final resultPointer = calloc<NexaHttpBinaryResult>();
+            resultPointer.ref
+              ..is_success = 1
+              ..status_code = 200
+              ..headers_ptr = ffi.nullptr
+              ..headers_len = 0
+              ..final_url_ptr = 'https://example.com/upload'
+                  .toNativeUtf8()
+                  .cast()
+              ..final_url_len = 'https://example.com/upload'.length
+              ..error_json = ffi.nullptr;
 
-        final bodyPointer = calloc<ffi.Uint8>(3);
-        bodyPointer.asTypedList(3).setAll(0, const <int>[9, 8, 7]);
-        resultPointer.ref
-          ..body_ptr = bodyPointer
-          ..body_len = 3;
+            final bodyPointer = calloc<ffi.Uint8>(3);
+            bodyPointer.asTypedList(3).setAll(0, const <int>[9, 8, 7]);
+            resultPointer.ref
+              ..body_ptr = bodyPointer
+              ..body_len = 3;
 
-        callback.asFunction<
-            void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
-          requestId,
-          resultPointer,
-        );
-        return 1;
-      },
+            bindings.trackResult(resultPointer);
+            callback
+                .asFunction<
+                  void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                >()(requestId, resultPointer);
+            return 1;
+          },
     );
 
     final dataSource = FfiNexaHttpNativeDataSource(
       library: ffi.DynamicLibrary.process(),
       bindings: bindings,
+      binaryResultFinalizer: ffi.nullptr,
     );
 
     final response = await dataSource.execute(
@@ -75,92 +82,170 @@ void main() {
     expect(response.statusCode, 200);
     expect(response.bodyBytes, const <int>[9, 8, 7]);
     expect(response.finalUri, Uri.parse('https://example.com/upload'));
+    expect(bindings.freedResultCount, 0);
+
+    bindings.freeTrackedResult();
     expect(bindings.freedResultCount, 1);
   });
 
-  test('decodes structured native response metadata without header json',
-      () async {
-    final bindings = _FakeNexaHttpBindings(
-      onExecuteAsync: ({
-        required int clientId,
-        required int requestId,
-        required _StructuredRequestWire? structuredRequest,
-        required NexaHttpExecuteCallback callback,
-      }) {
-        expect(clientId, 9);
-        expect(structuredRequest, isNotNull);
+  test(
+    'decodes structured native response metadata without header json',
+    () async {
+      late final _FakeNexaHttpBindings bindings;
+      bindings = _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 9);
+              expect(structuredRequest, isNotNull);
 
-        final resultPointer = calloc<NexaHttpBinaryResult>();
-        final headersPointer = _allocateHeaders(
-          const <MapEntry<String, String>>[
-            MapEntry<String, String>('cache-control', 'max-age=60'),
-            MapEntry<String, String>('content-type', 'image/png'),
-          ],
-        );
-        resultPointer.ref
-          ..is_success = 1
-          ..status_code = 201
-          ..headers_ptr = headersPointer
-          ..headers_len = 2
-          ..final_url_ptr =
-              'https://cdn.example.com/final.png'.toNativeUtf8().cast()
-          ..final_url_len = 'https://cdn.example.com/final.png'.length
-          ..error_json = ffi.nullptr;
+              final resultPointer = calloc<NexaHttpBinaryResult>();
+              final headersPointer =
+                  _allocateHeaders(const <MapEntry<String, String>>[
+                    MapEntry<String, String>('cache-control', 'max-age=60'),
+                    MapEntry<String, String>('content-type', 'image/png'),
+                  ]);
+              resultPointer.ref
+                ..is_success = 1
+                ..status_code = 201
+                ..headers_ptr = headersPointer
+                ..headers_len = 2
+                ..final_url_ptr = 'https://cdn.example.com/final.png'
+                    .toNativeUtf8()
+                    .cast()
+                ..final_url_len = 'https://cdn.example.com/final.png'.length
+                ..error_json = ffi.nullptr;
 
-        final bodyPointer = calloc<ffi.Uint8>(4);
-        bodyPointer.asTypedList(4).setAll(0, const <int>[5, 6, 7, 8]);
-        resultPointer.ref
-          ..body_ptr = bodyPointer
-          ..body_len = 4;
+              final bodyPointer = calloc<ffi.Uint8>(4);
+              bodyPointer.asTypedList(4).setAll(0, const <int>[5, 6, 7, 8]);
+              resultPointer.ref
+                ..body_ptr = bodyPointer
+                ..body_len = 4;
 
-        callback.asFunction<
-            void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
-          requestId,
-          resultPointer,
-        );
-        return 1;
-      },
-    );
+              bindings.trackResult(resultPointer);
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                  >()(requestId, resultPointer);
+              return 1;
+            },
+      );
 
-    final dataSource = FfiNexaHttpNativeDataSource(
-      library: ffi.DynamicLibrary.process(),
-      bindings: bindings,
-    );
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: bindings,
+        binaryResultFinalizer: ffi.nullptr,
+      );
 
-    final response = await dataSource.execute(
-      9,
-      const NativeHttpRequestDto(
-        method: 'GET',
-        url: 'https://cdn.example.com/start.png',
-      ),
-    );
+      final response = await dataSource.execute(
+        9,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://cdn.example.com/start.png',
+        ),
+      );
 
-    expect(response.statusCode, 201);
-    expect(
-      response.headers,
-      <String, List<String>>{
+      expect(response.statusCode, 201);
+      expect(response.headers, <String, List<String>>{
         'cache-control': <String>['max-age=60'],
         'content-type': <String>['image/png'],
-      },
-    );
-    expect(response.bodyBytes, const <int>[5, 6, 7, 8]);
-    expect(response.finalUri, Uri.parse('https://cdn.example.com/final.png'));
-    expect(bindings.freedResultCount, 1);
-  });
+      });
+      expect(response.bodyBytes, const <int>[5, 6, 7, 8]);
+      expect(response.finalUri, Uri.parse('https://cdn.example.com/final.png'));
+      expect(bindings.freedResultCount, 0);
+
+      bindings.freeTrackedResult();
+      expect(bindings.freedResultCount, 1);
+    },
+  );
+
+  test(
+    'frees native response buffers exactly once after body adoption',
+    () async {
+      late final _FakeNexaHttpBindings bindings;
+      bindings = _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 11);
+              expect(structuredRequest, isNotNull);
+
+              final resultPointer = calloc<NexaHttpBinaryResult>();
+              final bodyPointer = calloc<ffi.Uint8>(4);
+              bodyPointer.asTypedList(4).setAll(0, const <int>[1, 2, 3, 4]);
+              resultPointer.ref
+                ..is_success = 1
+                ..status_code = 202
+                ..headers_ptr = ffi.nullptr
+                ..headers_len = 0
+                ..final_url_ptr = ffi.nullptr
+                ..final_url_len = 0
+                ..body_ptr = bodyPointer
+                ..body_len = 4
+                ..error_json = ffi.nullptr;
+
+              bindings.trackResult(resultPointer);
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                  >()(requestId, resultPointer);
+              return 1;
+            },
+      );
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: bindings,
+        binaryResultFinalizer: ffi.nullptr,
+      );
+
+      final response = await dataSource.execute(
+        11,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/image.png',
+        ),
+      );
+
+      expect(response.bodyBytes, const <int>[1, 2, 3, 4]);
+      expect(bindings.freedResultCount, 0);
+
+      bindings.overwriteTrackedBody(const <int>[7, 6, 5, 4]);
+      expect(
+        response.bodyBytes,
+        const <int>[7, 6, 5, 4],
+        reason:
+            'body bytes should adopt the native buffer instead of copying it',
+      );
+
+      bindings.freeTrackedResult();
+      expect(bindings.freedResultCount, 1);
+    },
+  );
 }
 
 class _FakeNexaHttpBindings extends NexaHttpBindings {
   _FakeNexaHttpBindings({required this.onExecuteAsync})
-      : super.fromLookup(_unimplementedLookup);
+    : super.fromLookup(_unimplementedLookup);
 
   final int Function({
     required int clientId,
     required int requestId,
     required _StructuredRequestWire? structuredRequest,
     required NexaHttpExecuteCallback callback,
-  }) onExecuteAsync;
+  })
+  onExecuteAsync;
 
   int freedResultCount = 0;
+  ffi.Pointer<NexaHttpBinaryResult> _trackedResultPointer = ffi.nullptr;
+  final Set<int> _freedResultAddresses = <int>{};
 
   @override
   int nexa_http_client_execute_async(
@@ -177,8 +262,32 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     );
   }
 
+  void trackResult(ffi.Pointer<NexaHttpBinaryResult> resultPointer) {
+    _trackedResultPointer = resultPointer;
+  }
+
+  void overwriteTrackedBody(List<int> bytes) {
+    if (_trackedResultPointer == ffi.nullptr) {
+      throw StateError('No tracked native result is available.');
+    }
+    final result = _trackedResultPointer.ref;
+    result.body_ptr.asTypedList(result.body_len).setAll(0, bytes);
+  }
+
+  void freeTrackedResult() {
+    if (_trackedResultPointer == ffi.nullptr) {
+      throw StateError('No tracked native result is available.');
+    }
+    nexa_http_binary_result_free(_trackedResultPointer);
+  }
+
   @override
   void nexa_http_binary_result_free(ffi.Pointer<NexaHttpBinaryResult> value) {
+    if (!_freedResultAddresses.add(value.address)) {
+      throw StateError(
+        'native result ${value.address} was freed more than once',
+      );
+    }
     freedResultCount += 1;
     if (value.ref.headers_ptr != ffi.nullptr && value.ref.headers_len > 0) {
       for (var index = 0; index < value.ref.headers_len; index += 1) {
@@ -199,6 +308,9 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
       calloc.free(value.ref.body_ptr);
     }
     calloc.free(value);
+    if (_trackedResultPointer.address == value.address) {
+      _trackedResultPointer = ffi.nullptr;
+    }
   }
 }
 

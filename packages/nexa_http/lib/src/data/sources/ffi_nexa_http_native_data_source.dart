@@ -13,17 +13,28 @@ import '../dto/native_http_request_dto.dart';
 import '../mappers/native_http_error_mapper.dart';
 import 'nexa_http_native_data_source.dart';
 
+typedef _BinaryResultFinalizerNative = Void Function(Pointer<Void> token);
+
 final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   FfiNexaHttpNativeDataSource({
     required DynamicLibrary library,
     NexaHttpBindings? bindings,
-  }) : _bindings = bindings ?? NexaHttpBindings(library) {
+    Pointer<NativeFunction<_BinaryResultFinalizerNative>>?
+    binaryResultFinalizer,
+  }) : _bindings = bindings ?? NexaHttpBindings(library),
+       _binaryResultFinalizer =
+           binaryResultFinalizer ??
+           library.lookup<NativeFunction<_BinaryResultFinalizerNative>>(
+             'nexa_http_binary_result_free',
+           ) {
     _executeCallback = NativeCallable<NexaHttpExecuteCallbackFunction>.listener(
       _handleExecuteCallback,
     );
   }
 
   final NexaHttpBindings _bindings;
+  final Pointer<NativeFunction<_BinaryResultFinalizerNative>>
+  _binaryResultFinalizer;
   final _pendingExecuteRequests = <int, Completer<NexaHttpResponse>>{};
 
   late final NativeCallable<NexaHttpExecuteCallbackFunction> _executeCallback;
@@ -100,13 +111,17 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       return;
     }
 
+    var releaseResultPointer = true;
     try {
       final response = _decodeBinaryResult(resultPointer);
+      releaseResultPointer = !_adoptsBodyOwnership(resultPointer.ref);
       completer.complete(response);
     } on Object catch (error, stackTrace) {
       completer.completeError(error, stackTrace);
     } finally {
-      _bindings.nexa_http_binary_result_free(resultPointer);
+      if (releaseResultPointer) {
+        _bindings.nexa_http_binary_result_free(resultPointer);
+      }
     }
   }
 
@@ -128,7 +143,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     return NexaHttpResponse(
       statusCode: result.status_code,
       headers: _decodeHeaders(result.headers_ptr, result.headers_len),
-      bodyBytes: _decodeBody(result),
+      bodyBytes: _takeResponseBody(resultPointer, result),
       finalUri: _decodeFinalUri(result.final_url_ptr, result.final_url_len),
     );
   }
@@ -166,12 +181,34 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     return headers;
   }
 
-  List<int> _decodeBody(NexaHttpBinaryResult result) {
-    if (result.body_ptr == nullptr || result.body_len == 0) {
+  List<int> _takeResponseBody(
+    Pointer<NexaHttpBinaryResult> resultPointer,
+    NexaHttpBinaryResult result,
+  ) {
+    if (result.body_len == 0) {
       return const <int>[];
     }
+    if (result.body_ptr == nullptr) {
+      throw const NexaHttpException(
+        code: 'ffi_invalid_response',
+        message:
+            'The nexa_http native library returned a null body pointer for a non-empty response body.',
+      );
+    }
 
-    return Uint8List.fromList(result.body_ptr.asTypedList(result.body_len));
+    if (_binaryResultFinalizer == nullptr) {
+      return result.body_ptr.asTypedList(result.body_len);
+    }
+
+    return result.body_ptr.asTypedList(
+      result.body_len,
+      finalizer: _binaryResultFinalizer,
+      token: resultPointer.cast(),
+    );
+  }
+
+  bool _adoptsBodyOwnership(NexaHttpBinaryResult result) {
+    return result.body_ptr != nullptr && result.body_len > 0;
   }
 
   Uri? _decodeFinalUri(Pointer<Char> finalUrlPointer, int finalUrlLength) {

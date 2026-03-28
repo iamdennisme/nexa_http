@@ -3,7 +3,7 @@ use crate::api::ffi::{
     NexaHttpBinaryResult, NexaHttpExecuteCallback, NexaHttpHeaderEntry, NexaHttpRequestArgs,
 };
 use crate::api::request::{NativeHttpClientConfig, NativeHttpHeader, NativeHttpRequest};
-use crate::api::response::NativeHttpRawResponse;
+use crate::api::response::{NativeHttpOwnedBody, NativeHttpRawResponse};
 use crate::platform::{
     PlatformCapabilities, PlatformFeatures, apply_proxy_strategy, merge_env_fallback,
 };
@@ -143,7 +143,7 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
         }
 
         unsafe {
-            let result = Box::from_raw(value);
+            let mut result = Box::from_raw(value);
             free_header_entries_buffer(result.headers_ptr, result.headers_len);
             if !result.final_url_ptr.is_null() {
                 drop(CString::from_raw(result.final_url_ptr));
@@ -151,13 +151,7 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
             if !result.error_json.is_null() {
                 drop(CString::from_raw(result.error_json));
             }
-            if !result.body_ptr.is_null() && result.body_len > 0 {
-                drop(Vec::from_raw_parts(
-                    result.body_ptr,
-                    result.body_len,
-                    result.body_len,
-                ));
-            }
+            result.free_owned_body();
         }
     }
 }
@@ -400,7 +394,7 @@ async fn execute_request_with_client_async(
     Ok(NativeHttpRawResponse {
         status_code,
         headers,
-        body: body.to_vec(),
+        body: NativeHttpOwnedBody::from_bytes(body.as_ref()),
         final_url,
     })
 }
@@ -418,27 +412,19 @@ fn build_binary_success_result(response: NativeHttpRawResponse) -> NexaHttpBinar
         }
     };
 
-    let mut body = response.body;
-    let body_len = body.len();
-    let body_ptr = if body_len == 0 {
-        null_mut()
-    } else {
-        let ptr = body.as_mut_ptr();
-        std::mem::forget(body);
-        ptr
-    };
-
-    NexaHttpBinaryResult {
+    let mut result = NexaHttpBinaryResult {
         is_success: 1,
         status_code: response.status_code,
         headers_ptr,
         headers_len,
         final_url_ptr,
         final_url_len,
-        body_ptr,
-        body_len,
+        body_ptr: null_mut(),
+        body_len: 0,
         error_json: null_mut(),
-    }
+    };
+    result.set_owned_body(response.body);
+    result
 }
 
 fn build_binary_error_result(error: NativeHttpError) -> NexaHttpBinaryResult {
