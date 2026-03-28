@@ -96,7 +96,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   ) {
     final completer = _pendingExecuteRequests.remove(requestId);
     if (completer == null || completer.isCompleted) {
-      _bindings.nexa_http_response_head_result_free(resultPointer);
+      _disposeResponseHeadResult(resultPointer, closeOwnedStream: true);
       return;
     }
 
@@ -147,7 +147,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       }
       rethrow;
     } finally {
-      _bindings.nexa_http_response_head_result_free(resultPointer);
+      _disposeResponseHeadResult(resultPointer);
     }
 
     try {
@@ -161,6 +161,24 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       _bindings.nexa_http_response_stream_close(streamId);
       rethrow;
     }
+  }
+
+  void _disposeResponseHeadResult(
+    Pointer<NexaHttpResponseHeadResult> resultPointer, {
+    bool closeOwnedStream = false,
+  }) {
+    if (resultPointer == nullptr) {
+      return;
+    }
+
+    if (closeOwnedStream) {
+      final result = resultPointer.ref;
+      if (result.is_success != 0 && result.stream_id != 0) {
+        _bindings.nexa_http_response_stream_close(result.stream_id);
+      }
+    }
+
+    _bindings.nexa_http_response_head_result_free(resultPointer);
   }
 
   List<int> _readResponseBody(int streamId) {

@@ -1,6 +1,8 @@
 // ignore_for_file: non_constant_identifier_names
 
 import 'dart:ffi' as ffi;
+import 'dart:io';
+import 'dart:mirrors';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -19,6 +21,7 @@ void main() {
             required int clientId,
             required int requestId,
             required _StructuredRequestWire? structuredRequest,
+            required NexaHttpExecuteCallback callback,
           }) {
             expect(clientId, 7);
             expect(
@@ -36,11 +39,16 @@ void main() {
               Uint8List.fromList(const <int>[1, 2, 3, 4]),
             );
 
-            return bindings.newSuccessHead(
+            final resultPointer = bindings.newSuccessHead(
               statusCode: 200,
               finalUrl: 'https://example.com/upload',
               streamId: 11,
             );
+            callback
+                .asFunction<
+                  void Function(int, ffi.Pointer<NexaHttpResponseHeadResult>)
+                >()(requestId, resultPointer);
+            return 1;
           },
       onStreamNext: ({required int streamId, required int pullCount}) {
         expect(streamId, 11);
@@ -78,12 +86,13 @@ void main() {
             required int clientId,
             required int requestId,
             required _StructuredRequestWire? structuredRequest,
+            required NexaHttpExecuteCallback callback,
           }) {
             expect(clientId, 9);
             expect(requestId, 1);
             expect(structuredRequest, isNotNull);
 
-            return bindings.newSuccessHead(
+            final resultPointer = bindings.newSuccessHead(
               statusCode: 201,
               headers: const <MapEntry<String, String>>[
                 MapEntry<String, String>('cache-control', 'max-age=60'),
@@ -92,6 +101,11 @@ void main() {
               finalUrl: 'https://cdn.example.com/final.png',
               streamId: 41,
             );
+            callback
+                .asFunction<
+                  void Function(int, ffi.Pointer<NexaHttpResponseHeadResult>)
+                >()(requestId, resultPointer);
+            return 1;
           },
       onStreamNext: ({required int streamId, required int pullCount}) {
         expect(streamId, 41);
@@ -142,12 +156,21 @@ void main() {
             required int clientId,
             required int requestId,
             required _StructuredRequestWire? structuredRequest,
+            required NexaHttpExecuteCallback callback,
           }) {
             expect(clientId, 11);
             expect(requestId, 1);
             expect(structuredRequest, isNotNull);
 
-            return bindings.newSuccessHead(statusCode: 202, streamId: 52);
+            final resultPointer = bindings.newSuccessHead(
+              statusCode: 202,
+              streamId: 52,
+            );
+            callback
+                .asFunction<
+                  void Function(int, ffi.Pointer<NexaHttpResponseHeadResult>)
+                >()(requestId, resultPointer);
+            return 1;
           },
       onStreamNext: ({required int streamId, required int pullCount}) {
         expect(streamId, 52);
@@ -184,6 +207,125 @@ void main() {
     expect(bindings.freedHeadCount, 1);
     expect(bindings.freedChunkCount, 2);
   });
+
+  test(
+    'closes orphaned native streams when an async callback arrives after completion',
+    () async {
+      late final _FakeNexaHttpBindings bindings;
+      bindings = _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 12);
+
+              final deliver = callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpResponseHeadResult>)
+                  >();
+              deliver(
+                requestId,
+                bindings.newSuccessHead(statusCode: 200, streamId: 61),
+              );
+              return 1;
+            },
+        onStreamNext: ({required int streamId, required int pullCount}) {
+          expect(streamId, 61);
+          expect(pullCount, 1);
+          return bindings.newDoneChunk();
+        },
+      );
+
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: bindings,
+      );
+
+      final response = await dataSource.execute(
+        12,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/orphaned-callback',
+        ),
+      );
+
+      expect(response.statusCode, 200);
+      final dataSourceMirror = reflect(dataSource);
+      final dataSourceLibrary = dataSourceMirror.type.owner as LibraryMirror;
+      dataSourceMirror.invoke(
+        MirrorSystem.getSymbol('_handleExecuteCallback', dataSourceLibrary),
+        <Object>[
+          bindings.lastRequestId!,
+          bindings.newSuccessHead(statusCode: 204, streamId: 62),
+        ],
+      );
+      expect(bindings.closedStreamIds, <int>[62]);
+      expect(bindings.freedHeadCount, 2);
+      expect(bindings.freedChunkCount, 1);
+    },
+  );
+
+  test(
+    'uses the real native head and chunk free functions from Dart',
+    () async {
+      final support = await _NativeStreamResultTestSupport.load();
+      ffi.Pointer<NexaHttpResponseHeadResult>? createdHead;
+      ffi.Pointer<NexaHttpResponseChunkResult>? createdChunk;
+      ffi.Pointer<NexaHttpResponseChunkResult>? doneChunk;
+
+      final bindings = _HybridNexaHttpBindings(
+        support.library,
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 13);
+              createdHead = support.createSuccessHead(streamId: 71);
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpResponseHeadResult>)
+                  >()(requestId, createdHead!);
+              return 1;
+            },
+        onStreamNext: ({required int streamId, required int pullCount}) {
+          expect(streamId, 71);
+          return switch (pullCount) {
+            1 => createdChunk = support.createSuccessChunk(const <int>[4, 2]),
+            2 => doneChunk = support.createDoneChunk(),
+            _ => throw StateError('unexpected pull count $pullCount'),
+          }!;
+        },
+      );
+
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: support.library,
+        bindings: bindings,
+      );
+
+      final response = await dataSource.execute(
+        13,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/real-native-free',
+        ),
+      );
+
+      expect(response.statusCode, 200);
+      expect(response.bodyBytes, const <int>[4, 2]);
+      expect(support.headFreeCount(createdHead!), 1);
+      expect(support.chunkFreeCount(createdChunk!), 1);
+      expect(support.chunkFreeCount(doneChunk!), 1);
+    },
+    skip: !Platform.isMacOS
+        ? 'real native free-path coverage requires the host macOS dylib'
+        : false,
+  );
 }
 
 class _FakeNexaHttpBindings extends NexaHttpBindings {
@@ -193,10 +335,11 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     this.onBeforeFreeChunk,
   }) : super.fromLookup(_unimplementedLookup);
 
-  final ffi.Pointer<NexaHttpResponseHeadResult> Function({
+  final int Function({
     required int clientId,
     required int requestId,
     required _StructuredRequestWire? structuredRequest,
+    required NexaHttpExecuteCallback callback,
   })
   onExecuteAsync;
   final ffi.Pointer<NexaHttpResponseChunkResult> Function({
@@ -210,6 +353,8 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   int freedHeadCount = 0;
   int freedChunkCount = 0;
   int _streamPullCount = 0;
+  int? lastRequestId;
+  final List<int> closedStreamIds = <int>[];
 
   @override
   int nexa_http_client_execute_async(
@@ -218,16 +363,13 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     ffi.Pointer<NexaHttpRequestArgs> request_args,
     NexaHttpExecuteCallback callback,
   ) {
-    final resultPointer = onExecuteAsync(
+    lastRequestId = request_id;
+    return onExecuteAsync(
       clientId: client_id,
       requestId: request_id,
       structuredRequest: _StructuredRequestWire.fromPointer(request_args),
+      callback: callback,
     );
-    callback
-        .asFunction<
-          void Function(int, ffi.Pointer<NexaHttpResponseHeadResult>)
-        >()(request_id, resultPointer);
-    return 1;
   }
 
   @override
@@ -239,7 +381,9 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   }
 
   @override
-  void nexa_http_response_stream_close(int stream_id) {}
+  void nexa_http_response_stream_close(int stream_id) {
+    closedStreamIds.add(stream_id);
+  }
 
   @override
   void nexa_http_response_head_result_free(
@@ -332,6 +476,52 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   }
 }
 
+final class _HybridNexaHttpBindings extends NexaHttpBindings {
+  _HybridNexaHttpBindings(
+    ffi.DynamicLibrary library, {
+    required this.onExecuteAsync,
+    required this.onStreamNext,
+  }) : super(library);
+
+  final int Function({
+    required int clientId,
+    required int requestId,
+    required _StructuredRequestWire? structuredRequest,
+    required NexaHttpExecuteCallback callback,
+  })
+  onExecuteAsync;
+  final ffi.Pointer<NexaHttpResponseChunkResult> Function({
+    required int streamId,
+    required int pullCount,
+  })
+  onStreamNext;
+
+  int _streamPullCount = 0;
+
+  @override
+  int nexa_http_client_execute_async(
+    int client_id,
+    int request_id,
+    ffi.Pointer<NexaHttpRequestArgs> request_args,
+    NexaHttpExecuteCallback callback,
+  ) {
+    return onExecuteAsync(
+      clientId: client_id,
+      requestId: request_id,
+      structuredRequest: _StructuredRequestWire.fromPointer(request_args),
+      callback: callback,
+    );
+  }
+
+  @override
+  ffi.Pointer<NexaHttpResponseChunkResult> nexa_http_response_stream_next(
+    int stream_id,
+  ) {
+    _streamPullCount += 1;
+    return onStreamNext(streamId: stream_id, pullCount: _streamPullCount);
+  }
+}
+
 ffi.Pointer<T> _unimplementedLookup<T extends ffi.NativeType>(String _) {
   throw UnimplementedError();
 }
@@ -400,4 +590,143 @@ String _readUtf8(ffi.Pointer<ffi.Char> pointer, int length) {
     return '';
   }
   return pointer.cast<Utf8>().toDartString(length: length);
+}
+
+typedef _NativeCreateResponseHeadResultDart =
+    ffi.Pointer<NexaHttpResponseHeadResult> Function(int streamId);
+typedef _NativeCreateResponseHeadResultC =
+    ffi.Pointer<NexaHttpResponseHeadResult> Function(ffi.Uint64 streamId);
+typedef _NativeResponseHeadFreeCountDart =
+    int Function(ffi.Pointer<NexaHttpResponseHeadResult>);
+typedef _NativeResponseHeadFreeCountC =
+    ffi.UintPtr Function(ffi.Pointer<NexaHttpResponseHeadResult>);
+typedef _NativeCreateResponseChunkResultDart =
+    ffi.Pointer<NexaHttpResponseChunkResult> Function(
+      ffi.Pointer<ffi.Uint8>,
+      int,
+    );
+typedef _NativeCreateResponseChunkResultC =
+    ffi.Pointer<NexaHttpResponseChunkResult> Function(
+      ffi.Pointer<ffi.Uint8>,
+      ffi.UintPtr,
+    );
+typedef _NativeCreateResponseDoneChunkResultDart =
+    ffi.Pointer<NexaHttpResponseChunkResult> Function();
+typedef _NativeCreateResponseDoneChunkResultC =
+    ffi.Pointer<NexaHttpResponseChunkResult> Function();
+typedef _NativeResponseChunkFreeCountDart =
+    int Function(ffi.Pointer<NexaHttpResponseChunkResult>);
+typedef _NativeResponseChunkFreeCountC =
+    ffi.UintPtr Function(ffi.Pointer<NexaHttpResponseChunkResult>);
+
+final class _NativeStreamResultTestSupport {
+  _NativeStreamResultTestSupport._({
+    required this.library,
+    required _NativeCreateResponseHeadResultDart createSuccessHead,
+    required _NativeResponseHeadFreeCountDart headFreeCount,
+    required _NativeCreateResponseChunkResultDart createSuccessChunk,
+    required _NativeCreateResponseDoneChunkResultDart createDoneChunk,
+    required _NativeResponseChunkFreeCountDart chunkFreeCount,
+  }) : _createSuccessHead = createSuccessHead,
+       _headFreeCount = headFreeCount,
+       _createSuccessChunk = createSuccessChunk,
+       _createDoneChunk = createDoneChunk,
+       _chunkFreeCount = chunkFreeCount;
+
+  final ffi.DynamicLibrary library;
+  final _NativeCreateResponseHeadResultDart _createSuccessHead;
+  final _NativeResponseHeadFreeCountDart _headFreeCount;
+  final _NativeCreateResponseChunkResultDart _createSuccessChunk;
+  final _NativeCreateResponseDoneChunkResultDart _createDoneChunk;
+  final _NativeResponseChunkFreeCountDart _chunkFreeCount;
+
+  static Future<_NativeStreamResultTestSupport> load() async {
+    final buildResult = await Process.run('cargo', <String>[
+      'build',
+      '--manifest-path',
+      '${Directory.current.path}/../nexa_http_native_macos/native/nexa_http_native_macos_ffi/Cargo.toml',
+    ]);
+    if (buildResult.exitCode != 0) {
+      throw StateError(
+        'Failed to build the host nexa_http macOS test library: ${buildResult.stderr}',
+      );
+    }
+
+    final libraryPath = await _resolveHostNativeLibraryPath();
+    final library = ffi.DynamicLibrary.open(libraryPath);
+    return _NativeStreamResultTestSupport._(
+      library: library,
+      createSuccessHead: library
+          .lookupFunction<
+            _NativeCreateResponseHeadResultC,
+            _NativeCreateResponseHeadResultDart
+          >('nexa_http_test_response_head_result_new_success'),
+      headFreeCount: library
+          .lookupFunction<
+            _NativeResponseHeadFreeCountC,
+            _NativeResponseHeadFreeCountDart
+          >('nexa_http_test_response_head_result_free_count'),
+      createSuccessChunk: library
+          .lookupFunction<
+            _NativeCreateResponseChunkResultC,
+            _NativeCreateResponseChunkResultDart
+          >('nexa_http_test_response_chunk_result_new_success'),
+      createDoneChunk: library
+          .lookupFunction<
+            _NativeCreateResponseDoneChunkResultC,
+            _NativeCreateResponseDoneChunkResultDart
+          >('nexa_http_test_response_chunk_result_new_done'),
+      chunkFreeCount: library
+          .lookupFunction<
+            _NativeResponseChunkFreeCountC,
+            _NativeResponseChunkFreeCountDart
+          >('nexa_http_test_response_chunk_result_free_count'),
+    );
+  }
+
+  ffi.Pointer<NexaHttpResponseHeadResult> createSuccessHead({
+    required int streamId,
+  }) {
+    return _createSuccessHead(streamId);
+  }
+
+  int headFreeCount(ffi.Pointer<NexaHttpResponseHeadResult> resultPointer) {
+    return _headFreeCount(resultPointer);
+  }
+
+  ffi.Pointer<NexaHttpResponseChunkResult> createSuccessChunk(List<int> bytes) {
+    final bytesPointer = calloc<ffi.Uint8>(bytes.length);
+    bytesPointer.asTypedList(bytes.length).setAll(0, bytes);
+    try {
+      return _createSuccessChunk(bytesPointer, bytes.length);
+    } finally {
+      calloc.free(bytesPointer);
+    }
+  }
+
+  ffi.Pointer<NexaHttpResponseChunkResult> createDoneChunk() {
+    return _createDoneChunk();
+  }
+
+  int chunkFreeCount(ffi.Pointer<NexaHttpResponseChunkResult> resultPointer) {
+    return _chunkFreeCount(resultPointer);
+  }
+}
+
+Future<String> _resolveHostNativeLibraryPath() async {
+  final candidates = <String>[
+    '${Directory.current.path}/../../target/debug/libnexa_http_native_macos_ffi.dylib',
+    '${Directory.current.path}/../../target/release/libnexa_http_native_macos_ffi.dylib',
+    '${Directory.current.path}/../nexa_http_native_macos/macos/Libraries/libnexa_http_native.dylib',
+  ];
+
+  for (final candidate in candidates) {
+    if (File(candidate).existsSync()) {
+      return candidate;
+    }
+  }
+
+  throw StateError(
+    'Unable to locate the host nexa_http macOS test library for FFI stream ownership tests.',
+  );
 }
