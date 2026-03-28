@@ -17,7 +17,7 @@ use std::slice::from_raw_parts;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::sync::Semaphore;
 
@@ -31,6 +31,12 @@ struct NexaHttpRuntimeInner<P: PlatformCapabilities> {
     next_client_id: AtomicU64,
     tokio: Runtime,
     request_limiter: Arc<Semaphore>,
+}
+
+const REFRESH_PROBE_INTERVAL: Duration = Duration::from_secs(30);
+
+fn refresh_probe_interval() -> Duration {
+    REFRESH_PROBE_INTERVAL
 }
 
 impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
@@ -140,19 +146,6 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
             binary_result_free_impl(value);
         }
     }
-}
-
-#[cfg(test)]
-fn mark_client_for_explicit_refresh_for_test<P: PlatformCapabilities>(
-    runtime: &NexaHttpRuntime<P>,
-    client_id: u64,
-) -> bool {
-    let mut clients = runtime.inner.clients.lock().unwrap();
-    let Some(entry) = clients.get_mut(&client_id) else {
-        return false;
-    };
-    entry.needs_refresh = true;
-    true
 }
 
 pub(crate) unsafe fn binary_result_free_impl(value: *mut NexaHttpBinaryResult) {
@@ -319,14 +312,20 @@ async fn execute_request<P: PlatformCapabilities>(
     client_id: u64,
     request: NativeHttpRequest,
 ) -> Result<NativeHttpRawResponse, NativeError> {
+    let now = Instant::now();
     let client = {
-        let clients = inner.clients.lock().unwrap();
+        let mut clients = inner.clients.lock().unwrap();
         let entry = clients
-            .get(&client_id)
+            .get_mut(&client_id)
             .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
-        if !entry.needs_refresh {
+        let probe_due = now.duration_since(entry.last_refresh_probe_at) >= refresh_probe_interval();
+        if !entry.needs_refresh && !probe_due {
             entry.client.clone()
         } else {
+            if !entry.needs_refresh {
+                entry.needs_refresh = true;
+                entry.last_refresh_probe_at = now;
+            }
             drop(clients);
             refresh_client_and_clone(&inner, client_id, &request.url)?
         }
@@ -340,6 +339,7 @@ fn refresh_client_and_clone<P: PlatformCapabilities>(
     client_id: u64,
     request_url: &str,
 ) -> Result<Client, NativeError> {
+    let refreshed_at = Instant::now();
     let (config, previous_signature) = {
         let clients = inner.clients.lock().unwrap();
         let entry = clients
@@ -378,6 +378,7 @@ fn refresh_client_and_clone<P: PlatformCapabilities>(
         entry.platform_features_signature = signature;
     }
     entry.needs_refresh = false;
+    entry.last_refresh_probe_at = refreshed_at;
     Ok(entry.client.clone())
 }
 
@@ -656,8 +657,23 @@ mod tests {
             .expect("config json")
     }
 
+    fn expire_refresh_probe_for_test<P: PlatformCapabilities>(
+        runtime: &NexaHttpRuntime<P>,
+        client_id: u64,
+    ) -> bool {
+        let mut clients = runtime.inner.clients.lock().unwrap();
+        let Some(entry) = clients.get_mut(&client_id) else {
+            return false;
+        };
+        entry.last_refresh_probe_at = entry
+            .last_refresh_probe_at
+            .checked_sub(refresh_probe_interval() + Duration::from_millis(1))
+            .expect("test probe timestamp should support moving backwards");
+        true
+    }
+
     #[test]
-    fn explicit_refresh_marker_clears_after_one_stable_lookup() {
+    fn expired_refresh_probe_clears_after_one_stable_lookup() {
         let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
         let runtime = NexaHttpRuntime::new(CountingCapabilities {
             proxy_settings_calls: Arc::clone(&proxy_settings_calls),
@@ -670,8 +686,8 @@ mod tests {
         let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
         assert!(
-            mark_client_for_explicit_refresh_for_test(&runtime, client_id),
-            "test should be able to mark the client for refresh",
+            expire_refresh_probe_for_test(&runtime, client_id),
+            "test should be able to expire the client refresh probe",
         );
 
         let refreshed = runtime.execute_binary(client_id, request.as_args());
@@ -687,7 +703,7 @@ mod tests {
     }
 
     #[test]
-    fn explicit_refresh_marker_rebuilds_once_when_signature_changes() {
+    fn expired_refresh_probe_rebuilds_once_when_signature_changes() {
         let switch = Arc::new(AtomicBool::new(false));
         let calls = Arc::new(AtomicUsize::new(0));
         let runtime = NexaHttpRuntime::new(SwitchingProxyCapabilities {
@@ -706,8 +722,8 @@ mod tests {
 
         switch.store(true, Ordering::Relaxed);
         assert!(
-            mark_client_for_explicit_refresh_for_test(&runtime, client_id),
-            "test should be able to mark the client for refresh",
+            expire_refresh_probe_for_test(&runtime, client_id),
+            "test should be able to expire the client refresh probe",
         );
 
         let refreshed = runtime.execute_binary(client_id, request.as_args());

@@ -1,5 +1,6 @@
 use crate::api::request::NativeHttpClientConfig;
 use reqwest::Client;
+use std::time::Instant;
 
 #[derive(Clone)]
 pub(crate) struct ClientEntry {
@@ -7,6 +8,7 @@ pub(crate) struct ClientEntry {
     pub(crate) config: NativeHttpClientConfig,
     pub(crate) platform_features_signature: String,
     pub(crate) needs_refresh: bool,
+    pub(crate) last_refresh_probe_at: Instant,
 }
 
 impl ClientEntry {
@@ -20,6 +22,7 @@ impl ClientEntry {
             config,
             platform_features_signature,
             needs_refresh: false,
+            last_refresh_probe_at: Instant::now(),
         }
     }
 }
