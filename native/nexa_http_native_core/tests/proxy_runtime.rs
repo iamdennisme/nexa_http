@@ -50,13 +50,13 @@ fn proxy_signature_drift_does_not_trigger_steady_state_refresh() {
     let calls_after_create = calls.load(Ordering::Relaxed);
 
     let warmup = runtime.execute_binary(client_id, request.as_args());
-    free_response_head_for_test(&runtime, warmup);
+    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
 
     switch.store(true, Ordering::Relaxed);
     let after_drift = runtime.execute_binary(client_id, request.as_args());
-    free_response_head_for_test(&runtime, after_drift);
+    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(after_drift);
     let later_steady_state = runtime.execute_binary(client_id, request.as_args());
-    free_response_head_for_test(&runtime, later_steady_state);
+    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(later_steady_state);
 
     assert_eq!(
         calls.load(Ordering::Relaxed),
@@ -96,20 +96,5 @@ impl TestRequestArgs {
 
     fn as_args(&self) -> *const nexa_http_native_core::api::ffi::NexaHttpRequestArgs {
         &self.args
-    }
-}
-
-fn free_response_head_for_test<P: PlatformCapabilities>(
-    runtime: &NexaHttpRuntime<P>,
-    value: *mut nexa_http_native_core::api::ffi::NexaHttpResponseHeadResult,
-) {
-    if value.is_null() {
-        return;
-    }
-
-    let stream_id = unsafe { (*value).stream_id };
-    NexaHttpRuntime::<P>::response_head_result_free(value);
-    if stream_id != 0 {
-        runtime.close_response_stream(stream_id);
     }
 }

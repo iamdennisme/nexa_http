@@ -28,26 +28,19 @@ typedef struct NexaHttpRequestArgs {
   uint8_t has_timeout;
 } NexaHttpRequestArgs;
 
-typedef struct NexaHttpResponseHeadResult {
+typedef struct NexaHttpBinaryResult {
   uint8_t is_success;
   uint16_t status_code;
   NexaHttpHeaderEntry* headers_ptr;
   uintptr_t headers_len;
   char* final_url_ptr;
   uintptr_t final_url_len;
-  uint64_t stream_id;
+  uint8_t* body_ptr;
+  uintptr_t body_len;
   char* error_json;
-} NexaHttpResponseHeadResult;
+} NexaHttpBinaryResult;
 
-typedef struct NexaHttpResponseChunkResult {
-  uint8_t is_success;
-  uint8_t is_done;
-  uint8_t* chunk_ptr;
-  uintptr_t chunk_len;
-  char* error_json;
-} NexaHttpResponseChunkResult;
-
-typedef void (*NexaHttpExecuteCallback)(uint64_t request_id, NexaHttpResponseHeadResult* result);
+typedef void (*NexaHttpExecuteCallback)(uint64_t request_id, NexaHttpBinaryResult* result);
 
 uint64_t nexa_http_client_create(const char* config_json);
 uint8_t nexa_http_client_execute_async(
@@ -55,14 +48,11 @@ uint8_t nexa_http_client_execute_async(
     uint64_t request_id,
     const NexaHttpRequestArgs* request_args,
     NexaHttpExecuteCallback callback);
-NexaHttpResponseHeadResult* nexa_http_client_execute_binary(
+NexaHttpBinaryResult* nexa_http_client_execute_binary(
     uint64_t client_id,
     const NexaHttpRequestArgs* request_args);
-NexaHttpResponseChunkResult* nexa_http_response_stream_next(uint64_t stream_id);
-void nexa_http_response_stream_close(uint64_t stream_id);
 void nexa_http_client_close(uint64_t client_id);
-void nexa_http_response_head_result_free(NexaHttpResponseHeadResult* result);
-void nexa_http_response_chunk_result_free(NexaHttpResponseChunkResult* result);
+void nexa_http_binary_result_free(NexaHttpBinaryResult* result);
 
 #ifdef __cplusplus
 }  // extern "C"

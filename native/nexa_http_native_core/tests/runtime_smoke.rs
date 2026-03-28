@@ -1,5 +1,3 @@
-use httpmock::Method::GET;
-use httpmock::MockServer;
 use nexa_http_native_core::platform::{PlatformCapabilities, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use std::ffi::CString;
@@ -26,88 +24,6 @@ fn runtime_creates_a_client_registry() {
     assert_eq!(runtime.client_count_for_test(), 0);
 }
 
-fn free_response_head_for_test<P: PlatformCapabilities>(
-    runtime: &NexaHttpRuntime<P>,
-    value: *mut nexa_http_native_core::api::ffi::NexaHttpResponseHeadResult,
-) {
-    if value.is_null() {
-        return;
-    }
-
-    let stream_id = unsafe { (*value).stream_id };
-    NexaHttpRuntime::<P>::response_head_result_free(value);
-    if stream_id != 0 {
-        runtime.close_response_stream(stream_id);
-    }
-}
-
-#[test]
-fn execute_binary_returns_a_streamed_response_head_and_pull_chunks() {
-    let server = MockServer::start();
-    let body = b"streamed-body-from-runtime".to_vec();
-    let _mock = server.mock(|when, then| {
-        when.method(GET).path("/streamed-response");
-        then.status(207)
-            .header("content-type", "application/octet-stream")
-            .header("cache-control", "max-age=60")
-            .body(body.clone());
-    });
-
-    let runtime = NexaHttpRuntime::new(TestCapabilities);
-    let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
-        .expect("config json");
-    let client_id = runtime.create_client(config.as_ptr());
-    assert_ne!(client_id, 0);
-
-    let request = TestRequestArgs::new("GET", &server.url("/streamed-response"), 1_000);
-    let response_head = runtime.execute_binary(client_id, request.as_args());
-    assert!(
-        !response_head.is_null(),
-        "execute_binary should return a response head"
-    );
-
-    let stream_id = unsafe {
-        let response_head = &*response_head;
-        assert_eq!(response_head.is_success, 1);
-        assert_eq!(response_head.status_code, 207);
-        assert!(
-            response_head.headers_len >= 2,
-            "streamed response head should include the mocked headers",
-        );
-        assert_ne!(response_head.stream_id, 0);
-        response_head.stream_id
-    };
-    NexaHttpRuntime::<TestCapabilities>::response_head_result_free(response_head);
-
-    let mut collected = Vec::new();
-    loop {
-        let chunk = runtime.response_stream_next(stream_id);
-        assert!(
-            !chunk.is_null(),
-            "stream pull should always return a chunk result"
-        );
-
-        let done = unsafe {
-            let chunk = &*chunk;
-            assert_eq!(chunk.is_success, 1);
-            if chunk.chunk_len > 0 {
-                collected.extend_from_slice(std::slice::from_raw_parts(
-                    chunk.chunk_ptr,
-                    chunk.chunk_len,
-                ));
-            }
-            chunk.is_done != 0
-        };
-        NexaHttpRuntime::<TestCapabilities>::response_chunk_result_free(chunk);
-
-        if done {
-            break;
-        }
-    }
-
-    assert_eq!(collected, body);
-}
-
 #[test]
 fn repeated_requests_reuse_existing_client_without_refresh() {
     let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
@@ -124,7 +40,7 @@ fn repeated_requests_reuse_existing_client_without_refresh() {
 
     for _ in 0..5 {
         let result = runtime.execute_binary(client_id, request.as_args());
-        free_response_head_for_test(&runtime, result);
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
     }
 
     assert_eq!(
@@ -150,11 +66,11 @@ fn steady_state_reuse_survives_multiple_request_batches() {
 
     for _ in 0..3 {
         let result = runtime.execute_binary(client_id, request.as_args());
-        free_response_head_for_test(&runtime, result);
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
     }
     for _ in 0..2 {
         let result = runtime.execute_binary(client_id, request.as_args());
-        free_response_head_for_test(&runtime, result);
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
     }
 
     assert_eq!(
@@ -215,13 +131,13 @@ static EXECUTE_ASYNC_THREAD_SENDER: LazyLock<Mutex<Option<Sender<String>>>> =
 
 unsafe extern "C" fn capture_execute_async_thread(
     _request_id: u64,
-    result: *mut nexa_http_native_core::api::ffi::NexaHttpResponseHeadResult,
+    result: *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult,
 ) {
     if let Some(sender) = EXECUTE_ASYNC_THREAD_SENDER.lock().unwrap().as_ref() {
         let thread_name = format!("{:?}", std::thread::current().id());
         let _ = sender.send(thread_name);
     }
-    NexaHttpRuntime::<TestCapabilities>::response_head_result_free(result);
+    NexaHttpRuntime::<TestCapabilities>::binary_result_free(result);
 }
 
 #[test]
