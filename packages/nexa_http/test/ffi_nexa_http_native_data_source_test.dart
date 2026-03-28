@@ -1,6 +1,5 @@
 // ignore_for_file: non_constant_identifier_names
 
-import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
@@ -11,7 +10,8 @@ import 'package:nexa_http/src/data/sources/ffi_nexa_http_native_data_source.dart
 import 'package:test/test.dart';
 
 void main() {
-  test('executes through async ffi and decodes raw response bytes', () async {
+  test('encodes structured native request fields without request json',
+      () async {
     final bindings = _FakeNexaHttpBindings(
       onExecuteAsync: ({
         required int clientId,
@@ -21,26 +21,14 @@ void main() {
         required NexaHttpExecuteCallback callback,
       }) {
         expect(clientId, 7);
-        expect(
-          jsonDecode(requestJson),
-          <String, dynamic>{
-            'method': 'POST',
-            'url': 'https://example.com/upload',
-            'headers': <String, String>{},
-            'timeout_ms': null,
-          },
-        );
+        expect(requestJson, isEmpty);
         expect(bodyBytes, Uint8List.fromList(const <int>[1, 2, 3, 4]));
 
         final resultPointer = calloc<NexaHttpBinaryResult>();
         resultPointer.ref
           ..is_success = 1
           ..status_code = 200
-          ..headers_json = jsonEncode(
-            <String, List<String>>{
-              'content-type': <String>['application/octet-stream'],
-            },
-          ).toNativeUtf8().cast()
+          ..headers_json = ffi.nullptr
           ..final_url = 'https://example.com/upload'.toNativeUtf8().cast()
           ..error_json = ffi.nullptr;
 
@@ -74,14 +62,69 @@ void main() {
     );
 
     expect(response.statusCode, 200);
+    expect(response.bodyBytes, const <int>[9, 8, 7]);
+    expect(response.finalUri, Uri.parse('https://example.com/upload'));
+    expect(bindings.freedResultCount, 1);
+  });
+
+  test('decodes structured native response metadata without header json',
+      () async {
+    final bindings = _FakeNexaHttpBindings(
+      onExecuteAsync: ({
+        required int clientId,
+        required int requestId,
+        required String requestJson,
+        required Uint8List bodyBytes,
+        required NexaHttpExecuteCallback callback,
+      }) {
+        expect(clientId, 9);
+
+        final resultPointer = calloc<NexaHttpBinaryResult>();
+        resultPointer.ref
+          ..is_success = 1
+          ..status_code = 201
+          ..headers_json = ffi.nullptr
+          ..final_url = 'https://cdn.example.com/final.png'.toNativeUtf8().cast()
+          ..error_json = ffi.nullptr;
+
+        final bodyPointer = calloc<ffi.Uint8>(4);
+        bodyPointer.asTypedList(4).setAll(0, const <int>[5, 6, 7, 8]);
+        resultPointer.ref
+          ..body_ptr = bodyPointer
+          ..body_len = 4;
+
+        callback
+            .asFunction<void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
+          requestId,
+          resultPointer,
+        );
+        return 1;
+      },
+    );
+
+    final dataSource = FfiNexaHttpNativeDataSource(
+      library: ffi.DynamicLibrary.process(),
+      bindings: bindings,
+    );
+
+    final response = await dataSource.execute(
+      9,
+      const NativeHttpRequestDto(
+        method: 'GET',
+        url: 'https://cdn.example.com/start.png',
+      ),
+    );
+
+    expect(response.statusCode, 201);
     expect(
       response.headers,
       <String, List<String>>{
-        'content-type': <String>['application/octet-stream'],
+        'cache-control': <String>['max-age=60'],
+        'content-type': <String>['image/png'],
       },
     );
-    expect(response.bodyBytes, const <int>[9, 8, 7]);
-    expect(response.finalUri, Uri.parse('https://example.com/upload'));
+    expect(response.bodyBytes, const <int>[5, 6, 7, 8]);
+    expect(response.finalUri, Uri.parse('https://cdn.example.com/final.png'));
     expect(bindings.freedResultCount, 1);
   });
 }
@@ -123,9 +166,15 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   @override
   void nexa_http_binary_result_free(ffi.Pointer<NexaHttpBinaryResult> value) {
     freedResultCount += 1;
-    calloc.free(value.ref.headers_json.cast<Utf8>());
-    calloc.free(value.ref.final_url.cast<Utf8>());
-    calloc.free(value.ref.body_ptr);
+    if (value.ref.headers_json != ffi.nullptr) {
+      calloc.free(value.ref.headers_json.cast<Utf8>());
+    }
+    if (value.ref.final_url != ffi.nullptr) {
+      calloc.free(value.ref.final_url.cast<Utf8>());
+    }
+    if (value.ref.body_ptr != ffi.nullptr) {
+      calloc.free(value.ref.body_ptr);
+    }
     calloc.free(value);
   }
 }
