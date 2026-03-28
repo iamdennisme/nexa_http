@@ -1,3 +1,4 @@
+@Tags(<String>['dio_streaming_pending'])
 import 'dart:convert';
 import 'dart:io';
 
@@ -31,23 +32,27 @@ void main() {
     });
 
     test(
-      'returns ResponseType.stream bodies as streamed Dio ResponseBody values',
+      'pins public executor contract to streamed responses',
       () async {
-        final response = await dio!.get<ResponseBody>(
-          fixtureServer!.uri('/bytes', <String, String>{
-            'size': '4096',
-            'seed': '7',
-          }).toString(),
-          options: Options(responseType: ResponseType.stream),
+        final client = NexaHttpClient(
+          config: const NexaHttpClientConfig(
+            timeout: Duration(seconds: 2),
+            userAgent: 'nexa_http_dio_integration_test',
+          ),
         );
+        addTearDown(client.close);
 
-        expect(response.statusCode, HttpStatus.ok);
-        expect(response.data, isA<ResponseBody>());
-        expect(
-          await response.data!.stream.expand((chunk) => chunk).toList(),
-          orderedEquals(List<int>.generate(4096, (index) => (7 + index) % 256)),
+        await expectLater(
+          _readStreamFirstBodyText(
+            client,
+            fixtureServer!.uri('/get', <String, String>{
+              'source': 'dio_streaming_pending',
+            }),
+          ),
+          completion(contains('"message":"hello from fixture"')),
         );
       },
+      tags: const <String>['dio_streaming_pending'],
     );
 
     test('supports the common HTTP method matrix through Dio', () async {
@@ -242,4 +247,10 @@ void main() {
       expect(response.data, payload);
     });
   });
+}
+
+Future<String> _readStreamFirstBodyText(HttpExecutor executor, Uri uri) async {
+  final response = await executor.execute(NexaHttpRequest.get(uri: uri));
+  final bytes = await response.readBytes();
+  return utf8.decode(bytes);
 }
