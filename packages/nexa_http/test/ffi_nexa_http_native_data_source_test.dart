@@ -275,6 +275,58 @@ void main() {
   );
 
   test(
+    'closes native response streams when an unconsumed response is explicitly closed',
+    () async {
+      late final _FakeNexaHttpBindings bindings;
+      bindings = _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 15);
+              expect(requestId, 1);
+              expect(structuredRequest, isNotNull);
+
+              final resultPointer = bindings.newSuccessHead(
+                statusCode: 200,
+                streamId: 82,
+              );
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpResponseHeadResult>)
+                  >()(requestId, resultPointer);
+              return 1;
+            },
+        onStreamNext: ({required int streamId, required int pullCount}) {
+          throw StateError('unconsumed response should not pull body chunks');
+        },
+      );
+
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: bindings,
+      );
+
+      final response = await dataSource.execute(
+        15,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/unconsumed-close',
+        ),
+      );
+
+      response.close();
+
+      expect(bindings.closedStreamIds, <int>[82]);
+      expect(bindings.freedHeadCount, 1);
+      expect(bindings.freedChunkCount, 0);
+    },
+  );
+
+  test(
     'closes orphaned native streams when an async callback arrives after completion',
     () async {
       late final _FakeNexaHttpBindings bindings;

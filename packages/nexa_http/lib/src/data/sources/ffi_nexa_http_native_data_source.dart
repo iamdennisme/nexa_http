@@ -107,7 +107,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       if (entry.value != clientId) {
         continue;
       }
-      _closeResponseStream(entry.key);
+      _closeResponseStream(entry.key, trackForActiveReader: true);
     }
 
     _bindings.nexa_http_client_close(clientId);
@@ -188,6 +188,12 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
         finalUri: finalUri,
         contentLength: _contentLengthFromHeaders(headers),
         bodyStream: _readResponseBody(clientId, streamId),
+        onClose: () {
+          _closeResponseStream(
+            streamId,
+            trackForActiveReader: _activeResponseStreams.containsKey(streamId),
+          );
+        },
       );
     } on Object {
       _bindings.nexa_http_response_stream_close(streamId);
@@ -270,16 +276,19 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     } finally {
       _activeResponseStreams.remove(streamId);
       if (!reachedStreamEnd) {
-        _closeResponseStream(streamId);
+        _closeResponseStream(streamId, trackForActiveReader: true);
       }
       _closedResponseStreams.remove(streamId);
     }
   }
 
-  void _closeResponseStream(int streamId) {
-    if (_closedResponseStreams.add(streamId)) {
-      _bindings.nexa_http_response_stream_close(streamId);
+  void _closeResponseStream(int streamId, {bool trackForActiveReader = false}) {
+    if (trackForActiveReader) {
+      if (!_closedResponseStreams.add(streamId)) {
+        return;
+      }
     }
+    _bindings.nexa_http_response_stream_close(streamId);
   }
 
   Map<String, List<String>> _decodeHeaders(

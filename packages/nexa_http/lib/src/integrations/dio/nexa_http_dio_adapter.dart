@@ -80,6 +80,7 @@ class NexaHttpDioAdapter implements HttpClientAdapter {
           response.statusCode,
           headers: headers,
           isRedirect: _isRedirectStatus(response.statusCode),
+          onClose: response.close,
         ),
       };
 
@@ -153,6 +154,7 @@ class NexaHttpDioAdapter implements HttpClientAdapter {
     return Future.any(<Future<Uint8List>>[
       responseBytesFuture,
       cancelFuture.then<Uint8List>((_) {
+        response.close();
         throw DioException.requestCancelled(
           requestOptions: options,
           reason: options.cancelToken?.cancelError,
