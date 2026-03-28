@@ -3,7 +3,7 @@ use nexa_http_native_core::platform::PlatformCapabilities;
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use std::ffi::CString;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 #[test]
 fn proxy_settings_signature_is_stable() {
@@ -14,10 +14,12 @@ fn proxy_settings_signature_is_stable() {
 #[derive(Clone)]
 struct SwitchingProxyCapabilities {
     use_proxy: Arc<AtomicBool>,
+    proxy_settings_calls: Arc<AtomicUsize>,
 }
 
 impl PlatformCapabilities for SwitchingProxyCapabilities {
     fn proxy_settings(&self) -> ProxySettings {
+        self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
         if self.use_proxy.load(Ordering::Relaxed) {
             ProxySettings {
                 http: Some("http://127.0.0.1:8888".to_string()),
@@ -32,8 +34,10 @@ impl PlatformCapabilities for SwitchingProxyCapabilities {
 #[test]
 fn proxy_signature_change_triggers_refresh_once() {
     let switch = Arc::new(AtomicBool::new(false));
+    let calls = Arc::new(AtomicUsize::new(0));
     let capabilities = SwitchingProxyCapabilities {
         use_proxy: Arc::clone(&switch),
+        proxy_settings_calls: Arc::clone(&calls),
     };
     let runtime = NexaHttpRuntime::new(capabilities);
     let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
@@ -44,7 +48,7 @@ fn proxy_signature_change_triggers_refresh_once() {
 
     let client_id = runtime.create_client(config.as_ptr());
     assert_ne!(client_id, 0);
-    assert_eq!(runtime.client_refresh_count_for_test(), 0);
+    let calls_after_create = calls.load(Ordering::Relaxed);
 
     let warmup = runtime.execute_binary(client_id, request.as_ptr(), std::ptr::null(), 0);
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
@@ -55,8 +59,8 @@ fn proxy_signature_change_triggers_refresh_once() {
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(refreshed);
 
     assert_eq!(
-        runtime.client_refresh_count_for_test(),
-        1,
-        "proxy signature drift should rebuild once",
+        calls.load(Ordering::Relaxed),
+        calls_after_create + 1,
+        "signature drift should trigger one refresh lookup",
     );
 }

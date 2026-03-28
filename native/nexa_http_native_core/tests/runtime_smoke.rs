@@ -1,6 +1,8 @@
 use nexa_http_native_core::platform::{PlatformCapabilities, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use std::ffi::CString;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone, Default)]
 struct TestCapabilities;
@@ -19,7 +21,10 @@ fn runtime_creates_a_client_registry() {
 
 #[test]
 fn repeated_requests_reuse_existing_client_without_refresh() {
-    let runtime = NexaHttpRuntime::new(TestCapabilities);
+    let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
+    let runtime = NexaHttpRuntime::new(CountingCapabilities {
+        proxy_settings_calls: Arc::clone(&proxy_settings_calls),
+    });
     let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
         .expect("config json");
     let request =
@@ -28,23 +33,28 @@ fn repeated_requests_reuse_existing_client_without_refresh() {
 
     let client_id = runtime.create_client(config.as_ptr());
     assert_ne!(client_id, 0);
-
-    let initial_builds = runtime.client_build_count_for_test();
-    let initial_refreshes = runtime.client_refresh_count_for_test();
+    let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
     for _ in 0..5 {
         let result = runtime.execute_binary(client_id, request.as_ptr(), std::ptr::null(), 0);
-        NexaHttpRuntime::<TestCapabilities>::binary_result_free(result);
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
     }
 
     assert_eq!(
-        runtime.client_build_count_for_test(),
-        initial_builds,
-        "steady-state requests should not trigger client rebuilds",
+        proxy_settings_calls.load(Ordering::Relaxed),
+        calls_after_create,
+        "steady-state requests should not re-read platform features",
     );
-    assert_eq!(
-        runtime.client_refresh_count_for_test(),
-        initial_refreshes,
-        "steady-state requests should not trigger client refresh checks",
-    );
+}
+
+#[derive(Clone)]
+struct CountingCapabilities {
+    proxy_settings_calls: Arc<AtomicUsize>,
+}
+
+impl PlatformCapabilities for CountingCapabilities {
+    fn proxy_settings(&self) -> ProxySettings {
+        self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
+        ProxySettings::default()
+    }
 }
