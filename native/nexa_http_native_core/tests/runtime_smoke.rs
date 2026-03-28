@@ -1,6 +1,5 @@
 use nexa_http_native_core::platform::{PlatformCapabilities, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
-use nexa_http_native_core::runtime::executor::mark_client_for_refresh_for_test;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Arc;
@@ -48,7 +47,7 @@ fn repeated_requests_reuse_existing_client_without_refresh() {
 }
 
 #[test]
-fn explicit_refresh_marker_clears_after_one_stable_lookup() {
+fn steady_state_reuse_survives_multiple_request_batches() {
     let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
     let runtime = NexaHttpRuntime::new(CountingCapabilities {
         proxy_settings_calls: Arc::clone(&proxy_settings_calls),
@@ -61,20 +60,19 @@ fn explicit_refresh_marker_clears_after_one_stable_lookup() {
     assert_ne!(client_id, 0);
     let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
-    assert!(
-        mark_client_for_refresh_for_test(&runtime, client_id),
-        "test should be able to mark the client for refresh",
-    );
-
-    let refreshed = runtime.execute_binary(client_id, request.as_args());
-    NexaHttpRuntime::<CountingCapabilities>::binary_result_free(refreshed);
-    let steady_state = runtime.execute_binary(client_id, request.as_args());
-    NexaHttpRuntime::<CountingCapabilities>::binary_result_free(steady_state);
+    for _ in 0..3 {
+        let result = runtime.execute_binary(client_id, request.as_args());
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
+    }
+    for _ in 0..2 {
+        let result = runtime.execute_binary(client_id, request.as_args());
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
+    }
 
     assert_eq!(
         proxy_settings_calls.load(Ordering::Relaxed),
-        calls_after_create + 1,
-        "a stable-signature refresh should do one lookup and then return to the fast path",
+        calls_after_create,
+        "steady-state reuse should stay on the fast path across request batches",
     );
 }
 

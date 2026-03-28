@@ -1,7 +1,6 @@
 use nexa_http_native_core::platform::PlatformCapabilities;
 use nexa_http_native_core::platform::ProxySettings;
 use nexa_http_native_core::runtime::NexaHttpRuntime;
-use nexa_http_native_core::runtime::executor::mark_client_for_refresh_for_test;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Arc;
@@ -34,7 +33,7 @@ impl PlatformCapabilities for SwitchingProxyCapabilities {
 }
 
 #[test]
-fn proxy_signature_change_triggers_refresh_once() {
+fn proxy_signature_drift_does_not_trigger_steady_state_refresh() {
     let switch = Arc::new(AtomicBool::new(false));
     let calls = Arc::new(AtomicUsize::new(0));
     let capabilities = SwitchingProxyCapabilities {
@@ -54,20 +53,15 @@ fn proxy_signature_change_triggers_refresh_once() {
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
 
     switch.store(true, Ordering::Relaxed);
-    assert!(
-        mark_client_for_refresh_for_test(&runtime, client_id),
-        "test should be able to mark the client for refresh",
-    );
-
-    let refreshed = runtime.execute_binary(client_id, request.as_args());
-    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(refreshed);
-    let steady_state = runtime.execute_binary(client_id, request.as_args());
-    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(steady_state);
+    let after_drift = runtime.execute_binary(client_id, request.as_args());
+    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(after_drift);
+    let later_steady_state = runtime.execute_binary(client_id, request.as_args());
+    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(later_steady_state);
 
     assert_eq!(
         calls.load(Ordering::Relaxed),
-        calls_after_create + 1,
-        "an explicit refresh marker should trigger one refresh lookup",
+        calls_after_create,
+        "signature drift alone should not trigger refresh work on the steady-state hot path",
     );
 }
 

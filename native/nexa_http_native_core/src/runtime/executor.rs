@@ -142,9 +142,8 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
     }
 }
 
-#[cfg(debug_assertions)]
-#[doc(hidden)]
-pub fn mark_client_for_refresh_for_test<P: PlatformCapabilities>(
+#[cfg(test)]
+fn mark_client_for_explicit_refresh_for_test<P: PlatformCapabilities>(
     runtime: &NexaHttpRuntime<P>,
     client_id: u64,
 ) -> bool {
@@ -574,6 +573,153 @@ fn free_header_entries_buffer(headers_ptr: *mut NexaHttpHeaderEntry, headers_len
                 drop(CString::from_raw(entry.value_ptr.cast_mut()));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::platform::ProxySettings;
+    use std::ffi::CString;
+    use std::os::raw::c_char;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    #[derive(Clone)]
+    struct CountingCapabilities {
+        proxy_settings_calls: Arc<AtomicUsize>,
+    }
+
+    impl PlatformCapabilities for CountingCapabilities {
+        fn proxy_settings(&self) -> ProxySettings {
+            self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
+            ProxySettings::default()
+        }
+    }
+
+    #[derive(Clone)]
+    struct SwitchingProxyCapabilities {
+        use_proxy: Arc<AtomicBool>,
+        proxy_settings_calls: Arc<AtomicUsize>,
+    }
+
+    impl PlatformCapabilities for SwitchingProxyCapabilities {
+        fn proxy_settings(&self) -> ProxySettings {
+            self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
+            if self.use_proxy.load(Ordering::Relaxed) {
+                ProxySettings {
+                    http: Some("http://127.0.0.1:8888".to_string()),
+                    ..ProxySettings::default()
+                }
+            } else {
+                ProxySettings::default()
+            }
+        }
+    }
+
+    struct TestRequestArgs {
+        _method: CString,
+        _url: CString,
+        args: NexaHttpRequestArgs,
+    }
+
+    impl TestRequestArgs {
+        fn new(method: &str, url: &str, timeout_ms: u64) -> Self {
+            let method = CString::new(method).expect("request method");
+            let url = CString::new(url).expect("request url");
+            let args = NexaHttpRequestArgs {
+                method_ptr: method.as_ptr() as *const c_char,
+                method_len: method.as_bytes().len(),
+                url_ptr: url.as_ptr() as *const c_char,
+                url_len: url.as_bytes().len(),
+                headers_ptr: std::ptr::null(),
+                headers_len: 0,
+                body_ptr: std::ptr::null(),
+                body_len: 0,
+                timeout_ms,
+                has_timeout: 1,
+            };
+            Self {
+                _method: method,
+                _url: url,
+                args,
+            }
+        }
+
+        fn as_args(&self) -> *const NexaHttpRequestArgs {
+            &self.args
+        }
+    }
+
+    fn client_config_json() -> CString {
+        CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
+            .expect("config json")
+    }
+
+    #[test]
+    fn explicit_refresh_marker_clears_after_one_stable_lookup() {
+        let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
+        let runtime = NexaHttpRuntime::new(CountingCapabilities {
+            proxy_settings_calls: Arc::clone(&proxy_settings_calls),
+        });
+        let config = client_config_json();
+        let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
+
+        let client_id = runtime.create_client(config.as_ptr());
+        assert_ne!(client_id, 0);
+        let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
+
+        assert!(
+            mark_client_for_explicit_refresh_for_test(&runtime, client_id),
+            "test should be able to mark the client for refresh",
+        );
+
+        let refreshed = runtime.execute_binary(client_id, request.as_args());
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(refreshed);
+        let steady_state = runtime.execute_binary(client_id, request.as_args());
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(steady_state);
+
+        assert_eq!(
+            proxy_settings_calls.load(Ordering::Relaxed),
+            calls_after_create + 1,
+            "a stable-signature refresh should do one lookup and then return to the fast path",
+        );
+    }
+
+    #[test]
+    fn explicit_refresh_marker_rebuilds_once_when_signature_changes() {
+        let switch = Arc::new(AtomicBool::new(false));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let runtime = NexaHttpRuntime::new(SwitchingProxyCapabilities {
+            use_proxy: Arc::clone(&switch),
+            proxy_settings_calls: Arc::clone(&calls),
+        });
+        let config = client_config_json();
+        let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
+
+        let client_id = runtime.create_client(config.as_ptr());
+        assert_ne!(client_id, 0);
+        let calls_after_create = calls.load(Ordering::Relaxed);
+
+        let warmup = runtime.execute_binary(client_id, request.as_args());
+        NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
+
+        switch.store(true, Ordering::Relaxed);
+        assert!(
+            mark_client_for_explicit_refresh_for_test(&runtime, client_id),
+            "test should be able to mark the client for refresh",
+        );
+
+        let refreshed = runtime.execute_binary(client_id, request.as_args());
+        NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(refreshed);
+        let steady_state = runtime.execute_binary(client_id, request.as_args());
+        NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(steady_state);
+
+        assert_eq!(
+            calls.load(Ordering::Relaxed),
+            calls_after_create + 1,
+            "an explicit refresh marker should trigger one refresh lookup",
+        );
     }
 }
 
