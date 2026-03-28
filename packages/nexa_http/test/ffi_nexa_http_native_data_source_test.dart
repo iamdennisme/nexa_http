@@ -1,5 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
@@ -17,11 +18,45 @@ void main() {
         required int clientId,
         required int requestId,
         required String requestJson,
+        required _StructuredRequestWire? structuredRequest,
         required Uint8List bodyBytes,
         required NexaHttpExecuteCallback callback,
       }) {
         expect(clientId, 7);
-        expect(requestJson, isEmpty);
+        expect(requestJson, isNotEmpty);
+        expect(
+          jsonDecode(requestJson),
+          isNot(
+            containsPair('method', anything),
+          ),
+        );
+        expect(
+          jsonDecode(requestJson),
+          isNot(
+            containsPair('url', anything),
+          ),
+        );
+        expect(
+          jsonDecode(requestJson),
+          isNot(
+            containsPair('headers', anything),
+          ),
+        );
+        expect(
+          jsonDecode(requestJson),
+          isNot(
+            containsPair('timeout_ms', anything),
+          ),
+        );
+        expect(
+          structuredRequest,
+          isNotNull,
+          reason: 'method/url/headers/timeout should be passed separately to bindings',
+        );
+        expect(structuredRequest!.method, 'POST');
+        expect(structuredRequest.url, 'https://example.com/upload');
+        expect(structuredRequest.headers, const <String, String>{});
+        expect(structuredRequest.timeoutMs, isNull);
         expect(bodyBytes, Uint8List.fromList(const <int>[1, 2, 3, 4]));
 
         final resultPointer = calloc<NexaHttpBinaryResult>();
@@ -74,6 +109,7 @@ void main() {
         required int clientId,
         required int requestId,
         required String requestJson,
+        required _StructuredRequestWire? structuredRequest,
         required Uint8List bodyBytes,
         required NexaHttpExecuteCallback callback,
       }) {
@@ -137,6 +173,7 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     required int clientId,
     required int requestId,
     required String requestJson,
+    required _StructuredRequestWire? structuredRequest,
     required Uint8List bodyBytes,
     required NexaHttpExecuteCallback callback,
   }) onExecuteAsync;
@@ -156,6 +193,7 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
       clientId: client_id,
       requestId: request_id,
       requestJson: request_json.cast<Utf8>().toDartString(),
+      structuredRequest: null,
       bodyBytes: body_ptr == ffi.nullptr
           ? Uint8List(0)
           : Uint8List.fromList(body_ptr.asTypedList(body_len)),
@@ -181,4 +219,18 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
 
 ffi.Pointer<T> _unimplementedLookup<T extends ffi.NativeType>(String _) {
   throw UnimplementedError();
+}
+
+class _StructuredRequestWire {
+  const _StructuredRequestWire({
+    required this.method,
+    required this.url,
+    required this.headers,
+    required this.timeoutMs,
+  });
+
+  final String method;
+  final String url;
+  final Map<String, String> headers;
+  final int? timeoutMs;
 }

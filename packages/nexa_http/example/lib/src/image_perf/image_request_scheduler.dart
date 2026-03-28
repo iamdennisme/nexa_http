@@ -3,6 +3,8 @@ import 'dart:collection';
 
 enum ImageRequestPriority { high, medium, low }
 
+/// Provisional test harness for Task 1 contract tests.
+/// The production priority scheduler behavior is implemented in a follow-up task.
 final class ImageRequestScheduler {
   ImageRequestScheduler({
     required this.maxConcurrentRequests,

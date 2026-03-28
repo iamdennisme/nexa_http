@@ -28,6 +28,6 @@ void main() {
     );
     expect(dto.timeoutMs, 2000);
     expect(dto.bodyBytes, const <int>[1, 2, 3, 4]);
-    expect(dto.toJson(), isEmpty);
+    expect(dto.toJson().containsKey('body_base64'), isFalse);
   });
 }
