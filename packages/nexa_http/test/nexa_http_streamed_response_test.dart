@@ -52,24 +52,6 @@ void main() {
     expect(() => response.bodyStream.listen((_) {}), throwsStateError);
   });
 
-  test('close closes an unconsumed response and is idempotent', () async {
-    var closeCalls = 0;
-    final response = NexaHttpStreamedResponse(
-      statusCode: 200,
-      bodyStream: Stream<Uint8List>.value(Uint8List.fromList(<int>[1, 2, 3])),
-      onClose: () {
-        closeCalls += 1;
-      },
-    );
-
-    response.close();
-    response.close();
-
-    expect(closeCalls, 1);
-    await expectLater(response.readBytes(), throwsStateError);
-    expect(() => response.bodyStream.listen((_) {}), throwsStateError);
-  });
-
   test(
     'close fails execute-before-head and active body readers with client_closed',
     () async {

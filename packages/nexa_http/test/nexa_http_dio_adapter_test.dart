@@ -51,35 +51,6 @@ void main() {
     );
 
     test(
-      'delegates ResponseBody.close to the underlying streamed response',
-      () async {
-        var closeCalls = 0;
-        final executor = _FakeHttpExecutor(
-          handler: (request) async => _streamedResponse(
-            statusCode: 200,
-            onClose: () {
-              closeCalls += 1;
-            },
-          ),
-        );
-        final dio = Dio()
-          ..httpClientAdapter = NexaHttpDioAdapter(executor: executor);
-
-        final response = await dio
-            .get<ResponseBody>(
-              'https://example.com/stream-close',
-              options: Options(responseType: ResponseType.stream),
-            )
-            .timeout(_shortTestTimeout);
-
-        response.data!.close();
-        response.data!.close();
-
-        expect(closeCalls, 1);
-      },
-    );
-
-    test(
       'maps GET requests into NexaHttpRequest and decodes JSON responses',
       () async {
         final executor = _FakeHttpExecutor(
@@ -419,7 +390,6 @@ NexaHttpStreamedResponse _streamedResponse({
   Map<String, List<String>> headers = const <String, List<String>>{},
   List<int> bodyBytes = const <int>[],
   Stream<Uint8List>? bodyStream,
-  void Function()? onClose,
   Uri? finalUri,
 }) {
   final effectiveBodyStream =
@@ -430,6 +400,5 @@ NexaHttpStreamedResponse _streamedResponse({
     finalUri: finalUri,
     contentLength: bodyBytes.length,
     bodyStream: effectiveBodyStream,
-    onClose: onClose,
   );
 }

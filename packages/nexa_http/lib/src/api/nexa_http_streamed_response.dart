@@ -8,7 +8,6 @@ final class NexaHttpStreamedResponse {
     this.finalUri,
     this.contentLength,
     required Stream<Uint8List> bodyStream,
-    void Function()? onClose,
   }) : headers = Map<String, List<String>>.unmodifiable(
          headers.map(
            (key, values) => MapEntry<String, List<String>>(
@@ -17,19 +16,16 @@ final class NexaHttpStreamedResponse {
            ),
          ),
        ),
-       _bodySource = bodyStream,
-       _onClose = onClose;
+       _bodySource = bodyStream;
 
   final int statusCode;
   final Map<String, List<String>> headers;
   final Uri? finalUri;
   final int? contentLength;
   final Stream<Uint8List> _bodySource;
-  final void Function()? _onClose;
 
   bool _bodyConsumed = false;
   String? _bodyConsumer;
-  bool _closed = false;
 
   late final Stream<Uint8List> bodyStream = _SingleConsumptionBodyStream(
     owner: this,
@@ -44,17 +40,6 @@ final class NexaHttpStreamedResponse {
       builder.add(chunk);
     }
     return builder.takeBytes();
-  }
-
-  void close() {
-    if (_closed) {
-      return;
-    }
-
-    _closed = true;
-    _bodyConsumed = true;
-    _bodyConsumer ??= 'close()';
-    _onClose?.call();
   }
 
   void _claimBody(String consumer) {
