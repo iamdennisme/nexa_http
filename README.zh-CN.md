@@ -34,7 +34,7 @@
 
 ## 在其他项目中使用
 
-典型依赖方式：
+正式发布时，推荐使用固定到 release tag 的 git 依赖：
 
 ```yaml
 dependencies:
@@ -62,6 +62,26 @@ dependencies:
 - 所有包都应固定到同一个 `ref`
 - 只添加你实际会打包的平台 carrier package
 - 桌面端同理，使用同仓库里的对应 `nexa_http_native_<platform>` 包
+- 这是目前已经验证过的正式消费路径。carrier package 会通过同一 tag 对应的 GitHub Release manifest 拉取预编译原生产物。
+
+本地 workspace 开发时，也可以使用 `path` 依赖：
+
+```yaml
+dependencies:
+  nexa_http:
+    path: ../nexa_http/packages/nexa_http
+  nexa_http_native_macos:
+    path: ../nexa_http/packages/nexa_http_native_macos
+
+dependency_overrides:
+  nexa_http:
+    path: ../nexa_http/packages/nexa_http
+```
+
+`path` 模式说明：
+
+- 当前本地 `path` 消费仍需要给 `nexa_http` 加一个 `dependency_overrides`，因为各 carrier package 自己的 `pubspec.yaml` 里还是把 `nexa_http` 固定成 git 依赖。
+- 这个 override 只针对本地开发；正式发布路径仍然推荐 `git + ref`。
 
 直接使用客户端：
 
@@ -90,6 +110,8 @@ await client.close();
 2. Git 依赖 + 预编译原生产物
 3. 本地 workspace path 开发
 4. 本地 native override 调试
+
+当前已经验证通过的正式路径是第 2 种。
 
 当前平台 hook 支持这些 override：
 
@@ -199,3 +221,54 @@ dart run fixture_server/http_fixture_server.dart --port 8080
 - Android 模拟器：`http://10.0.2.2:8080`
 - Android 真机通过 `adb reverse`：先执行 `adb reverse tcp:8080 tcp:8080`，然后使用 `http://127.0.0.1:8080`
 - 真机走局域网：用 `--host 0.0.0.0` 启动 fixture server，并改成你电脑的局域网 IP，例如 `http://192.168.1.16:8080`
+
+## Demo 验证报告
+
+本次验证时间：`2026-03-29`
+
+验证环境：
+
+- 固定到 `v1.0.0` 的外部 `git` sample
+- 指向本地 workspace 的外部 `path` sample
+- macOS 桌面端
+- 本地 fixture server：`http://127.0.0.1:8080`
+
+HTTP demo 验证结果：
+
+- `git` sample：通过 `NexaHttpClient` 完成真实 fixture GET 请求验证
+- `path` sample：通过 `NexaHttpClient` 完成真实 fixture GET 请求验证
+- 两个 sample 的外部 Flutter 测试都通过，包含新增的 host smoke test
+
+图片性能 demo 验证结果：
+
+- 直接复用了现有图片性能页面实现，没有改动页面逻辑
+- 两个 sample 的图片性能相关 widget / logic 测试均通过
+- 两个 sample 都通过了 `NexaHttpImageFileService` 的真实图片下载链路验证
+- 下面这组 benchmark 数据来自外部 `git` sample，在 macOS debug 模式下，用 `image` autorun 场景对 `24` 张 fixture 图片进行采样
+
+观测到的 benchmark 结果：
+
+| Transport | 首屏时间 | 平均延迟 | P95 延迟 | 吞吐 | 请求数 | 失败数 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `defaultHttp` | `802 ms` | `39 ms` | `61 ms` | `35.58 MiB/s` | `24` | `0` |
+| `rustNet` | `313 ms` | `9 ms` | `22 ms` | `75.40 MiB/s` | `24` | `0` |
+
+benchmark 命令模板：
+
+```bash
+cd /path/to/your/external_git_sample
+env PUB_HOSTED_URL=https://pub.dev \
+  FLUTTER_STORAGE_BASE_URL=https://storage.googleapis.com \
+  fvm flutter run -d macos \
+  --dart-define=RUST_NET_EXAMPLE_BASE_URL=http://127.0.0.1:8080 \
+  --dart-define=RUST_NET_EXAMPLE_IMAGE_PERF_SCENARIO=image \
+  --dart-define=RUST_NET_EXAMPLE_IMAGE_PERF_TRANSPORT=nexa_http \
+  --dart-define=RUST_NET_EXAMPLE_IMAGE_PERF_IMAGE_COUNT=24
+```
+
+说明：
+
+- 这组数据来自本地 debug 构建，不应直接当作正式 release benchmark。
+- 在这次验证里，`rustNet` 在首屏时间、平均延迟、P95 延迟和吞吐上都优于默认图片传输链路。
+- 本地 `path` 消费也已经验证通过，但当前仍需要给 `nexa_http` 增加一个 `dependency_overrides`。
+- 本次使用的临时外部验证 sample 是一次性产物，没有保留在仓库中。
