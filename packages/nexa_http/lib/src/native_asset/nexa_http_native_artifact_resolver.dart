@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,8 +10,12 @@ const _releaseBaseUrlEnvironmentVariable = 'NEXA_HTTP_NATIVE_RELEASE_BASE_URL';
 const _defaultReleaseBaseUrl =
     'https://github.com/iamdennisme/nexa_http/releases/download';
 const _manifestFileName = 'nexa_http_native_assets_manifest.json';
+const _httpConnectTimeout = Duration(seconds: 15);
+const _httpRequestTimeout = Duration(seconds: 60);
+const _httpTransferTimeout = Duration(minutes: 5);
 
-typedef SourceDirCandidatesBuilder = Iterable<String> Function(String sourceDir);
+typedef SourceDirCandidatesBuilder = Iterable<String> Function(
+    String sourceDir);
 typedef SourceDirBuilder = Future<void> Function(String sourceDir);
 
 Future<File> resolveNexaHttpNativeArtifactFile({
@@ -160,7 +165,8 @@ Uri _resolveManifestUri({
     return File(manifestPath).absolute.uri;
   }
 
-  final releaseBaseUrl = environment[_releaseBaseUrlEnvironmentVariable]?.trim();
+  final releaseBaseUrl =
+      environment[_releaseBaseUrlEnvironmentVariable]?.trim();
   final base = releaseBaseUrl != null && releaseBaseUrl.isNotEmpty
       ? releaseBaseUrl
       : '$_defaultReleaseBaseUrl/v$packageVersion';
@@ -198,17 +204,20 @@ Future<void> _copyUriToFile(Uri sourceUri, File destination) async {
     case 'file':
     case '':
       final source = File.fromUri(
-        sourceUri.scheme.isEmpty ? sourceUri.replace(scheme: 'file') : sourceUri,
+        sourceUri.scheme.isEmpty
+            ? sourceUri.replace(scheme: 'file')
+            : sourceUri,
       );
       await destination.parent.create(recursive: true);
       await source.copy(destination.path);
       return;
     case 'http':
     case 'https':
-      final client = HttpClient();
+      final client = _newHttpClient();
       try {
-        final request = await client.getUrl(sourceUri);
-        final response = await request.close();
+        final request =
+            await client.getUrl(sourceUri).timeout(_httpRequestTimeout);
+        final response = await request.close().timeout(_httpRequestTimeout);
         if (response.statusCode != HttpStatus.ok) {
           throw HttpException(
             'Failed to download $sourceUri: ${response.statusCode}',
@@ -216,7 +225,17 @@ Future<void> _copyUriToFile(Uri sourceUri, File destination) async {
           );
         }
         await destination.parent.create(recursive: true);
-        await response.pipe(destination.openWrite());
+        await response
+            .pipe(destination.openWrite())
+            .timeout(_httpTransferTimeout);
+      } on TimeoutException catch (error) {
+        throw HttpException(
+          'Timed out downloading $sourceUri '
+          '(connect=${_httpConnectTimeout.inSeconds}s, '
+          'request=${_httpRequestTimeout.inSeconds}s, '
+          'transfer=${_httpTransferTimeout.inSeconds}s): $error',
+          uri: sourceUri,
+        );
       } finally {
         client.close(force: true);
       }
@@ -248,7 +267,8 @@ final class _NexaHttpNativeAssetManifest {
 
     final entriesJson = json['assets'];
     if (entriesJson is! List) {
-      throw FormatException('Native asset manifest is missing the "assets" list.');
+      throw FormatException(
+          'Native asset manifest is missing the "assets" list.');
     }
 
     return _NexaHttpNativeAssetManifest(
@@ -268,7 +288,8 @@ final class _NexaHttpNativeAssetManifest {
     required String targetArchitecture,
     required String? targetSdk,
   }) {
-    if (this.packageVersion.isNotEmpty && this.packageVersion != packageVersion) {
+    if (this.packageVersion.isNotEmpty &&
+        this.packageVersion != packageVersion) {
       throw StateError(
         'Native asset manifest version mismatch. Expected $packageVersion, got ${this.packageVersion}.',
       );
@@ -349,24 +370,39 @@ Future<String> _readUriAsString(Uri uri) async {
       ).readAsString();
     case 'http':
     case 'https':
-      final client = HttpClient();
+      final client = _newHttpClient();
       try {
-        final request = await client.getUrl(uri);
-        final response = await request.close();
+        final request = await client.getUrl(uri).timeout(_httpRequestTimeout);
+        final response = await request.close().timeout(_httpRequestTimeout);
         if (response.statusCode != HttpStatus.ok) {
           throw HttpException(
             'Failed to download $uri: ${response.statusCode}',
             uri: uri,
           );
         }
-        return utf8.decode(await response.fold<List<int>>(
+        final body = await response.fold<List<int>>(
           <int>[],
           (buffer, chunk) => buffer..addAll(chunk),
-        ));
+        ).timeout(_httpTransferTimeout);
+        return utf8.decode(body);
+      } on TimeoutException catch (error) {
+        throw HttpException(
+          'Timed out downloading $uri '
+          '(connect=${_httpConnectTimeout.inSeconds}s, '
+          'request=${_httpRequestTimeout.inSeconds}s, '
+          'transfer=${_httpTransferTimeout.inSeconds}s): $error',
+          uri: uri,
+        );
       } finally {
         client.close(force: true);
       }
     default:
       throw UnsupportedError('Unsupported manifest URI scheme: ${uri.scheme}');
   }
+}
+
+HttpClient _newHttpClient() {
+  final client = HttpClient();
+  client.connectionTimeout = _httpConnectTimeout;
+  return client;
 }
