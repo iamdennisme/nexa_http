@@ -88,7 +88,11 @@ At the moment, local `path` consumption still needs the `dependency_overrides` e
 
 ### Client usage
 
+`NexaHttpRequest` currently provides four request helpers: `get`, `post`, `put`, and `delete`.
+
 ```dart
+import 'dart:convert';
+
 import 'package:nexa_http/nexa_http.dart';
 
 final client = NexaHttpClient(
@@ -103,6 +107,38 @@ final response = await client.execute(
 );
 
 await client.close();
+```
+
+Request examples:
+
+```dart
+final getResponse = await client.execute(
+  NexaHttpRequest.get(
+    uri: Uri(path: '/healthz'),
+  ),
+);
+
+final postResponse = await client.execute(
+  NexaHttpRequest.post(
+    uri: Uri(path: '/users'),
+    headers: {'content-type': 'application/json'},
+    bodyBytes: utf8.encode('{"name":"alice"}'),
+  ),
+);
+
+final putResponse = await client.execute(
+  NexaHttpRequest.put(
+    uri: Uri(path: '/users/1'),
+    headers: {'content-type': 'application/json'},
+    bodyBytes: utf8.encode('{"name":"alice-updated"}'),
+  ),
+);
+
+final deleteResponse = await client.execute(
+  NexaHttpRequest.delete(
+    uri: Uri(path: '/users/1'),
+  ),
+);
 ```
 
 ### Local verification commands

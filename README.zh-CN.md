@@ -88,7 +88,11 @@ dependency_overrides:
 
 ### 客户端调用
 
+`NexaHttpRequest` 当前提供 4 个请求 helper：`get`、`post`、`put`、`delete`。
+
 ```dart
+import 'dart:convert';
+
 import 'package:nexa_http/nexa_http.dart';
 
 final client = NexaHttpClient(
@@ -103,6 +107,38 @@ final response = await client.execute(
 );
 
 await client.close();
+```
+
+请求示例：
+
+```dart
+final getResponse = await client.execute(
+  NexaHttpRequest.get(
+    uri: Uri(path: '/healthz'),
+  ),
+);
+
+final postResponse = await client.execute(
+  NexaHttpRequest.post(
+    uri: Uri(path: '/users'),
+    headers: {'content-type': 'application/json'},
+    bodyBytes: utf8.encode('{"name":"alice"}'),
+  ),
+);
+
+final putResponse = await client.execute(
+  NexaHttpRequest.put(
+    uri: Uri(path: '/users/1'),
+    headers: {'content-type': 'application/json'},
+    bodyBytes: utf8.encode('{"name":"alice-updated"}'),
+  ),
+);
+
+final deleteResponse = await client.execute(
+  NexaHttpRequest.delete(
+    uri: Uri(path: '/users/1'),
+  ),
+);
 ```
 
 ### 本地验证命令
