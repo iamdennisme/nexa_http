@@ -12,23 +12,24 @@ const imageRequestPriorityHeaderName = 'x-nexa-http-image-priority';
 
 final class NexaHttpImageFileService extends FileService {
   NexaHttpImageFileService({
-    HttpExecutor? executor,
+    NexaHttpClient? client,
     ImageRequestScheduler? scheduler,
     this.onSample,
     NexaHttpClientConfig config = const NexaHttpClientConfig(
       timeout: Duration(seconds: 20),
       userAgent: 'nexa_http_example/1.0.0',
     ),
-  })  : _ownsExecutor = executor == null,
-        _executor = executor ?? NexaHttpClient(config: config),
-        _scheduler = scheduler ??
-            ImageRequestScheduler(
-              maxConcurrentRequests: 6,
-              maxLowPriorityConcurrency: 2,
-            );
+  }) : _ownsClient = client == null,
+       _client = client ?? NexaHttpClient(config: config),
+       _scheduler =
+           scheduler ??
+           ImageRequestScheduler(
+             maxConcurrentRequests: 6,
+             maxLowPriorityConcurrency: 2,
+           );
 
-  final HttpExecutor _executor;
-  final bool _ownsExecutor;
+  final NexaHttpClient _client;
+  final bool _ownsClient;
   final ImageRequestScheduler _scheduler;
   final ImageRequestSampleCallback? onSample;
   int _nextDispatchSequence = 0;
@@ -60,11 +61,8 @@ final class NexaHttpImageFileService extends FileService {
         task: () {
           dispatchSequence = _nextDispatchSequence;
           _nextDispatchSequence += 1;
-          return _executor.execute(
-            NexaHttpRequest.get(
-              uri: Uri.parse(url),
-              headers: requestHeaders,
-            ),
+          return _client.execute(
+            NexaHttpRequest.get(uri: Uri.parse(url), headers: requestHeaders),
           );
         },
       );
@@ -111,8 +109,8 @@ final class NexaHttpImageFileService extends FileService {
   }
 
   Future<void> close() async {
-    if (_ownsExecutor) {
-      await _executor.close();
+    if (_ownsClient) {
+      await _client.close();
     }
   }
 

@@ -7,7 +7,8 @@ import 'package:test/test.dart';
 import 'support/register_host_native_runtime.dart';
 import 'support/http_fixture_server.dart';
 
-const skipReason = 'Binary fixture coverage is not enabled in this environment.';
+const skipReason =
+    'Binary fixture coverage is not enabled in this environment.';
 
 void main() {
   group('NexaHttpClient native integration', () {
@@ -30,57 +31,45 @@ void main() {
       await fixtureServer?.close();
     });
 
-    test(
-      'executes GET requests against the local fixture server',
-      () async {
+    test('executes GET requests against the local fixture server', () async {
+      final response = await client!.execute(
+        NexaHttpRequest.get(
+          uri: fixtureServer!.uri('/get', <String, String>{
+            'source': 'integration',
+          }),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.headers['content-type'], isNotNull);
+      expect(
+        response.headers['content-type']!,
+        contains(contains('application/json')),
+      );
+      expect(response.bodyText, contains('hello from fixture'));
+      expect(response.bodyText, contains('"source":"integration"'));
+    });
+
+    test('supports direct 2xx response matrix', () async {
+      const successStatuses = <int>[200, 201, 202, 204];
+      for (final status in successStatuses) {
         final response = await client!.execute(
-          NexaHttpRequest.get(
-            uri: fixtureServer!.uri(
-              '/get',
-              <String, String>{'source': 'integration'},
-            ),
-          ),
+          NexaHttpRequest.get(uri: fixtureServer!.uri('/status/$status')),
         );
 
-        expect(response.statusCode, HttpStatus.ok);
         expect(
-          response.headers['content-type'],
-          isNotNull,
+          response.statusCode,
+          status,
+          reason: 'Expected status $status to round-trip through Rust.',
         );
-        expect(
-          response.headers['content-type']!,
-          contains(contains('application/json')),
-        );
-        expect(response.bodyText, contains('hello from fixture'));
-        expect(response.bodyText, contains('"source":"integration"'));
-      },
-    );
 
-    test(
-      'supports direct 2xx response matrix',
-      () async {
-        const successStatuses = <int>[200, 201, 202, 204];
-        for (final status in successStatuses) {
-          final response = await client!.execute(
-            NexaHttpRequest.get(
-              uri: fixtureServer!.uri('/status/$status'),
-            ),
-          );
-
-          expect(
-            response.statusCode,
-            status,
-            reason: 'Expected status $status to round-trip through Rust.',
-          );
-
-          if (status == HttpStatus.noContent) {
-            expect(response.bodyBytes, isEmpty);
-          } else {
-            expect(response.bodyText, contains('"status_code":$status'));
-          }
+        if (status == HttpStatus.noContent) {
+          expect(response.bodyBytes, isEmpty);
+        } else {
+          expect(response.bodyText, contains('"status_code":$status'));
         }
-      },
-    );
+      }
+    });
 
     test(
       'executes POST/PUT/PATCH requests and preserves body transfer',
@@ -91,10 +80,10 @@ void main() {
           required String body,
         }) async {
           final response = await client!.execute(
-            NexaHttpRequest.text(
+            NexaHttpRequest(
               method: method,
               uri: fixtureServer!.uri('/echo'),
-              body: body,
+              bodyBytes: utf8.encode(body),
               headers: const <String, String>{
                 'content-type': 'application/json',
               },
@@ -127,62 +116,54 @@ void main() {
       },
     );
 
-    test(
-      'supports DELETE, HEAD, and OPTIONS',
-      () async {
-        final deleteResponse = await client!.execute(
-          NexaHttpRequest(
-            method: NexaHttpMethod.delete,
-            uri: fixtureServer!.uri('/delete'),
-          ),
-        );
-        expect(deleteResponse.statusCode, HttpStatus.ok);
-        expect(deleteResponse.bodyText, contains('"deleted":true'));
+    test('supports DELETE, HEAD, and OPTIONS', () async {
+      final deleteResponse = await client!.execute(
+        NexaHttpRequest(
+          method: NexaHttpMethod.delete,
+          uri: fixtureServer!.uri('/delete'),
+        ),
+      );
+      expect(deleteResponse.statusCode, HttpStatus.ok);
+      expect(deleteResponse.bodyText, contains('"deleted":true'));
 
-        final headResponse = await client!.execute(
-          NexaHttpRequest(
-            method: NexaHttpMethod.head,
-            uri: fixtureServer!.uri('/head'),
-          ),
-        );
-        expect(headResponse.statusCode, HttpStatus.ok);
-        expect(headResponse.bodyBytes, isEmpty);
-        expect(
-          headResponse.headers['x-fixture-head'],
-          contains('true'),
-        );
+      final headResponse = await client!.execute(
+        NexaHttpRequest(
+          method: NexaHttpMethod.head,
+          uri: fixtureServer!.uri('/head'),
+        ),
+      );
+      expect(headResponse.statusCode, HttpStatus.ok);
+      expect(headResponse.bodyBytes, isEmpty);
+      expect(headResponse.headers['x-fixture-head'], contains('true'));
 
-        final optionsResponse = await client!.execute(
-          NexaHttpRequest.text(
-            method: NexaHttpMethod.options,
-            uri: fixtureServer!.uri('/options'),
-            body: '',
-          ),
-        );
-        expect(optionsResponse.statusCode, HttpStatus.noContent);
-        expect(optionsResponse.bodyBytes, isEmpty);
-        expect(
-          optionsResponse.headers[HttpHeaders.allowHeader.toLowerCase()],
-          contains(contains('DELETE')),
-        );
-      },
-    );
+      final optionsResponse = await client!.execute(
+        NexaHttpRequest(
+          method: NexaHttpMethod.options,
+          uri: fixtureServer!.uri('/options'),
+          bodyBytes: const <int>[],
+        ),
+      );
+      expect(optionsResponse.statusCode, HttpStatus.noContent);
+      expect(optionsResponse.bodyBytes, isEmpty);
+      expect(
+        optionsResponse.headers[HttpHeaders.allowHeader.toLowerCase()],
+        contains(contains('DELETE')),
+      );
+    });
 
     test(
       'follows all supported redirects and returns the final 2xx response',
       () async {
         const redirectStatuses = <int>[301, 302, 303, 307, 308];
         for (final status in redirectStatuses) {
-          final expectedFinalUri = fixtureServer!.uri(
-            '/get',
-            <String, String>{'source': 'redirected_$status'},
-          );
+          final expectedFinalUri = fixtureServer!.uri('/get', <String, String>{
+            'source': 'redirected_$status',
+          });
           final response = await client!.execute(
             NexaHttpRequest.get(
-              uri: fixtureServer!.uri(
-                '/redirect/$status',
-                <String, String>{'location': expectedFinalUri.toString()},
-              ),
+              uri: fixtureServer!.uri('/redirect/$status', <String, String>{
+                'location': expectedFinalUri.toString(),
+              }),
             ),
           );
 
@@ -211,13 +192,13 @@ void main() {
             <String, String>{'source': 'redirected_${entry.key}'},
           );
           final response = await client!.execute(
-            NexaHttpRequest.text(
+            NexaHttpRequest(
               method: NexaHttpMethod.post,
               uri: fixtureServer!.uri(
                 '/redirect/${entry.key}',
                 <String, String>{'location': expectedFinalUri.toString()},
               ),
-              body: payload,
+              bodyBytes: utf8.encode(payload),
               headers: const <String, String>{
                 'content-type': 'application/json',
               },
@@ -238,71 +219,60 @@ void main() {
       },
     );
 
-    test(
-      'preserves representative 4xx and 5xx status responses',
-      () async {
-        const errorStatuses = <int>[400, 401, 403, 404, 429, 500, 502, 503];
-        for (final status in errorStatuses) {
-          final response = await client!.execute(
-            NexaHttpRequest.get(uri: fixtureServer!.uri('/status/$status')),
-          );
-          expect(
-            response.statusCode,
-            status,
-            reason: 'Expected status $status to stay intact.',
-          );
-          expect(response.bodyText, contains('"status_code":$status'));
-        }
-      },
-    );
-
-    test(
-      'downloads raw binary payloads without base64 transport',
-      () async {
+    test('preserves representative 4xx and 5xx status responses', () async {
+      const errorStatuses = <int>[400, 401, 403, 404, 429, 500, 502, 503];
+      for (final status in errorStatuses) {
         final response = await client!.execute(
+          NexaHttpRequest.get(uri: fixtureServer!.uri('/status/$status')),
+        );
+        expect(
+          response.statusCode,
+          status,
+          reason: 'Expected status $status to stay intact.',
+        );
+        expect(response.bodyText, contains('"status_code":$status'));
+      }
+    });
+
+    test('downloads raw binary payloads without base64 transport', () async {
+      final response = await client!.execute(
+        NexaHttpRequest.get(
+          uri: fixtureServer!.uri('/bytes', <String, String>{
+            'size': '32',
+            'seed': '11',
+          }),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(
+        response.headers[HttpHeaders.contentTypeHeader.toLowerCase()],
+        contains('application/octet-stream'),
+      );
+      expect(
+        response.bodyBytes,
+        List<int>.generate(32, (index) => (11 + index) % 256),
+      );
+    }, skip: skipReason);
+
+    test('maps local fixture timeouts to NexaHttpException', () async {
+      expect(
+        () => client!.execute(
           NexaHttpRequest.get(
-            uri: fixtureServer!.uri(
-              '/bytes',
-              <String, String>{'size': '32', 'seed': '11'},
-            ),
+            uri: fixtureServer!.uri('/slow', <String, String>{
+              'delay_ms': '200',
+            }),
+            timeout: const Duration(milliseconds: 20),
           ),
-        );
-
-        expect(response.statusCode, HttpStatus.ok);
-        expect(
-          response.headers[HttpHeaders.contentTypeHeader.toLowerCase()],
-          contains('application/octet-stream'),
-        );
-        expect(
-          response.bodyBytes,
-          List<int>.generate(32, (index) => (11 + index) % 256),
-        );
-      },
-      skip: skipReason,
-    );
-
-    test(
-      'maps local fixture timeouts to NexaHttpException',
-      () async {
-        expect(
-          () => client!.execute(
-            NexaHttpRequest.get(
-              uri: fixtureServer!.uri(
-                '/slow',
-                <String, String>{'delay_ms': '200'},
-              ),
-              timeout: const Duration(milliseconds: 20),
-            ),
+        ),
+        throwsA(
+          isA<NexaHttpException>().having(
+            (exception) => exception.isTimeout,
+            'isTimeout',
+            isTrue,
           ),
-          throwsA(
-            isA<NexaHttpException>().having(
-              (exception) => exception.isTimeout,
-              'isTimeout',
-              isTrue,
-            ),
-          ),
-        );
-      },
-    );
+        ),
+      );
+    });
   });
 }

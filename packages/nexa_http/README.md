@@ -7,7 +7,6 @@ It provides:
 - `NexaHttpClient`
 - `NexaHttpRequest`
 - `NexaHttpResponse`
-- `NexaHttpDioAdapter`
 
 It does not build or locate native binaries by itself. Native loading now happens through the matching platform package:
 
@@ -48,19 +47,6 @@ final response = await client.execute(
 );
 
 await client.close();
-```
-
-```dart
-import 'package:dio/dio.dart';
-import 'package:nexa_http/nexa_http_dio.dart';
-
-final dio = Dio()
-  ..httpClientAdapter = NexaHttpDioAdapter.client(
-    config: NexaHttpClientConfig(
-      baseUrl: Uri.parse('https://api.example.com/'),
-      timeout: const Duration(seconds: 10),
-    ),
-  );
 ```
 
 ## Package internals

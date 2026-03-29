@@ -4,7 +4,7 @@ import 'data/mappers/native_http_request_mapper.dart';
 import 'data/sources/nexa_http_native_data_source.dart';
 import 'native_bridge/nexa_http_native_data_source_factory.dart';
 
-class NexaHttpClient implements HttpExecutor {
+class NexaHttpClient {
   NexaHttpClient({
     this.config = const NexaHttpClientConfig(),
     NexaHttpNativeDataSource? dataSource,
@@ -27,20 +27,15 @@ class NexaHttpClient implements HttpExecutor {
   late final int _clientId;
   bool _isClosed = false;
 
-  @override
   Future<NexaHttpResponse> execute(NexaHttpRequest request) async {
     _ensureOpen();
 
     return _dataSource.execute(
       _clientId,
-      NativeHttpRequestMapper.toDto(
-        clientConfig: config,
-        request: request,
-      ),
+      NativeHttpRequestMapper.toDto(clientConfig: config, request: request),
     );
   }
 
-  @override
   Future<void> close() async {
     if (_isClosed) {
       return;

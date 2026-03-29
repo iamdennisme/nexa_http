@@ -1,4 +1,3 @@
-export 'http_executor.dart';
 export 'nexa_http_client_config.dart';
 export 'nexa_http_exception.dart';
 export 'nexa_http_method.dart';

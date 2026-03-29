@@ -12,7 +12,7 @@ The public Dart API stays in Dart. Transport execution stays in Rust.
 
 ## Workspace layout
 
-- `packages/nexa_http`: public Dart API, FFI bindings, Dio adapter
+- `packages/nexa_http`: public Dart API, request models, and FFI bindings
 - `packages/nexa_http_native_android|ios|macos|linux|windows`: platform carrier packages, build hooks, and platform Rust runtimes
 - `native/nexa_http_native_core`: shared Rust core runtime and ABI contract
 - `fixture_server/`: local HTTP fixture server and proxy smoke tooling
@@ -80,21 +80,6 @@ final response = await client.execute(
 await client.close();
 ```
 
-Or swap Dio’s transport:
-
-```dart
-import 'package:dio/dio.dart';
-import 'package:nexa_http/nexa_http_dio.dart';
-
-final dio = Dio()
-  ..httpClientAdapter = NexaHttpDioAdapter.client(
-    config: NexaHttpClientConfig(
-      baseUrl: Uri.parse('https://api.example.com/'),
-      timeout: const Duration(seconds: 10),
-    ),
-  );
-```
-
 ## Native delivery modes
 
 The intended priority is:
@@ -137,7 +122,6 @@ Run package tests:
 ```bash
 cd packages/nexa_http && fvm dart test
 cd packages/nexa_http/example && fvm flutter test
-cd packages/nexa_http/example/nexa_http_dio_consumer && fvm flutter test
 ```
 
 Run the Rust workspace tests:

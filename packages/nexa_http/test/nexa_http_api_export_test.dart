@@ -1,4 +1,4 @@
-import 'package:nexa_http/nexa_http_dio.dart';
+import 'package:nexa_http/nexa_http.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -23,7 +23,18 @@ void main() {
     );
     expect(exception.isTimeout, isTrue);
 
+    final postRequest = NexaHttpRequest.post(
+      uri: Uri.parse('https://example.com/items'),
+      bodyBytes: const <int>[1, 2, 3],
+    );
+    expect(postRequest.method, NexaHttpMethod.post);
+
+    final putRequest = NexaHttpRequest.put(
+      uri: Uri.parse('https://example.com/items/42'),
+      bodyBytes: const <int>[4, 5, 6],
+    );
+    expect(putRequest.method, NexaHttpMethod.put);
+
     expect(NexaHttpClient, isA<Type>());
-    expect(NexaHttpDioAdapter, isA<Type>());
   });
 }

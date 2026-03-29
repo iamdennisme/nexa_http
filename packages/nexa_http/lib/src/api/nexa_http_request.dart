@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'nexa_http_method.dart';
@@ -31,6 +29,36 @@ class NexaHttpRequest with _$NexaHttpRequest {
     );
   }
 
+  factory NexaHttpRequest.post({
+    required Uri uri,
+    Map<String, String> headers = const <String, String>{},
+    List<int>? bodyBytes,
+    Duration? timeout,
+  }) {
+    return NexaHttpRequest(
+      method: NexaHttpMethod.post,
+      uri: uri,
+      headers: headers,
+      bodyBytes: bodyBytes,
+      timeout: timeout,
+    );
+  }
+
+  factory NexaHttpRequest.put({
+    required Uri uri,
+    Map<String, String> headers = const <String, String>{},
+    List<int>? bodyBytes,
+    Duration? timeout,
+  }) {
+    return NexaHttpRequest(
+      method: NexaHttpMethod.put,
+      uri: uri,
+      headers: headers,
+      bodyBytes: bodyBytes,
+      timeout: timeout,
+    );
+  }
+
   factory NexaHttpRequest.delete({
     required Uri uri,
     Map<String, String> headers = const <String, String>{},
@@ -40,43 +68,6 @@ class NexaHttpRequest with _$NexaHttpRequest {
       method: NexaHttpMethod.delete,
       uri: uri,
       headers: headers,
-      timeout: timeout,
-    );
-  }
-
-  factory NexaHttpRequest.text({
-    required NexaHttpMethod method,
-    required Uri uri,
-    required String body,
-    Encoding encoding = utf8,
-    Map<String, String> headers = const <String, String>{},
-    Duration? timeout,
-  }) {
-    return NexaHttpRequest(
-      method: method,
-      uri: uri,
-      headers: headers,
-      bodyBytes: encoding.encode(body),
-      timeout: timeout,
-    );
-  }
-
-  factory NexaHttpRequest.json({
-    required NexaHttpMethod method,
-    required Uri uri,
-    required Object? body,
-    Encoding encoding = utf8,
-    Map<String, String> headers = const <String, String>{},
-    Duration? timeout,
-  }) {
-    return NexaHttpRequest(
-      method: method,
-      uri: uri,
-      headers: <String, String>{
-        'content-type': 'application/json',
-        ...headers,
-      },
-      bodyBytes: encoding.encode(jsonEncode(body)),
       timeout: timeout,
     );
   }

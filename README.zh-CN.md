@@ -12,7 +12,7 @@
 
 ## 工作区结构
 
-- `packages/nexa_http`：公开 Dart API、FFI bindings、Dio 适配器
+- `packages/nexa_http`：公开 Dart API、请求模型、FFI bindings
 - `packages/nexa_http_native_android|ios|macos|linux|windows`：平台载体包、build hook、平台 Rust runtime
 - `native/nexa_http_native_core`：共享 Rust 核心 runtime 和统一 ABI
 - `fixture_server/`：本地 HTTP fixture server 与代理验证工具
@@ -80,21 +80,6 @@ final response = await client.execute(
 await client.close();
 ```
 
-或者作为 Dio transport：
-
-```dart
-import 'package:dio/dio.dart';
-import 'package:nexa_http/nexa_http_dio.dart';
-
-final dio = Dio()
-  ..httpClientAdapter = NexaHttpDioAdapter.client(
-    config: NexaHttpClientConfig(
-      baseUrl: Uri.parse('https://api.example.com/'),
-      timeout: const Duration(seconds: 10),
-    ),
-  );
-```
-
 ## 原生产物交付模式
 
 推荐优先级：
@@ -137,7 +122,6 @@ fvm dart test test
 ```bash
 cd packages/nexa_http && fvm dart test
 cd packages/nexa_http/example && fvm flutter test
-cd packages/nexa_http/example/nexa_http_dio_consumer && fvm flutter test
 ```
 
 运行 Rust workspace 测试：
