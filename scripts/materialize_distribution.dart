@@ -27,8 +27,8 @@ Future<void> materializeDistributionWorkspace({
   final packageDirs = _discoverTopLevelPackages(packagesDir);
   final selectedPackageNames =
       requestedPackages == null || requestedPackages.isEmpty
-          ? packageDirs.keys.toSet()
-          : requestedPackages;
+      ? packageDirs.keys.toSet()
+      : requestedPackages;
 
   final missing = selectedPackageNames.difference(packageDirs.keys.toSet());
   if (missing.isNotEmpty) {
@@ -41,7 +41,10 @@ Future<void> materializeDistributionWorkspace({
       return;
     }
     final packageDir = packageDirs[packageName]!;
-    for (final dependency in _localPathDependencies(root.path, packageDir.path)) {
+    for (final dependency in _localPathDependencies(
+      root.path,
+      packageDir.path,
+    )) {
       addWithLocalDeps(dependency);
     }
   }
@@ -177,7 +180,10 @@ Future<void> _copyDirectoryFiltered(
 ) async {
   await destinationDir.create(recursive: true);
 
-  await for (final entity in sourceDir.list(recursive: true, followLinks: false)) {
+  await for (final entity in sourceDir.list(
+    recursive: true,
+    followLinks: false,
+  )) {
     final relative = p.relative(entity.path, from: sourceDir.path);
     if (_shouldSkip(relative)) {
       continue;
@@ -199,14 +205,37 @@ bool _shouldSkip(String relativePath) {
   if (segments.contains('.dart_tool')) {
     return true;
   }
+  if (segments.contains('.gradle')) {
+    return true;
+  }
   if (segments.contains('.idea')) {
+    return true;
+  }
+  if (segments.contains('Pods')) {
     return true;
   }
   if (segments.contains('build')) {
     return true;
   }
+  if (segments.contains('ephemeral')) {
+    return true;
+  }
+  if (segments.contains('target')) {
+    return true;
+  }
+  if (segments.contains('xcuserdata')) {
+    return true;
+  }
+  if (segments.contains('.symlinks')) {
+    return true;
+  }
   final basename = p.basename(relativePath);
-  if (basename == 'pubspec.lock' || basename == 'pubspec_overrides.yaml') {
+  if (basename == '.flutter-plugins' ||
+      basename == '.flutter-plugins-dependencies' ||
+      basename == 'Podfile.lock' ||
+      basename == 'pubspec.lock' ||
+      basename == 'pubspec_overrides.yaml' ||
+      basename == 'local.properties') {
     return true;
   }
   if (basename.endsWith('.iml')) {
@@ -226,9 +255,7 @@ final _requiredArtifacts = <String, List<String>>{
     'ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib',
     'ios/Frameworks/libnexa_http_native-ios-sim-x64.dylib',
   ],
-  'nexa_http_native_linux': <String>[
-    'linux/Libraries/libnexa_http_native.so',
-  ],
+  'nexa_http_native_linux': <String>['linux/Libraries/libnexa_http_native.so'],
   'nexa_http_native_macos': <String>[
     'macos/Libraries/libnexa_http_native.dylib',
   ],

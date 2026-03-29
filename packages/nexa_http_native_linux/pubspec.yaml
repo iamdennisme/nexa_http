@@ -13,7 +13,7 @@ dependencies:
   hooks: ^1.0.2
   nexa_http:
     git:
-      url: https://github.com/iamdennisme/rust_net.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v1.0.0
       path: packages/nexa_http
   path: ^1.9.0

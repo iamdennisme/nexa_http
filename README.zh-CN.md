@@ -40,17 +40,17 @@
 dependencies:
   nexa_http:
     git:
-      url: git@github.com:iamdennisme/rust_net.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v1.0.0
       path: packages/nexa_http
   nexa_http_native_android:
     git:
-      url: git@github.com:iamdennisme/rust_net.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v1.0.0
       path: packages/nexa_http_native_android
   nexa_http_native_ios:
     git:
-      url: git@github.com:iamdennisme/rust_net.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v1.0.0
       path: packages/nexa_http_native_ios
 ```

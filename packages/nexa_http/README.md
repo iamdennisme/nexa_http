@@ -22,12 +22,12 @@ It does not build or locate native binaries by itself. Native loading now happen
 dependencies:
   nexa_http:
     git:
-      url: git@github.com:iamdennisme/rust_net.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v1.0.0
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
-      url: git@github.com:iamdennisme/rust_net.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v1.0.0
       path: packages/nexa_http_native_macos
 ```
