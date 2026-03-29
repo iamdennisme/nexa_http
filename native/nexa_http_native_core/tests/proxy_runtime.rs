@@ -2,8 +2,13 @@ use nexa_http_native_core::platform::{PlatformRuntimeState, PlatformRuntimeView,
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use std::ffi::CString;
 use std::os::raw::c_char;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Sender};
+use std::sync::Mutex;
+use std::time::Duration;
 
 #[test]
 fn proxy_settings_signature_is_stable() {
@@ -37,6 +42,45 @@ impl PlatformRuntimeState for SwitchingProxyCapabilities {
     }
 }
 
+static NEXT_EXECUTE_ASYNC_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+static EXECUTE_ASYNC_RESULT_SENDERS: LazyLock<Mutex<HashMap<u64, Sender<usize>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+unsafe extern "C" fn capture_execute_async_result(
+    _request_id: u64,
+    result: *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult,
+) {
+    if let Some(sender) = EXECUTE_ASYNC_RESULT_SENDERS.lock().unwrap().remove(&_request_id) {
+        let _ = sender.send(result as usize);
+    }
+}
+
+fn execute_for_test<P: PlatformRuntimeState>(
+    runtime: &NexaHttpRuntime<P>,
+    client_id: u64,
+    request_args: *const nexa_http_native_core::api::ffi::NexaHttpRequestArgs,
+) -> *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult {
+    let (sender, receiver) = mpsc::channel();
+    let request_id = NEXT_EXECUTE_ASYNC_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+    EXECUTE_ASYNC_RESULT_SENDERS
+        .lock()
+        .unwrap()
+        .insert(request_id, sender);
+    assert_eq!(
+        runtime.execute_async(
+            client_id,
+            request_id,
+            request_args,
+            Some(capture_execute_async_result),
+        ),
+        1,
+    );
+    let result = receiver
+        .recv_timeout(Duration::from_secs(1))
+        .expect("execute_async should deliver a result");
+    result as *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult
+}
+
 #[test]
 fn unchanged_generation_keeps_proxy_state_on_the_steady_state_hot_path() {
     let switch = Arc::new(AtomicBool::new(false));
@@ -56,13 +100,13 @@ fn unchanged_generation_keeps_proxy_state_on_the_steady_state_hot_path() {
     assert_ne!(client_id, 0);
     let calls_after_create = calls.load(Ordering::Relaxed);
 
-    let warmup = runtime.execute_binary(client_id, request.as_args());
+    let warmup = execute_for_test(&runtime, client_id, request.as_args());
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
 
     switch.store(true, Ordering::Relaxed);
-    let after_drift = runtime.execute_binary(client_id, request.as_args());
+    let after_drift = execute_for_test(&runtime, client_id, request.as_args());
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(after_drift);
-    let later_steady_state = runtime.execute_binary(client_id, request.as_args());
+    let later_steady_state = execute_for_test(&runtime, client_id, request.as_args());
     NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(later_steady_state);
 
     assert_eq!(

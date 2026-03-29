@@ -157,4 +157,4 @@ Observed package-level result:
 - real GET requests through `NexaHttpClient` passed against the fixture server
 - real image downloads through the image file service passed
 
-Image benchmark data was captured at the workspace level and is recorded in the root [README](/Users/taicheng/dev/source/taicheng/other/rust_net/README.md).
+Image benchmark data was captured at the workspace level and is recorded in the root [README](../../README.md).

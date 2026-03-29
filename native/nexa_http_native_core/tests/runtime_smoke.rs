@@ -7,6 +7,7 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
+use std::collections::HashMap;
 use std::time::Duration;
 
 #[derive(Clone, Default)]
@@ -45,7 +46,7 @@ fn repeated_requests_reuse_existing_client_without_refresh() {
     let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
     for _ in 0..5 {
-        let result = runtime.execute_binary(client_id, request.as_args());
+        let result = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
     }
 
@@ -73,11 +74,11 @@ fn steady_state_reuse_survives_multiple_request_batches() {
     let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
     for _ in 0..3 {
-        let result = runtime.execute_binary(client_id, request.as_args());
+        let result = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
     }
     for _ in 0..2 {
-        let result = runtime.execute_binary(client_id, request.as_args());
+        let result = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
     }
 
@@ -144,6 +145,9 @@ impl TestRequestArgs {
 
 static EXECUTE_ASYNC_THREAD_SENDER: LazyLock<Mutex<Option<Sender<String>>>> =
     LazyLock::new(|| Mutex::new(None));
+static NEXT_EXECUTE_ASYNC_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+static EXECUTE_ASYNC_RESULT_SENDERS: LazyLock<Mutex<HashMap<u64, Sender<usize>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 unsafe extern "C" fn capture_execute_async_thread(
     _request_id: u64,
@@ -154,6 +158,41 @@ unsafe extern "C" fn capture_execute_async_thread(
         let _ = sender.send(thread_name);
     }
     NexaHttpRuntime::<TestCapabilities>::binary_result_free(result);
+}
+
+unsafe extern "C" fn capture_execute_async_result(
+    _request_id: u64,
+    result: *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult,
+) {
+    if let Some(sender) = EXECUTE_ASYNC_RESULT_SENDERS.lock().unwrap().remove(&_request_id) {
+        let _ = sender.send(result as usize);
+    }
+}
+
+fn execute_for_test<P: PlatformRuntimeState>(
+    runtime: &NexaHttpRuntime<P>,
+    client_id: u64,
+    request_args: *const nexa_http_native_core::api::ffi::NexaHttpRequestArgs,
+) -> *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult {
+    let (sender, receiver) = mpsc::channel();
+    let request_id = NEXT_EXECUTE_ASYNC_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+    EXECUTE_ASYNC_RESULT_SENDERS
+        .lock()
+        .unwrap()
+        .insert(request_id, sender);
+    assert_eq!(
+        runtime.execute_async(
+            client_id,
+            request_id,
+            request_args,
+            Some(capture_execute_async_result),
+        ),
+        1,
+    );
+    let result = receiver
+        .recv_timeout(Duration::from_secs(1))
+        .expect("execute_async should deliver a result");
+    result as *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult
 }
 
 #[test]

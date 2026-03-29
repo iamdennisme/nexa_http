@@ -114,28 +114,6 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
         1
     }
 
-    pub fn execute_binary(
-        &self,
-        client_id: u64,
-        request_args: *const NexaHttpRequestArgs,
-    ) -> *mut NexaHttpBinaryResult {
-        let result = match read_request(request_args) {
-            Ok(request) => self
-                .inner
-                .tokio
-                .block_on(execute_request_with_limit(
-                    Arc::clone(&self.inner),
-                    client_id,
-                    request,
-                ))
-                .map(build_binary_success_result)
-                .unwrap_or_else(|error| build_binary_error_result(error.into_http_error())),
-            Err(error) => build_binary_error_result(error.into_http_error()),
-        };
-
-        Box::into_raw(Box::new(result))
-    }
-
     pub fn close_client(&self, client_id: u64) {
         self.inner.clients.lock().unwrap().remove(&client_id);
     }
@@ -590,6 +568,9 @@ mod tests {
     use std::os::raw::c_char;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+    use std::sync::mpsc::{self, Sender};
+    use std::sync::{LazyLock, Mutex};
+    use std::time::Duration;
 
     #[derive(Clone)]
     struct CountingCapabilities {
@@ -738,6 +719,42 @@ mod tests {
         }
     }
 
+    static NEXT_TEST_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+    static TEST_RESULT_SENDERS: LazyLock<Mutex<HashMap<u64, Sender<usize>>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+
+    unsafe extern "C" fn capture_test_result(request_id: u64, result: *mut NexaHttpBinaryResult) {
+        if let Some(sender) = TEST_RESULT_SENDERS.lock().unwrap().remove(&request_id) {
+            let _ = sender.send(result as usize);
+        }
+    }
+
+    fn execute_for_test<P: PlatformRuntimeState>(
+        runtime: &NexaHttpRuntime<P>,
+        client_id: u64,
+        request_args: *const NexaHttpRequestArgs,
+    ) -> *mut NexaHttpBinaryResult {
+        let (sender, receiver) = mpsc::channel();
+        let request_id = NEXT_TEST_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+        TEST_RESULT_SENDERS
+            .lock()
+            .unwrap()
+            .insert(request_id, sender);
+        assert_eq!(
+            runtime.execute_async(
+                client_id,
+                request_id,
+                request_args,
+                Some(capture_test_result),
+            ),
+            1,
+        );
+        let result = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("execute_async should deliver a result");
+        result as *mut NexaHttpBinaryResult
+    }
+
     #[test]
     fn unchanged_generation_reuses_existing_client() {
         let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
@@ -751,9 +768,9 @@ mod tests {
         assert_ne!(client_id, 0);
         let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
-        let warmed = runtime.execute_binary(client_id, request.as_args());
+        let warmed = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<CountingCapabilities>::binary_result_free(warmed);
-        let steady_state = runtime.execute_binary(client_id, request.as_args());
+        let steady_state = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<CountingCapabilities>::binary_result_free(steady_state);
 
         assert_eq!(
@@ -780,15 +797,15 @@ mod tests {
         assert_ne!(client_id, 0);
         let calls_after_create = calls.load(Ordering::Relaxed);
 
-        let warmup = runtime.execute_binary(client_id, request.as_args());
+        let warmup = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
 
         switch.store(true, Ordering::Relaxed);
         generation.store(1, Ordering::Relaxed);
 
-        let refreshed = runtime.execute_binary(client_id, request.as_args());
+        let refreshed = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(refreshed);
-        let steady_state = runtime.execute_binary(client_id, request.as_args());
+        let steady_state = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(steady_state);
 
         assert_eq!(
@@ -818,9 +835,9 @@ mod tests {
         use_invalid_proxy.store(true, Ordering::Relaxed);
         generation.store(1, Ordering::Relaxed);
 
-        let failed_refresh = runtime.execute_binary(client_id, request.as_args());
+        let failed_refresh = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<InvalidProxyCapabilities>::binary_result_free(failed_refresh);
-        let first_retry = runtime.execute_binary(client_id, request.as_args());
+        let first_retry = execute_for_test(&runtime, client_id, request.as_args());
         NexaHttpRuntime::<InvalidProxyCapabilities>::binary_result_free(first_retry);
 
         assert_eq!(
@@ -872,7 +889,7 @@ mod tests {
         );
 
         let steady_request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
-        let steady_state = runtime.execute_binary(client_id, steady_request.as_args());
+        let steady_state = execute_for_test(&runtime, client_id, steady_request.as_args());
         NexaHttpRuntime::<DelayedGenerationCapabilities>::binary_result_free(steady_state);
 
         assert_eq!(
