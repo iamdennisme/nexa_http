@@ -217,7 +217,7 @@ void main() {
     expect(sourceBuildTriggered, isTrue);
   });
 
-  test('default release manifest uri points at the rust_net GitHub release', () {
+  test('default release manifest uri points at the nexa_http GitHub release', () {
     final manifestUri = resolveNexaHttpNativeManifestUri(
       packageVersion: '1.0.0',
       environment: const <String, String>{},

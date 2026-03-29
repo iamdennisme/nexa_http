@@ -48,10 +48,6 @@ uint8_t nexa_http_client_execute_async(
     uint64_t request_id,
     const NexaHttpRequestArgs* request_args,
     NexaHttpExecuteCallback callback);
-NexaHttpBinaryResult* nexa_http_client_execute_binary(
-    uint64_t client_id,
-    const NexaHttpRequestArgs* request_args);
-uint8_t nexa_http_runtime_prefers_binary_execution(void);
 void nexa_http_client_close(uint64_t client_id);
 void nexa_http_binary_result_free(NexaHttpBinaryResult* result);
 

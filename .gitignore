@@ -55,6 +55,9 @@ packages/nexa_http_native_ios/ios/Frameworks/*.dylib
 packages/nexa_http_native_linux/linux/Libraries/*.so
 packages/nexa_http_native_macos/macos/Libraries/*.dylib
 packages/nexa_http_native_windows/windows/Libraries/*.dll
+packages/nexa_http_native_ios/ios/Flutter/Generated.xcconfig
+packages/nexa_http_native_ios/ios/Flutter/flutter_export_environment.sh
+packages/nexa_http_native_macos/macos/Flutter/ephemeral/
 packages/rust_net/android/
 packages/rust_net/ios/
 packages/rust_net/macos/
