@@ -17,10 +17,19 @@ final class _NexaHttpNativeAndroidRuntime implements NexaHttpNativeRuntime {
   static const _environmentVariable = 'NEXA_HTTP_NATIVE_ANDROID_LIB_PATH';
 
   @override
-  DynamicLibrary open() {
+  String? get binaryExecutionLibraryPath {
     final explicitPath = Platform.environment[_environmentVariable];
     if (explicitPath != null && explicitPath.trim().isNotEmpty) {
-      return DynamicLibrary.open(explicitPath.trim());
+      return explicitPath.trim();
+    }
+    return 'libnexa_http_native.so';
+  }
+
+  @override
+  DynamicLibrary open() {
+    final path = binaryExecutionLibraryPath;
+    if (path != null && path.trim().isNotEmpty) {
+      return DynamicLibrary.open(path);
     }
 
     return DynamicLibrary.open('libnexa_http_native.so');

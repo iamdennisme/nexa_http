@@ -50,6 +50,11 @@ pub extern "C" fn nexa_http_client_execute_binary(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn nexa_http_runtime_prefers_binary_execution() -> u8 {
+    1
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn nexa_http_client_close(client_id: u64) {
     RUNTIME.close_client(client_id);
 }

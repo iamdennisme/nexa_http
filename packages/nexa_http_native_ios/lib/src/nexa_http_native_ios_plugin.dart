@@ -17,10 +17,19 @@ final class _NexaHttpNativeIosRuntime implements NexaHttpNativeRuntime {
   static const _environmentVariable = 'NEXA_HTTP_NATIVE_IOS_LIB_PATH';
 
   @override
-  DynamicLibrary open() {
+  String? get binaryExecutionLibraryPath {
     final explicitPath = Platform.environment[_environmentVariable];
     if (explicitPath != null && explicitPath.trim().isNotEmpty) {
-      return DynamicLibrary.open(explicitPath.trim());
+      return explicitPath.trim();
+    }
+    return null;
+  }
+
+  @override
+  DynamicLibrary open() {
+    final explicitPath = binaryExecutionLibraryPath;
+    if (explicitPath != null && explicitPath.trim().isNotEmpty) {
+      return DynamicLibrary.open(explicitPath);
     }
 
     return DynamicLibrary.process();

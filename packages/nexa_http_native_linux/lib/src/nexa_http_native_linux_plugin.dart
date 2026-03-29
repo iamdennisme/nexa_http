@@ -19,6 +19,9 @@ final class _NexaHttpNativeLinuxRuntime implements NexaHttpNativeRuntime {
   static const _libraryFileName = 'libnexa_http_native.so';
 
   @override
+  String? get binaryExecutionLibraryPath => null;
+
+  @override
   DynamicLibrary open() {
     final explicitPath = Platform.environment[_environmentVariable];
     if (explicitPath != null && explicitPath.trim().isNotEmpty) {

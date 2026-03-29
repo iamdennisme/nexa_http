@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:isolate';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -18,43 +17,68 @@ import 'nexa_http_native_data_source.dart';
 typedef BinaryResultFinalizerNative = Void Function(Pointer<Void> token);
 
 final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
-  FfiNexaHttpNativeDataSource({
+  factory FfiNexaHttpNativeDataSource({
     required DynamicLibrary library,
     NexaHttpBindings? bindings,
-    Pointer<NativeFunction<BinaryResultFinalizerNative>>?
-    binaryResultFinalizer,
+    Pointer<NativeFunction<BinaryResultFinalizerNative>>? binaryResultFinalizer,
+    String? binaryExecutionLibraryPath,
     bool? preferSynchronousExecution,
     Future<NexaHttpResponse> Function(
       int clientId,
       NativeHttpRequestDto request,
     )?
     binaryExecutor,
-  }) : _bindings = bindings ?? NexaHttpBindings(library),
-       _binaryResultFinalizer =
-           binaryResultFinalizer ??
-           library.lookup<NativeFunction<BinaryResultFinalizerNative>>(
-             'nexa_http_binary_result_free',
-           ),
-       _preferSynchronousExecution =
-           preferSynchronousExecution ?? Platform.isAndroid,
-       _binaryExecutor =
-           binaryExecutor ??
-           ((clientId, request) => _executeBinaryInBackgroundIsolate(
-             _BinaryExecuteRequest(
-               libraryPath: Platform.isAndroid
-                   ? 'libnexa_http_native.so'
-                   : (throw UnsupportedError(
-                       'A binaryExecutor or explicit preferSynchronousExecution=false '
-                       'is required off Android.',
-                     )),
-               clientId: clientId,
-               requestJson: request.toJson(),
-             ),
-           )) {
+  }) {
+    final resolvedBindings = bindings ?? NexaHttpBindings(library);
+    final resolvedPreferSynchronousExecution =
+        preferSynchronousExecution ??
+        resolvedBindings.nexa_http_runtime_prefers_binary_execution() != 0;
+    final resolvedBinaryExecutor =
+        binaryExecutor ??
+        ((clientId, request) => _executeBinaryInBackgroundIsolate(
+          _BinaryExecuteRequest(
+            libraryPath:
+                binaryExecutionLibraryPath ??
+                (throw UnsupportedError(
+                  'A runtime binaryExecutionLibraryPath or explicit '
+                  'binaryExecutor is required for binary execution.',
+                )),
+            clientId: clientId,
+            requestJson: request.toJson(),
+          ),
+        ));
+
+    return FfiNexaHttpNativeDataSource._(
+      bindings: resolvedBindings,
+      binaryResultFinalizer:
+          binaryResultFinalizer ??
+          library.lookup<NativeFunction<BinaryResultFinalizerNative>>(
+            'nexa_http_binary_result_free',
+          ),
+      preferSynchronousExecution: resolvedPreferSynchronousExecution,
+      binaryExecutor: resolvedBinaryExecutor,
+    );
+  }
+
+  FfiNexaHttpNativeDataSource._({
+    required NexaHttpBindings bindings,
+    required Pointer<NativeFunction<BinaryResultFinalizerNative>>
+    binaryResultFinalizer,
+    required bool preferSynchronousExecution,
+    required Future<NexaHttpResponse> Function(
+      int clientId,
+      NativeHttpRequestDto request,
+    )
+    binaryExecutor,
+  }) : _bindings = bindings,
+       _binaryResultFinalizer = binaryResultFinalizer,
+       _preferSynchronousExecution = preferSynchronousExecution,
+       _binaryExecutor = binaryExecutor {
     if (!_preferSynchronousExecution) {
-      _executeCallback = NativeCallable<NexaHttpExecuteCallbackFunction>.listener(
-        _handleExecuteCallback,
-      );
+      _executeCallback =
+          NativeCallable<NexaHttpExecuteCallbackFunction>.listener(
+            _handleExecuteCallback,
+          );
     }
   }
 
@@ -62,7 +86,10 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   final Pointer<NativeFunction<BinaryResultFinalizerNative>>
   _binaryResultFinalizer;
   final bool _preferSynchronousExecution;
-  final Future<NexaHttpResponse> Function(int clientId, NativeHttpRequestDto request)
+  final Future<NexaHttpResponse> Function(
+    int clientId,
+    NativeHttpRequestDto request,
+  )
   _binaryExecutor;
   final _pendingExecuteRequests = <int, Completer<NexaHttpResponse>>{};
 
@@ -403,7 +430,10 @@ Future<NexaHttpResponse> _executeBinaryInBackgroundIsolate(
         request.clientId,
         arena.pointer,
       );
-      return _decodeBinaryResultForSynchronousExecution(bindings, resultPointer);
+      return _decodeBinaryResultForSynchronousExecution(
+        bindings,
+        resultPointer,
+      );
     } finally {
       arena.dispose();
     }
@@ -427,8 +457,8 @@ NexaHttpResponse _decodeBinaryResultForSynchronousExecution(
       throw _decodeBinaryErrorForSynchronousExecution(result.error_json);
     }
 
-  final headers = <String, List<String>>{};
-  for (var index = 0; index < result.headers_len; index += 1) {
+    final headers = <String, List<String>>{};
+    for (var index = 0; index < result.headers_len; index += 1) {
       final entry = (result.headers_ptr + index).ref;
       final name = _decodeUtf8FromSizedPointer(
         entry.name_ptr,

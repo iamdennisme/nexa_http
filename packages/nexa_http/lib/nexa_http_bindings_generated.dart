@@ -91,6 +91,18 @@ class NexaHttpBindings {
             )
           >();
 
+  int nexa_http_runtime_prefers_binary_execution() {
+    return _nexa_http_runtime_prefers_binary_execution();
+  }
+
+  late final _nexa_http_runtime_prefers_binary_executionPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint8 Function()>>(
+        'nexa_http_runtime_prefers_binary_execution',
+      );
+  late final _nexa_http_runtime_prefers_binary_execution =
+      _nexa_http_runtime_prefers_binary_executionPtr
+          .asFunction<int Function()>();
+
   void nexa_http_client_close(int client_id) {
     return _nexa_http_client_close(client_id);
   }

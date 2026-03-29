@@ -20,6 +20,9 @@ final class _NexaHttpNativeMacosRuntime implements NexaHttpNativeRuntime {
   static const _resourceBundleName = 'nexa_http_native.bundle';
 
   @override
+  String? get binaryExecutionLibraryPath => null;
+
+  @override
   DynamicLibrary open() {
     final explicitPath = Platform.environment[_environmentVariable];
     if (explicitPath != null && explicitPath.trim().isNotEmpty) {

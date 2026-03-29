@@ -102,5 +102,8 @@ final class _HostTestRuntime implements NexaHttpNativeRuntime {
   final String libraryPath;
 
   @override
+  String? get binaryExecutionLibraryPath => libraryPath;
+
+  @override
   DynamicLibrary open() => DynamicLibrary.open(libraryPath);
 }

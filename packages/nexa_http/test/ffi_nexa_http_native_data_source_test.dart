@@ -386,10 +386,7 @@ void main() {
         expect(clientId, 21);
         expect(request.method, 'GET');
         expect(request.url, 'https://example.com/sync');
-        return const NexaHttpResponse(
-          statusCode: 204,
-          bodyBytes: <int>[],
-        );
+        return const NexaHttpResponse(statusCode: 204, bodyBytes: <int>[]);
       },
     );
 
@@ -404,11 +401,55 @@ void main() {
     expect(response.statusCode, 204);
     expect(executeAsyncCalls, 0);
   });
+
+  test(
+    'uses the native execution preference symbol instead of platform inference',
+    () async {
+      var executeAsyncCalls = 0;
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: _FakeNexaHttpBindings(
+          nativeExecutionPreference: 1,
+          onExecuteAsync:
+              ({
+                required int clientId,
+                required int requestId,
+                required _StructuredRequestWire? structuredRequest,
+                required NexaHttpExecuteCallback callback,
+              }) {
+                executeAsyncCalls += 1;
+                return 0;
+              },
+        ),
+        binaryResultFinalizer: ffi.nullptr,
+        binaryExecutor: (clientId, request) async {
+          expect(clientId, 22);
+          expect(request.method, 'GET');
+          expect(request.url, 'https://example.com/native-preference');
+          return const NexaHttpResponse(statusCode: 202, bodyBytes: <int>[]);
+        },
+      );
+
+      final response = await dataSource.execute(
+        22,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/native-preference',
+        ),
+      );
+
+      expect(response.statusCode, 202);
+      expect(executeAsyncCalls, 0);
+    },
+  );
 }
 
 class _FakeNexaHttpBindings extends NexaHttpBindings {
-  _FakeNexaHttpBindings({required this.onExecuteAsync, this.onFreeBinaryResult})
-    : super.fromLookup(_unimplementedLookup);
+  _FakeNexaHttpBindings({
+    required this.onExecuteAsync,
+    this.onFreeBinaryResult,
+    this.nativeExecutionPreference = 0,
+  }) : super.fromLookup(_unimplementedLookup);
 
   final int Function({
     required int clientId,
@@ -419,10 +460,16 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   onExecuteAsync;
   final void Function(ffi.Pointer<NexaHttpBinaryResult> value)?
   onFreeBinaryResult;
+  final int nativeExecutionPreference;
 
   int freedResultCount = 0;
   ffi.Pointer<NexaHttpBinaryResult> _trackedResultPointer = ffi.nullptr;
   final Set<int> _freedResultAddresses = <int>{};
+
+  @override
+  int nexa_http_runtime_prefers_binary_execution() {
+    return nativeExecutionPreference;
+  }
 
   @override
   int nexa_http_client_execute_async(
@@ -476,7 +523,7 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     freedResultCount += 1;
     if (value.ref.headers_ptr != ffi.nullptr && value.ref.headers_len > 0) {
       for (var index = 0; index < value.ref.headers_len; index += 1) {
-      final entry = (value.ref.headers_ptr + index).ref;
+        final entry = (value.ref.headers_ptr + index).ref;
         if (entry.name_ptr != ffi.nullptr) {
           calloc.free(entry.name_ptr.cast<Utf8>());
         }
