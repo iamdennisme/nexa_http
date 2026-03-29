@@ -1,20 +1,24 @@
-use nexa_http_native_core::platform::{PlatformCapabilities, ProxySettings};
+use nexa_http_native_core::platform::{PlatformRuntimeState, PlatformRuntimeView, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::time::Duration;
 
 #[derive(Clone, Default)]
 struct TestCapabilities;
 
-impl PlatformCapabilities for TestCapabilities {
-    fn proxy_settings(&self) -> ProxySettings {
-        ProxySettings::default()
+impl PlatformRuntimeState for TestCapabilities {
+    fn proxy_generation(&self) -> u64 {
+        0
+    }
+
+    fn current_platform_state(&self) -> PlatformRuntimeView {
+        PlatformRuntimeView::with_proxy_settings(0, ProxySettings::default())
     }
 }
 
@@ -27,8 +31,10 @@ fn runtime_creates_a_client_registry() {
 #[test]
 fn repeated_requests_reuse_existing_client_without_refresh() {
     let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
+    let generation = Arc::new(AtomicU64::new(0));
     let runtime = NexaHttpRuntime::new(CountingCapabilities {
         proxy_settings_calls: Arc::clone(&proxy_settings_calls),
+        generation: Arc::clone(&generation),
     });
     let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
         .expect("config json");
@@ -53,8 +59,10 @@ fn repeated_requests_reuse_existing_client_without_refresh() {
 #[test]
 fn steady_state_reuse_survives_multiple_request_batches() {
     let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
+    let generation = Arc::new(AtomicU64::new(0));
     let runtime = NexaHttpRuntime::new(CountingCapabilities {
         proxy_settings_calls: Arc::clone(&proxy_settings_calls),
+        generation: Arc::clone(&generation),
     });
     let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
         .expect("config json");
@@ -83,12 +91,20 @@ fn steady_state_reuse_survives_multiple_request_batches() {
 #[derive(Clone)]
 struct CountingCapabilities {
     proxy_settings_calls: Arc<AtomicUsize>,
+    generation: Arc<AtomicU64>,
 }
 
-impl PlatformCapabilities for CountingCapabilities {
-    fn proxy_settings(&self) -> ProxySettings {
+impl PlatformRuntimeState for CountingCapabilities {
+    fn proxy_generation(&self) -> u64 {
+        self.generation.load(Ordering::Relaxed)
+    }
+
+    fn current_platform_state(&self) -> PlatformRuntimeView {
         self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
-        ProxySettings::default()
+        PlatformRuntimeView::with_proxy_settings(
+            self.generation.load(Ordering::Relaxed),
+            ProxySettings::default(),
+        )
     }
 }
 

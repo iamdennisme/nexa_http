@@ -1,13 +1,21 @@
 use super::{PlatformFeatures, ProxySettings};
 
-pub trait PlatformCapabilities: Send + Sync + 'static {
-    fn proxy_settings(&self) -> ProxySettings;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlatformRuntimeView {
+    pub proxy_generation: u64,
+    pub platform_features: PlatformFeatures,
+}
 
-    fn platform_features(&self) -> PlatformFeatures {
-        PlatformFeatures::with_env_fallback(self.proxy_settings())
+impl PlatformRuntimeView {
+    pub fn with_proxy_settings(proxy_generation: u64, proxy: ProxySettings) -> Self {
+        Self {
+            proxy_generation,
+            platform_features: PlatformFeatures::with_env_fallback(proxy),
+        }
     }
+}
 
-    fn platform_signature(&self) -> String {
-        self.platform_features().signature()
-    }
+pub trait PlatformRuntimeState: Send + Sync + 'static {
+    fn proxy_generation(&self) -> u64;
+    fn current_platform_state(&self) -> PlatformRuntimeView;
 }

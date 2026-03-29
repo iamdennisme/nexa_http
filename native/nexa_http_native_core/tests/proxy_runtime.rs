@@ -1,10 +1,9 @@
-use nexa_http_native_core::platform::PlatformCapabilities;
-use nexa_http_native_core::platform::ProxySettings;
+use nexa_http_native_core::platform::{PlatformRuntimeState, PlatformRuntimeView, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 #[test]
 fn proxy_settings_signature_is_stable() {
@@ -16,29 +15,37 @@ fn proxy_settings_signature_is_stable() {
 struct SwitchingProxyCapabilities {
     use_proxy: Arc<AtomicBool>,
     proxy_settings_calls: Arc<AtomicUsize>,
+    generation: Arc<AtomicU64>,
 }
 
-impl PlatformCapabilities for SwitchingProxyCapabilities {
-    fn proxy_settings(&self) -> ProxySettings {
+impl PlatformRuntimeState for SwitchingProxyCapabilities {
+    fn proxy_generation(&self) -> u64 {
+        self.generation.load(Ordering::Relaxed)
+    }
+
+    fn current_platform_state(&self) -> PlatformRuntimeView {
         self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
-        if self.use_proxy.load(Ordering::Relaxed) {
+        let proxy = if self.use_proxy.load(Ordering::Relaxed) {
             ProxySettings {
                 http: Some("http://127.0.0.1:8888".to_string()),
                 ..ProxySettings::default()
             }
         } else {
             ProxySettings::default()
-        }
+        };
+        PlatformRuntimeView::with_proxy_settings(self.generation.load(Ordering::Relaxed), proxy)
     }
 }
 
 #[test]
-fn proxy_signature_drift_does_not_trigger_steady_state_refresh() {
+fn unchanged_generation_keeps_proxy_state_on_the_steady_state_hot_path() {
     let switch = Arc::new(AtomicBool::new(false));
     let calls = Arc::new(AtomicUsize::new(0));
+    let generation = Arc::new(AtomicU64::new(0));
     let capabilities = SwitchingProxyCapabilities {
         use_proxy: Arc::clone(&switch),
         proxy_settings_calls: Arc::clone(&calls),
+        generation: Arc::clone(&generation),
     };
     let runtime = NexaHttpRuntime::new(capabilities);
     let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
@@ -61,7 +68,33 @@ fn proxy_signature_drift_does_not_trigger_steady_state_refresh() {
     assert_eq!(
         calls.load(Ordering::Relaxed),
         calls_after_create,
-        "signature drift alone should not trigger refresh work on the steady-state hot path",
+        "snapshot drift alone should not trigger work on the steady-state hot path without a generation change",
+    );
+}
+
+#[test]
+fn changed_generation_is_observable_through_runtime_state() {
+    let switch = Arc::new(AtomicBool::new(false));
+    let calls = Arc::new(AtomicUsize::new(0));
+    let generation = Arc::new(AtomicU64::new(0));
+    let capabilities = SwitchingProxyCapabilities {
+        use_proxy: Arc::clone(&switch),
+        proxy_settings_calls: Arc::clone(&calls),
+        generation: Arc::clone(&generation),
+    };
+
+    let initial = capabilities.current_platform_state();
+    assert_eq!(initial.proxy_generation, 0);
+    assert_eq!(initial.platform_features.proxy, ProxySettings::default());
+
+    switch.store(true, Ordering::Relaxed);
+    generation.store(1, Ordering::Relaxed);
+
+    let refreshed = capabilities.current_platform_state();
+    assert_eq!(refreshed.proxy_generation, 1);
+    assert_eq!(
+        refreshed.platform_features.proxy.http.as_deref(),
+        Some("http://127.0.0.1:8888"),
     );
 }
 

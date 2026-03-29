@@ -1,30 +1,118 @@
 use nexa_http_native_core::api::ffi::{
     NexaHttpBinaryResult, NexaHttpExecuteCallback, NexaHttpRequestArgs,
 };
-use nexa_http_native_core::platform::{PlatformCapabilities, ProxySettings};
+use nexa_http_native_core::platform::{PlatformRuntimeState, PlatformRuntimeView, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
 use once_cell::sync::Lazy;
 use reqwest::Url;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::c_char;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+    RwLock,
+};
+use std::thread;
+use std::time::Duration;
 
 #[cfg(target_os = "android")]
 use std::process::Command;
-#[cfg(target_os = "android")]
-use std::sync::Mutex;
-#[cfg(target_os = "android")]
-use std::time::{Duration, Instant};
 
-struct AndroidPlatformCapabilities;
+const PROXY_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
 
-impl PlatformCapabilities for AndroidPlatformCapabilities {
-    fn proxy_settings(&self) -> ProxySettings {
-        current_proxy_settings()
+#[derive(Debug)]
+pub struct ProxyRuntimeState {
+    generation: AtomicU64,
+    snapshot: RwLock<ProxySettings>,
+}
+
+impl ProxyRuntimeState {
+    pub fn new(initial_snapshot: ProxySettings) -> Self {
+        Self {
+            generation: AtomicU64::new(0),
+            snapshot: RwLock::new(initial_snapshot),
+        }
+    }
+
+    pub fn current_proxy_snapshot(&self) -> ProxySettings {
+        self.snapshot
+            .read()
+            .expect("proxy runtime state poisoned")
+            .clone()
+    }
+
+    pub fn current_platform_state(&self) -> PlatformRuntimeView {
+        let snapshot = self
+            .snapshot
+            .read()
+            .expect("proxy runtime state poisoned")
+            .clone();
+        PlatformRuntimeView::with_proxy_settings(
+            self.generation.load(Ordering::SeqCst),
+            snapshot,
+        )
+    }
+
+    pub fn update_snapshot(&self, next_snapshot: ProxySettings) -> bool {
+        let mut snapshot = self
+            .snapshot
+            .write()
+            .expect("proxy runtime state poisoned");
+        if *snapshot == next_snapshot {
+            return false;
+        }
+
+        *snapshot = next_snapshot;
+        self.generation.fetch_add(1, Ordering::SeqCst);
+        true
+    }
+
+    pub fn refresh_with<F>(&self, load_snapshot: F) -> PlatformRuntimeView
+    where
+        F: FnOnce() -> ProxySettings,
+    {
+        let next_snapshot = load_snapshot();
+        self.update_snapshot(next_snapshot);
+        self.current_platform_state()
     }
 }
 
-static RUNTIME: Lazy<NexaHttpRuntime<AndroidPlatformCapabilities>> =
-    Lazy::new(|| NexaHttpRuntime::new(AndroidPlatformCapabilities));
+#[derive(Debug)]
+struct AndroidPlatformRuntime {
+    state: Arc<ProxyRuntimeState>,
+}
+
+impl AndroidPlatformRuntime {
+    fn new() -> Self {
+        let state = Arc::new(ProxyRuntimeState::new(current_proxy_settings()));
+        spawn_proxy_refresh_worker(Arc::clone(&state));
+        Self { state }
+    }
+}
+
+impl PlatformRuntimeState for AndroidPlatformRuntime {
+    fn proxy_generation(&self) -> u64 {
+        self.state.generation.load(Ordering::SeqCst)
+    }
+
+    fn current_platform_state(&self) -> PlatformRuntimeView {
+        self.state.current_platform_state()
+    }
+}
+
+fn spawn_proxy_refresh_worker(state: Arc<ProxyRuntimeState>) {
+    let _ = thread::Builder::new()
+        .name("nexa-http-android-proxy".to_string())
+        .spawn(move || {
+            loop {
+                thread::sleep(PROXY_REFRESH_INTERVAL);
+                state.update_snapshot(current_proxy_settings());
+            }
+        });
+}
+
+static RUNTIME: Lazy<NexaHttpRuntime<AndroidPlatformRuntime>> =
+    Lazy::new(|| NexaHttpRuntime::new(AndroidPlatformRuntime::new()));
 
 #[unsafe(no_mangle)]
 pub extern "C" fn nexa_http_client_create(config_json: *const c_char) -> u64 {
@@ -61,7 +149,7 @@ pub extern "C" fn nexa_http_client_close(client_id: u64) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn nexa_http_binary_result_free(value: *mut NexaHttpBinaryResult) {
-    NexaHttpRuntime::<AndroidPlatformCapabilities>::binary_result_free(value);
+    NexaHttpRuntime::<AndroidPlatformRuntime>::binary_result_free(value);
 }
 
 pub fn current_proxy_settings_for_test(props: &BTreeMap<String, String>) -> ProxySettings {
@@ -71,8 +159,7 @@ pub fn current_proxy_settings_for_test(props: &BTreeMap<String, String>) -> Prox
 fn current_proxy_settings() -> ProxySettings {
     #[cfg(target_os = "android")]
     {
-        let mut cache = ANDROID_PROXY_SETTINGS_CACHE.lock().unwrap();
-        cache.get_or_refresh(Instant::now(), load_current_proxy_settings)
+        load_current_proxy_settings()
     }
 
     #[cfg(not(target_os = "android"))]
@@ -192,53 +279,6 @@ fn with_port(host: String, port: Option<String>, default_port: u16) -> Option<St
         .unwrap_or(default_port);
     Some(format!("{host}:{port}"))
 }
-
-#[cfg(target_os = "android")]
-#[derive(Debug, Clone)]
-struct CachedProxySettings {
-    settings: ProxySettings,
-    refreshed_at: Instant,
-}
-
-#[cfg(target_os = "android")]
-#[derive(Debug)]
-struct ProxySettingsCache {
-    ttl: Duration,
-    cached: Option<CachedProxySettings>,
-}
-
-#[cfg(target_os = "android")]
-impl ProxySettingsCache {
-    fn new(ttl: Duration) -> Self {
-        Self { ttl, cached: None }
-    }
-
-    fn get_or_refresh<F>(&mut self, now: Instant, refresh: F) -> ProxySettings
-    where
-        F: FnOnce() -> ProxySettings,
-    {
-        if let Some(cached) = &self.cached {
-            if now
-                .checked_duration_since(cached.refreshed_at)
-                .map(|elapsed| elapsed < self.ttl)
-                .unwrap_or(false)
-            {
-                return cached.settings.clone();
-            }
-        }
-
-        let settings = refresh();
-        self.cached = Some(CachedProxySettings {
-            settings: settings.clone(),
-            refreshed_at: now,
-        });
-        settings
-    }
-}
-
-#[cfg(target_os = "android")]
-static ANDROID_PROXY_SETTINGS_CACHE: Lazy<Mutex<ProxySettingsCache>> =
-    Lazy::new(|| Mutex::new(ProxySettingsCache::new(Duration::from_secs(5))));
 
 #[cfg(target_os = "android")]
 fn load_current_proxy_settings() -> ProxySettings {

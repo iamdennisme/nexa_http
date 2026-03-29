@@ -40,6 +40,7 @@ This means:
 - Dart stays responsible for API shape and call orchestration
 - Rust stays responsible for actual transport execution
 - platform differences are handled by native platform modules, not by the public Dart API
+- proxy state is owned by each native platform runtime, and `nexa_http_native_core` only rebuilds clients when the platform proxy generation changes
 
 ## 3. Usage
 

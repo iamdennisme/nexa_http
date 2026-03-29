@@ -4,7 +4,7 @@ use crate::api::ffi::{
 };
 use crate::api::request::{NativeHttpClientConfig, NativeHttpHeader, NativeHttpRequest};
 use crate::api::response::{NativeHttpOwnedBody, NativeHttpRawResponse};
-use crate::platform::{PlatformCapabilities, PlatformFeatures, apply_proxy_strategy};
+use crate::platform::{PlatformFeatures, PlatformRuntimeState, apply_proxy_strategy};
 use crate::runtime::client_registry::ClientEntry;
 use crate::runtime::tokio_runtime::{build_runtime, default_max_inflight_requests};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -17,15 +17,15 @@ use std::slice::from_raw_parts;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::sync::Semaphore;
 
-pub struct NexaHttpRuntime<P: PlatformCapabilities> {
+pub struct NexaHttpRuntime<P: PlatformRuntimeState> {
     inner: Arc<NexaHttpRuntimeInner<P>>,
 }
 
-struct NexaHttpRuntimeInner<P: PlatformCapabilities> {
+struct NexaHttpRuntimeInner<P: PlatformRuntimeState> {
     capabilities: P,
     clients: Mutex<HashMap<u64, ClientEntry>>,
     next_client_id: AtomicU64,
@@ -33,18 +33,7 @@ struct NexaHttpRuntimeInner<P: PlatformCapabilities> {
     request_limiter: Arc<Semaphore>,
 }
 
-const REFRESH_PROBE_INTERVAL: Duration = Duration::from_secs(30);
-const REFRESH_FAILURE_BACKOFF: Duration = Duration::from_secs(5);
-
-fn refresh_probe_interval() -> Duration {
-    REFRESH_PROBE_INTERVAL
-}
-
-fn refresh_failure_backoff() -> Duration {
-    REFRESH_FAILURE_BACKOFF
-}
-
-impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
+impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
     pub fn new(capabilities: P) -> Self {
         Self {
             inner: Arc::new(NexaHttpRuntimeInner {
@@ -67,8 +56,8 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
             Err(_) => return 0,
         };
 
-        let platform_features = self.inner.capabilities.platform_features();
-        let client = match build_client(&config, &platform_features) {
+        let current_state = self.inner.capabilities.current_platform_state();
+        let client = match build_client(&config, &current_state.platform_features) {
             Ok(client) => client,
             Err(_) => return 0,
         };
@@ -77,8 +66,8 @@ impl<P: PlatformCapabilities> NexaHttpRuntime<P> {
         let entry = ClientEntry::new(
             client,
             config,
-            platform_features.signature(),
-            Instant::now() + refresh_probe_interval(),
+            current_state.platform_features.signature(),
+            current_state.proxy_generation,
         );
         self.inner.clients.lock().unwrap().insert(client_id, entry);
         client_id
@@ -306,7 +295,7 @@ fn build_client(
         .map_err(|error| NativeError::new("invalid_config", error.to_string()))
 }
 
-async fn execute_request_with_limit<P: PlatformCapabilities>(
+async fn execute_request_with_limit<P: PlatformRuntimeState>(
     inner: Arc<NexaHttpRuntimeInner<P>>,
     client_id: u64,
     request: NativeHttpRequest,
@@ -321,93 +310,80 @@ async fn execute_request_with_limit<P: PlatformCapabilities>(
     execute_request(inner, client_id, request).await
 }
 
-async fn execute_request<P: PlatformCapabilities>(
+async fn execute_request<P: PlatformRuntimeState>(
     inner: Arc<NexaHttpRuntimeInner<P>>,
     client_id: u64,
     request: NativeHttpRequest,
 ) -> Result<NativeHttpRawResponse, NativeError> {
-    let now = Instant::now();
-    let client = {
-        let mut clients = inner.clients.lock().unwrap();
-        let entry = clients
-            .get_mut(&client_id)
-            .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
-        if entry.refresh_in_progress {
-            entry.client.clone()
-        } else {
-            let probe_due = now >= entry.next_refresh_probe_at;
-            if !entry.needs_refresh && !probe_due {
-                entry.client.clone()
-            } else {
-                entry.needs_refresh = true;
-                entry.refresh_in_progress = true;
-                drop(clients);
-                refresh_client_and_clone(&inner, client_id, &request.url)?
-            }
-        }
-    };
+    let client = resolve_client_for_request(&inner, client_id, &request.url)?;
 
     execute_request_with_client_async(&client, request).await
 }
 
-fn refresh_client_and_clone<P: PlatformCapabilities>(
+fn resolve_client_for_request<P: PlatformRuntimeState>(
     inner: &Arc<NexaHttpRuntimeInner<P>>,
     client_id: u64,
     request_url: &str,
 ) -> Result<Client, NativeError> {
-    let (config, previous_signature) = {
-        let clients = inner.clients.lock().unwrap();
-        let entry = clients
-            .get(&client_id)
-            .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
-        if !entry.needs_refresh || !entry.refresh_in_progress {
-            return Ok(entry.client.clone());
-        }
-        (
-            entry.config.clone(),
-            entry.platform_features_signature.clone(),
-        )
-    };
-
-    let platform_features = inner.capabilities.platform_features();
-    let signature = platform_features.signature();
-    let rebuilt_client = if signature == previous_signature {
-        None
-    } else {
-        match build_client(&config, &platform_features) {
-            Ok(client) => Some(client),
-            Err(error) => {
-                let mut clients = inner.clients.lock().unwrap();
-                let entry = clients
-                    .get_mut(&client_id)
-                    .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
-                if !entry.refresh_in_progress {
-                    return Ok(entry.client.clone());
-                }
-                entry.needs_refresh = false;
-                entry.refresh_in_progress = false;
-                entry.next_refresh_probe_at = Instant::now() + refresh_failure_backoff();
-                return Err(error.with_uri(request_url.to_string()));
+    loop {
+        let plan = {
+            let clients = inner.clients.lock().unwrap();
+            let entry = clients
+                .get(&client_id)
+                .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
+            let current_generation = inner.capabilities.proxy_generation();
+            if entry.proxy_generation == current_generation {
+                return Ok(entry.client.clone());
             }
-        }
-    };
 
-    let mut clients = inner.clients.lock().unwrap();
-    let entry = clients
-        .get_mut(&client_id)
-        .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
-    if !entry.refresh_in_progress {
+            ClientRefreshPlan {
+                previous_generation: entry.proxy_generation,
+                previous_signature: entry.platform_features_signature.clone(),
+                config: entry.config.clone(),
+                current_generation,
+            }
+        };
+
+        let current_state = inner.capabilities.current_platform_state();
+        if current_state.proxy_generation != plan.current_generation {
+            continue;
+        }
+        let next_signature = current_state.platform_features.signature();
+        let rebuilt_client = if next_signature == plan.previous_signature {
+            None
+        } else {
+            Some(
+                build_client(&plan.config, &current_state.platform_features)
+                    .map_err(|error| error.with_uri(request_url.to_string()))?,
+            )
+        };
+
+        let mut clients = inner.clients.lock().unwrap();
+        let entry = clients
+            .get_mut(&client_id)
+            .ok_or_else(|| NativeError::new("invalid_client", "Unknown client handle."))?;
+
+        if entry.proxy_generation != plan.previous_generation
+            || entry.platform_features_signature != plan.previous_signature
+        {
+            continue;
+        }
+
+        if let Some(client) = rebuilt_client {
+            entry.client = client;
+            entry.platform_features_signature = next_signature;
+        }
+        entry.proxy_generation = current_state.proxy_generation;
         return Ok(entry.client.clone());
     }
+}
 
-    if let Some(client) = rebuilt_client {
-        entry.client = client;
-        entry.platform_features_signature = signature;
-    }
-    entry.needs_refresh = false;
-    entry.refresh_in_progress = false;
-    entry.next_refresh_probe_at = Instant::now() + refresh_probe_interval();
-    Ok(entry.client.clone())
+#[derive(Clone)]
+struct ClientRefreshPlan {
+    previous_generation: u64,
+    previous_signature: String,
+    config: NativeHttpClientConfig,
+    current_generation: u64,
 }
 
 async fn execute_request_with_client_async(
@@ -608,22 +584,26 @@ fn free_header_entries_buffer(headers_ptr: *mut NexaHttpHeaderEntry, headers_len
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::platform::ProxySettings;
+    use crate::platform::{PlatformRuntimeView, ProxySettings};
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::os::raw::c_char;
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
     #[derive(Clone)]
     struct CountingCapabilities {
         proxy_settings_calls: Arc<AtomicUsize>,
     }
 
-    impl PlatformCapabilities for CountingCapabilities {
-        fn proxy_settings(&self) -> ProxySettings {
+    impl PlatformRuntimeState for CountingCapabilities {
+        fn proxy_generation(&self) -> u64 {
+            0
+        }
+
+        fn current_platform_state(&self) -> PlatformRuntimeView {
             self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
-            ProxySettings::default()
+            PlatformRuntimeView::with_proxy_settings(0, ProxySettings::default())
         }
     }
 
@@ -631,19 +611,28 @@ mod tests {
     struct SwitchingProxyCapabilities {
         use_proxy: Arc<AtomicBool>,
         proxy_settings_calls: Arc<AtomicUsize>,
+        generation: Arc<AtomicU64>,
     }
 
-    impl PlatformCapabilities for SwitchingProxyCapabilities {
-        fn proxy_settings(&self) -> ProxySettings {
+    impl PlatformRuntimeState for SwitchingProxyCapabilities {
+        fn proxy_generation(&self) -> u64 {
+            self.generation.load(Ordering::Relaxed)
+        }
+
+        fn current_platform_state(&self) -> PlatformRuntimeView {
             self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
-            if self.use_proxy.load(Ordering::Relaxed) {
+            let proxy = if self.use_proxy.load(Ordering::Relaxed) {
                 ProxySettings {
                     http: Some("http://127.0.0.1:8888".to_string()),
                     ..ProxySettings::default()
                 }
             } else {
                 ProxySettings::default()
-            }
+            };
+            PlatformRuntimeView::with_proxy_settings(
+                self.generation.load(Ordering::Relaxed),
+                proxy,
+            )
         }
     }
 
@@ -651,35 +640,52 @@ mod tests {
     struct InvalidProxyCapabilities {
         use_invalid_proxy: Arc<AtomicBool>,
         proxy_settings_calls: Arc<AtomicUsize>,
+        generation: Arc<AtomicU64>,
     }
 
-    impl PlatformCapabilities for InvalidProxyCapabilities {
-        fn proxy_settings(&self) -> ProxySettings {
+    impl PlatformRuntimeState for InvalidProxyCapabilities {
+        fn proxy_generation(&self) -> u64 {
+            self.generation.load(Ordering::Relaxed)
+        }
+
+        fn current_platform_state(&self) -> PlatformRuntimeView {
             self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
-            if self.use_invalid_proxy.load(Ordering::Relaxed) {
+            let proxy = if self.use_invalid_proxy.load(Ordering::Relaxed) {
                 ProxySettings {
                     http: Some("not a valid proxy url".to_string()),
                     ..ProxySettings::default()
                 }
             } else {
                 ProxySettings::default()
-            }
+            };
+            PlatformRuntimeView::with_proxy_settings(
+                self.generation.load(Ordering::Relaxed),
+                proxy,
+            )
         }
     }
 
     #[derive(Clone)]
-    struct DelayedProbeCapabilities {
+    struct DelayedGenerationCapabilities {
         delay_refresh: Arc<AtomicBool>,
         proxy_settings_calls: Arc<AtomicUsize>,
+        generation: Arc<AtomicU64>,
     }
 
-    impl PlatformCapabilities for DelayedProbeCapabilities {
-        fn proxy_settings(&self) -> ProxySettings {
+    impl PlatformRuntimeState for DelayedGenerationCapabilities {
+        fn proxy_generation(&self) -> u64 {
+            self.generation.load(Ordering::Relaxed)
+        }
+
+        fn current_platform_state(&self) -> PlatformRuntimeView {
             self.proxy_settings_calls.fetch_add(1, Ordering::Relaxed);
             if self.delay_refresh.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_millis(50));
             }
-            ProxySettings::default()
+            PlatformRuntimeView::with_proxy_settings(
+                self.generation.load(Ordering::Relaxed),
+                ProxySettings::default(),
+            )
         }
     }
 
@@ -732,23 +738,8 @@ mod tests {
         }
     }
 
-    fn expire_refresh_probe_for_test<P: PlatformCapabilities>(
-        runtime: &NexaHttpRuntime<P>,
-        client_id: u64,
-    ) -> bool {
-        let mut clients = runtime.inner.clients.lock().unwrap();
-        let Some(entry) = clients.get_mut(&client_id) else {
-            return false;
-        };
-        entry.next_refresh_probe_at = entry
-            .next_refresh_probe_at
-            .checked_sub(refresh_probe_interval() + Duration::from_millis(1))
-            .expect("test probe timestamp should support moving backwards");
-        true
-    }
-
     #[test]
-    fn expired_refresh_probe_clears_after_one_stable_lookup() {
+    fn unchanged_generation_reuses_existing_client() {
         let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
         let runtime = NexaHttpRuntime::new(CountingCapabilities {
             proxy_settings_calls: Arc::clone(&proxy_settings_calls),
@@ -760,30 +751,27 @@ mod tests {
         assert_ne!(client_id, 0);
         let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
-        assert!(
-            expire_refresh_probe_for_test(&runtime, client_id),
-            "test should be able to expire the client refresh probe",
-        );
-
-        let refreshed = runtime.execute_binary(client_id, request.as_args());
-        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(refreshed);
+        let warmed = runtime.execute_binary(client_id, request.as_args());
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(warmed);
         let steady_state = runtime.execute_binary(client_id, request.as_args());
         NexaHttpRuntime::<CountingCapabilities>::binary_result_free(steady_state);
 
         assert_eq!(
             proxy_settings_calls.load(Ordering::Relaxed),
-            calls_after_create + 1,
-            "a stable-signature refresh should do one lookup and then return to the fast path",
+            calls_after_create,
+            "unchanged generation should stay on the fast path after initial client creation",
         );
     }
 
     #[test]
-    fn expired_refresh_probe_rebuilds_once_when_signature_changes() {
+    fn incremented_generation_rebuilds_once_when_signature_changes() {
         let switch = Arc::new(AtomicBool::new(false));
         let calls = Arc::new(AtomicUsize::new(0));
+        let generation = Arc::new(AtomicU64::new(0));
         let runtime = NexaHttpRuntime::new(SwitchingProxyCapabilities {
             use_proxy: Arc::clone(&switch),
             proxy_settings_calls: Arc::clone(&calls),
+            generation: Arc::clone(&generation),
         });
         let config = client_config_json();
         let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
@@ -796,10 +784,7 @@ mod tests {
         NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
 
         switch.store(true, Ordering::Relaxed);
-        assert!(
-            expire_refresh_probe_for_test(&runtime, client_id),
-            "test should be able to expire the client refresh probe",
-        );
+        generation.store(1, Ordering::Relaxed);
 
         let refreshed = runtime.execute_binary(client_id, request.as_args());
         NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(refreshed);
@@ -809,17 +794,19 @@ mod tests {
         assert_eq!(
             calls.load(Ordering::Relaxed),
             calls_after_create + 1,
-            "an explicit refresh marker should trigger one refresh lookup",
+            "a generation change should trigger one rebuild lookup",
         );
     }
 
     #[test]
-    fn failed_refresh_probe_backs_off_before_retrying() {
+    fn invalid_proxy_generation_change_retries_on_next_request() {
         let use_invalid_proxy = Arc::new(AtomicBool::new(false));
         let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
+        let generation = Arc::new(AtomicU64::new(0));
         let runtime = NexaHttpRuntime::new(InvalidProxyCapabilities {
             use_invalid_proxy: Arc::clone(&use_invalid_proxy),
             proxy_settings_calls: Arc::clone(&proxy_settings_calls),
+            generation: Arc::clone(&generation),
         });
         let config = client_config_json();
         let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
@@ -829,43 +816,29 @@ mod tests {
         let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
         use_invalid_proxy.store(true, Ordering::Relaxed);
-        assert!(
-            expire_refresh_probe_for_test(&runtime, client_id),
-            "test should be able to expire the client refresh probe",
-        );
+        generation.store(1, Ordering::Relaxed);
 
         let failed_refresh = runtime.execute_binary(client_id, request.as_args());
         NexaHttpRuntime::<InvalidProxyCapabilities>::binary_result_free(failed_refresh);
-        let during_backoff = runtime.execute_binary(client_id, request.as_args());
-        NexaHttpRuntime::<InvalidProxyCapabilities>::binary_result_free(during_backoff);
-
-        assert_eq!(
-            proxy_settings_calls.load(Ordering::Relaxed),
-            calls_after_create + 1,
-            "a failed refresh should not immediately retry on the next request",
-        );
-
-        assert!(
-            expire_refresh_probe_for_test(&runtime, client_id),
-            "test should be able to expire the client refresh probe again",
-        );
-        let retried_refresh = runtime.execute_binary(client_id, request.as_args());
-        NexaHttpRuntime::<InvalidProxyCapabilities>::binary_result_free(retried_refresh);
+        let first_retry = runtime.execute_binary(client_id, request.as_args());
+        NexaHttpRuntime::<InvalidProxyCapabilities>::binary_result_free(first_retry);
 
         assert_eq!(
             proxy_settings_calls.load(Ordering::Relaxed),
             calls_after_create + 2,
-            "refresh should become eligible again after the next bounded probe window",
+            "a failed rebuild leaves the older client generation in place, so the next request retries",
         );
     }
 
     #[test]
-    fn expired_refresh_probe_is_single_flight_under_concurrency() {
+    fn changed_generation_settles_back_to_steady_state_after_concurrency() {
         let delay_refresh = Arc::new(AtomicBool::new(false));
         let proxy_settings_calls = Arc::new(AtomicUsize::new(0));
-        let runtime = NexaHttpRuntime::new(DelayedProbeCapabilities {
+        let generation = Arc::new(AtomicU64::new(0));
+        let runtime = NexaHttpRuntime::new(DelayedGenerationCapabilities {
             delay_refresh: Arc::clone(&delay_refresh),
             proxy_settings_calls: Arc::clone(&proxy_settings_calls),
+            generation: Arc::clone(&generation),
         });
         let config = client_config_json();
 
@@ -874,10 +847,7 @@ mod tests {
         let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
         delay_refresh.store(true, Ordering::Relaxed);
-        assert!(
-            expire_refresh_probe_for_test(&runtime, client_id),
-            "test should be able to expire the client refresh probe",
-        );
+        generation.store(1, Ordering::Relaxed);
 
         let inner = Arc::clone(&runtime.inner);
         runtime.inner.tokio.block_on(async move {
@@ -895,10 +865,20 @@ mod tests {
             }
         });
 
+        let calls_after_concurrency = proxy_settings_calls.load(Ordering::Relaxed);
+        assert!(
+            calls_after_concurrency >= calls_after_create + 1,
+            "at least one concurrent request should observe the changed generation",
+        );
+
+        let steady_request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
+        let steady_state = runtime.execute_binary(client_id, steady_request.as_args());
+        NexaHttpRuntime::<DelayedGenerationCapabilities>::binary_result_free(steady_state);
+
         assert_eq!(
             proxy_settings_calls.load(Ordering::Relaxed),
-            calls_after_create + 1,
-            "only one request should perform the expensive refresh probe work",
+            calls_after_concurrency,
+            "once one concurrent request commits the new generation, later steady-state requests should stay on the fast path",
         );
     }
 }
