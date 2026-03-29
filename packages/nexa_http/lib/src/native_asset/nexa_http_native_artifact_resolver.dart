@@ -58,23 +58,8 @@ Future<File> resolveNexaHttpNativeArtifactFile({
     return packagedFile;
   }
 
-  final manifestPath = environment[_manifestPathEnvironmentVariable]?.trim();
-  final releaseBaseUrl = environment[_releaseBaseUrlEnvironmentVariable]?.trim();
-  final shouldPreferManifest =
-      (manifestPath != null && manifestPath.isNotEmpty) ||
-      (releaseBaseUrl != null && releaseBaseUrl.isNotEmpty) ||
-      defaultSourceDir != null;
-  if (shouldPreferManifest) {
-    return _downloadFromManifest(
-      cacheRoot: cacheRoot,
-      packageVersion: packageVersion,
-      targetOS: targetOS,
-      targetArchitecture: targetArchitecture,
-      targetSdk: targetSdk,
-      environment: environment,
-    );
-  }
-
+  // Resolution order is: explicit lib path -> explicit source dir -> packaged
+  // artifact -> default source dir/build -> manifest download.
   if (defaultSourceDir != null && defaultSourceDir.isNotEmpty) {
     final discovered = await _resolveFromSourceDir(
       defaultSourceDir,

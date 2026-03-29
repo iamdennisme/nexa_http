@@ -7,6 +7,16 @@ final class NexaHttpPlatformRegistry {
 
   static NexaHttpNativeRuntime? instance;
 
+  static bool get isRegistered => instance != null;
+
+  static void register(NexaHttpNativeRuntime runtime) {
+    instance ??= runtime;
+  }
+
+  static void reset() {
+    instance = null;
+  }
+
   static NexaHttpNativeRuntime requireInstance() {
     final runtime = instance;
     if (runtime == null) {

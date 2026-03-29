@@ -18,6 +18,8 @@
 - `fixture_server/`：本地 HTTP fixture server 与代理验证工具
 - `scripts/`：原生产物构建、分发和工作区辅助脚本
 
+当前受 git 跟踪、也是实际生效的工作区包就是上面的 `nexa_http*` 系列。如果你本地磁盘里还残留 `packages/rust_net*` 目录，应把它们视为早期改名后的遗留产物，而不是当前工作区的一部分。
+
 ## 架构说明
 
 - `nexa_http` 现在是纯 Dart 包，不再负责构建、下载或自行探测原生产物。

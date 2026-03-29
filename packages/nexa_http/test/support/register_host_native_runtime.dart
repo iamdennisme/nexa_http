@@ -1,7 +1,7 @@
 import 'dart:ffi';
 import 'dart:io';
 
-import 'package:nexa_http/src/loader/nexa_http_platform_registry.dart';
+import 'package:nexa_http/nexa_http_native_runtime.dart';
 import 'package:path/path.dart' as p;
 
 Future<void> registerHostNativeRuntimeForTests() async {
@@ -10,8 +10,10 @@ Future<void> registerHostNativeRuntimeForTests() async {
   }
 
   final libraryPath = await _resolveHostLibraryPath();
-  NexaHttpPlatformRegistry.instance ??= _HostTestRuntime(
-    libraryPath,
+  registerNexaHttpNativeRuntime(
+    _HostTestRuntime(
+      libraryPath,
+    ),
   );
 }
 

@@ -18,6 +18,8 @@ The public Dart API stays in Dart. Transport execution stays in Rust.
 - `fixture_server/`: local HTTP fixture server and proxy smoke tooling
 - `scripts/`: native build, distribution, and workspace helper scripts
 
+Active tracked workspace packages are the `nexa_http*` packages above. If you still have local `packages/rust_net*` directories on disk, treat them as legacy residue from the earlier rename and not as part of the current workspace layout.
+
 ## Architecture
 
 - `nexa_http` is pure Dart. It no longer builds, downloads, or discovers native artifacts by itself.

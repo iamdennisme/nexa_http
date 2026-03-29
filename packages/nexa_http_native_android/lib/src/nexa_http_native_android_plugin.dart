@@ -1,13 +1,13 @@
 import 'dart:ffi';
 import 'dart:io';
 
-import 'package:nexa_http/src/loader/nexa_http_platform_registry.dart';
+import 'package:nexa_http/nexa_http_native_runtime.dart';
 
 final class NexaHttpNativeAndroidPlugin {
   NexaHttpNativeAndroidPlugin._();
 
   static void registerWith() {
-    NexaHttpPlatformRegistry.instance ??= const _NexaHttpNativeAndroidRuntime();
+    registerNexaHttpNativeRuntime(const _NexaHttpNativeAndroidRuntime());
   }
 }
 
