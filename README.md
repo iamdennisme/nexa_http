@@ -86,7 +86,9 @@ Production usage should treat `git + tag` as first-class. `path` mode is intende
 
 ### Client usage
 
-`NexaHttpRequest` currently provides four request helpers: `get`, `post`, `put`, and `delete`.
+`NexaHttpRequest` supports `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, and `OPTIONS`.
+
+Convenience helpers are provided for `get`, `post`, `put`, and `delete`. For the others, use the base constructor with `method`.
 
 ```dart
 import 'dart:convert';
@@ -135,6 +137,29 @@ final putResponse = await client.execute(
 final deleteResponse = await client.execute(
   NexaHttpRequest.delete(
     uri: Uri(path: '/users/1'),
+  ),
+);
+
+final patchResponse = await client.execute(
+  NexaHttpRequest(
+    method: NexaHttpMethod.patch,
+    uri: Uri(path: '/users/1'),
+    headers: {'content-type': 'application/json'},
+    bodyBytes: utf8.encode('{"name":"alice-patched"}'),
+  ),
+);
+
+final headResponse = await client.execute(
+  NexaHttpRequest(
+    method: NexaHttpMethod.head,
+    uri: Uri(path: '/healthz'),
+  ),
+);
+
+final optionsResponse = await client.execute(
+  NexaHttpRequest(
+    method: NexaHttpMethod.options,
+    uri: Uri(path: '/users'),
   ),
 );
 ```

@@ -86,7 +86,9 @@ dependencies:
 
 ### 客户端调用
 
-`NexaHttpRequest` 当前提供 4 个请求 helper：`get`、`post`、`put`、`delete`。
+`NexaHttpRequest` 支持 `GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`HEAD`、`OPTIONS`。
+
+其中 `get`、`post`、`put`、`delete` 有便捷 helper，其他方法可通过基础构造并显式传入 `method`。
 
 ```dart
 import 'dart:convert';
@@ -135,6 +137,29 @@ final putResponse = await client.execute(
 final deleteResponse = await client.execute(
   NexaHttpRequest.delete(
     uri: Uri(path: '/users/1'),
+  ),
+);
+
+final patchResponse = await client.execute(
+  NexaHttpRequest(
+    method: NexaHttpMethod.patch,
+    uri: Uri(path: '/users/1'),
+    headers: {'content-type': 'application/json'},
+    bodyBytes: utf8.encode('{"name":"alice-patched"}'),
+  ),
+);
+
+final headResponse = await client.execute(
+  NexaHttpRequest(
+    method: NexaHttpMethod.head,
+    uri: Uri(path: '/healthz'),
+  ),
+);
+
+final optionsResponse = await client.execute(
+  NexaHttpRequest(
+    method: NexaHttpMethod.options,
+    uri: Uri(path: '/users'),
   ),
 );
 ```
