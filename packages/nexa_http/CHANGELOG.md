@@ -21,8 +21,8 @@
 
 ## 0.1.0
 
-- Split domain contracts into a standalone `rust_net_core` package.
-- Keep Flutter FFI transport and Dio integration in `rust_net`.
+- Split domain contracts into a standalone native-core package.
+- Keep Flutter FFI transport and Dio integration in the public Dart package.
 - Convert repository to a multi-package workspace (`packages/*`).
 
 ## 0.0.1
