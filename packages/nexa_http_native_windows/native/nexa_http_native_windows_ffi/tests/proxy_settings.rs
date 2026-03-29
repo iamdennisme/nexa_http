@@ -9,6 +9,6 @@ fn windows_parses_split_proxy_server_entries() {
 
     assert_eq!(settings.http.as_deref(), Some("http://127.0.0.1:8080/"));
     assert_eq!(settings.https.as_deref(), Some("http://127.0.0.1:8443/"));
-    assert_eq!(settings.all.as_deref(), None);
+    assert_eq!(settings.all.as_deref(), Some("socks5://127.0.0.1:1080"));
     assert!(settings.bypass.contains(&"localhost".to_string()));
 }

@@ -255,7 +255,6 @@ final _requiredArtifacts = <String, List<String>>{
     'ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib',
     'ios/Frameworks/libnexa_http_native-ios-sim-x64.dylib',
   ],
-  'nexa_http_native_linux': <String>['linux/Libraries/libnexa_http_native.so'],
   'nexa_http_native_macos': <String>[
     'macos/Libraries/libnexa_http_native.dylib',
   ],

@@ -44,8 +44,6 @@ dependencies:
     path: ../../nexa_http_native_android
   nexa_http_native_ios:
     path: ../../nexa_http_native_ios
-  nexa_http_native_linux:
-    path: ../../nexa_http_native_linux
   nexa_http_native_macos:
     path: ../../nexa_http_native_macos
   nexa_http_native_windows:

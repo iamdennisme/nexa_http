@@ -54,9 +54,9 @@ void main() {
     );
   });
 
-  test('runs the linux build script when the linux carrier package is selected', () async {
+  test('ignores unsupported packages without scheduling build scripts', () async {
     final tempDir = await Directory.systemTemp.createTemp(
-      'nexa_http_prepare_distribution_linux_',
+      'nexa_http_prepare_distribution_unsupported_',
     );
     addTearDown(() async {
       if (tempDir.existsSync()) {
@@ -82,7 +82,7 @@ void main() {
 
     expect(
       invokedScripts,
-      <String>['build_native_linux.sh:release'],
+      isEmpty,
     );
   });
 

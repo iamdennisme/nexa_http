@@ -5,7 +5,6 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE="${1:-release}"
 
 platform_scripts=(
-  build_native_linux.sh
   build_native_macos.sh
   build_native_android.sh
   build_native_ios.sh

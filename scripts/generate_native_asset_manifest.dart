@@ -179,11 +179,6 @@ const _descriptors = <_AssetDescriptor>[
     sourceName: 'nexa_http-native-macos-x64.dylib',
   ),
   _AssetDescriptor(
-    targetOS: 'linux',
-    targetArchitecture: 'x64',
-    sourceName: 'nexa_http-native-linux-x64.so',
-  ),
-  _AssetDescriptor(
     targetOS: 'windows',
     targetArchitecture: 'x64',
     sourceName: 'nexa_http-native-windows-x64.dll',

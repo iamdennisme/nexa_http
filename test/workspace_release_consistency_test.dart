@@ -11,7 +11,6 @@ void main() {
       'nexa_http_native_android',
       'nexa_http_native_ios',
       'nexa_http_native_macos',
-      'nexa_http_native_linux',
       'nexa_http_native_windows',
     ];
 

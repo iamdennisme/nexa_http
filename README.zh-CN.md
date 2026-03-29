@@ -9,7 +9,7 @@
 当前项目由这些部分组成：
 
 - `packages/nexa_http`：Flutter 侧公开 Dart 包
-- `packages/nexa_http_native_android|ios|macos|linux|windows`：各平台 carrier package
+- `packages/nexa_http_native_android|ios|macos|windows`：各平台 carrier package
 - `native/nexa_http_native_core`：共享 Rust 核心 runtime 和 ABI
 - `fixture_server/`：本地真实 HTTP / 图片验证用 fixture server
 - `scripts/`：工作区、构建、分发、发布辅助脚本

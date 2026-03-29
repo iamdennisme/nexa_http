@@ -9,7 +9,7 @@
 The current project contains these parts:
 
 - `packages/nexa_http`: the public Dart package used by Flutter apps
-- `packages/nexa_http_native_android|ios|macos|linux|windows`: platform carrier packages
+- `packages/nexa_http_native_android|ios|macos|windows`: platform carrier packages
 - `native/nexa_http_native_core`: shared Rust core runtime and ABI contract
 - `fixture_server/`: local fixture server for real HTTP and image verification
 - `scripts/`: workspace, build, distribution, and release helper scripts

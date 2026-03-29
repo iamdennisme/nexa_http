@@ -100,7 +100,12 @@ fn proxy_settings_from_proxy_server(server: &str, bypass: Option<&str>) -> Proxy
                 "http" => settings.http = normalize_proxy_url(address, "http"),
                 "https" => settings.https = normalize_proxy_url(address, "http"),
                 "socks" | "socks4" | "socks4a" | "socks5" | "socks5h" => {
-                    settings.all = normalize_proxy_url(address, scheme_lower.as_str());
+                    let default_scheme = if scheme_lower == "socks" {
+                        "socks5"
+                    } else {
+                        scheme_lower.as_str()
+                    };
+                    settings.all = normalize_proxy_url(address, default_scheme);
                 }
                 _ => {}
             }

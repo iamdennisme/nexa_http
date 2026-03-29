@@ -109,8 +109,8 @@ void main() {
     await _writeFile(workspace, 'packages/nexa_http/test/sample_test.dart', 'void main() {}\n');
     await _writeFile(
       workspace,
-      'packages/nexa_http_native_linux/pubspec.yaml',
-      'name: nexa_http_native_linux\nflutter:\n  plugin:\n    platforms:\n      linux:\n        pluginClass: NexaHttpNativeLinuxPlugin\n',
+      'packages/nexa_http_native_windows/pubspec.yaml',
+      'name: nexa_http_native_windows\nflutter:\n  plugin:\n    platforms:\n      windows:\n        pluginClass: NexaHttpNativeWindowsPlugin\n',
     );
     await _writeFile(
       workspace,
@@ -133,7 +133,7 @@ void main() {
         'nexa_http:dart analyze',
         'nexa_http:dart test',
         'example:flutter analyze',
-        'nexa_http_native_linux:flutter analyze',
+        'nexa_http_native_windows:flutter analyze',
       ],
     );
   });
