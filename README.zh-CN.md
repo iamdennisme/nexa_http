@@ -39,6 +39,7 @@
 
 - Dart 负责 API 形态和调用编排
 - Rust 负责真实传输执行
+- 所有支持的平台现在统一走一条 async FFI 请求链
 - 平台差异通过 native 平台模块处理，而不是通过公开 Dart API 处理
 - 代理状态由各平台 native runtime 自己维护，`nexa_http_native_core` 只在平台代理 generation 变化时重建 client
 

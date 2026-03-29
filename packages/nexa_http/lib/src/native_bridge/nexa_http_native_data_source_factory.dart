@@ -3,15 +3,11 @@ import 'dart:ffi';
 import '../data/sources/ffi_nexa_http_native_data_source.dart';
 import '../data/sources/nexa_http_native_data_source.dart';
 import '../loader/nexa_http_native_library_loader.dart';
-import '../loader/nexa_http_platform_registry.dart';
 
 typedef NexaHttpDynamicLibraryLoader =
     DynamicLibrary Function({String? explicitPath});
 typedef NexaHttpNativeDataSourceCreator =
-    NexaHttpNativeDataSource Function(
-      DynamicLibrary library, {
-      String? binaryExecutionLibraryPath,
-    });
+    NexaHttpNativeDataSource Function(DynamicLibrary library);
 
 final class NexaHttpNativeDataSourceFactory {
   const NexaHttpNativeDataSourceFactory({
@@ -24,21 +20,10 @@ final class NexaHttpNativeDataSourceFactory {
 
   NexaHttpNativeDataSource create({String? libraryPath}) {
     final library = loadDynamicLibrary(explicitPath: libraryPath);
-    return createDataSource(
-      library,
-      binaryExecutionLibraryPath:
-          libraryPath ??
-          NexaHttpPlatformRegistry.requireInstance().binaryExecutionLibraryPath,
-    );
+    return createDataSource(library);
   }
 
-  static NexaHttpNativeDataSource _createFfiDataSource(
-    DynamicLibrary library, {
-    String? binaryExecutionLibraryPath,
-  }) {
-    return FfiNexaHttpNativeDataSource(
-      library: library,
-      binaryExecutionLibraryPath: binaryExecutionLibraryPath,
-    );
+  static NexaHttpNativeDataSource _createFfiDataSource(DynamicLibrary library) {
+    return FfiNexaHttpNativeDataSource(library: library);
   }
 }

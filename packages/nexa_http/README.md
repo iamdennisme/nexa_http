@@ -36,7 +36,7 @@ The execution path is:
 
 `NexaHttpClient -> request mapping -> FFI bridge -> registered native runtime -> nexa_http_native_core`
 
-This means the package is responsible for API shape and orchestration, while actual transport execution remains in the native runtime.
+This means the package is responsible for API shape and orchestration, while actual transport execution remains in the native runtime. All supported platforms now use the same async FFI request pipeline.
 
 ## 3. Usage
 

@@ -66,43 +66,6 @@ class NexaHttpBindings {
             )
           >();
 
-  ffi.Pointer<NexaHttpBinaryResult> nexa_http_client_execute_binary(
-    int client_id,
-    ffi.Pointer<NexaHttpRequestArgs> request_args,
-  ) {
-    return _nexa_http_client_execute_binary(client_id, request_args);
-  }
-
-  late final _nexa_http_client_execute_binaryPtr =
-      _lookup<
-        ffi.NativeFunction<
-          ffi.Pointer<NexaHttpBinaryResult> Function(
-            ffi.Uint64,
-            ffi.Pointer<NexaHttpRequestArgs>,
-          )
-        >
-      >('nexa_http_client_execute_binary');
-  late final _nexa_http_client_execute_binary =
-      _nexa_http_client_execute_binaryPtr
-          .asFunction<
-            ffi.Pointer<NexaHttpBinaryResult> Function(
-              int,
-              ffi.Pointer<NexaHttpRequestArgs>,
-            )
-          >();
-
-  int nexa_http_runtime_prefers_binary_execution() {
-    return _nexa_http_runtime_prefers_binary_execution();
-  }
-
-  late final _nexa_http_runtime_prefers_binary_executionPtr =
-      _lookup<ffi.NativeFunction<ffi.Uint8 Function()>>(
-        'nexa_http_runtime_prefers_binary_execution',
-      );
-  late final _nexa_http_runtime_prefers_binary_execution =
-      _nexa_http_runtime_prefers_binary_executionPtr
-          .asFunction<int Function()>();
-
   void nexa_http_client_close(int client_id) {
     return _nexa_http_client_close(client_id);
   }

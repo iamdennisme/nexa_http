@@ -19,9 +19,6 @@ final class _NexaHttpNativeWindowsRuntime implements NexaHttpNativeRuntime {
   static const _libraryFileName = 'nexa_http_native.dll';
 
   @override
-  String? get binaryExecutionLibraryPath => null;
-
-  @override
   DynamicLibrary open() {
     final explicitPath = Platform.environment[_environmentVariable];
     if (explicitPath != null && explicitPath.trim().isNotEmpty) {

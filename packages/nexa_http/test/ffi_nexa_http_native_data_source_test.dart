@@ -364,8 +364,58 @@ void main() {
         : false,
   );
 
-  test('preferSynchronousExecution uses the binary execution path', () async {
+  test('always dispatches requests through execute_async', () async {
+    late final _FakeNexaHttpBindings bindings;
     var executeAsyncCalls = 0;
+    bindings = _FakeNexaHttpBindings(
+      onExecuteAsync:
+          ({
+            required int clientId,
+            required int requestId,
+            required _StructuredRequestWire? structuredRequest,
+            required NexaHttpExecuteCallback callback,
+          }) {
+            executeAsyncCalls += 1;
+            final resultPointer = calloc<NexaHttpBinaryResult>();
+            resultPointer.ref
+              ..is_success = 1
+              ..status_code = 204
+              ..headers_ptr = ffi.nullptr
+              ..headers_len = 0
+              ..final_url_ptr = ffi.nullptr
+              ..final_url_len = 0
+              ..body_ptr = ffi.nullptr
+              ..body_len = 0
+              ..error_json = ffi.nullptr;
+            bindings.trackResult(resultPointer);
+            callback
+                .asFunction<
+                  void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                >()(requestId, resultPointer);
+            return 1;
+          },
+    );
+    final dataSource = FfiNexaHttpNativeDataSource(
+      library: ffi.DynamicLibrary.process(),
+      bindings: bindings,
+      binaryResultFinalizer: ffi.nullptr,
+    );
+
+    final response = await dataSource.execute(
+      21,
+      const NativeHttpRequestDto(
+        method: 'POST',
+        url: 'https://example.com/async-only',
+        bodyBytes: <int>[4, 2],
+      ),
+    );
+
+    expect(response.statusCode, 204);
+    expect(executeAsyncCalls, 1);
+    expect(bindings.freedResultCount, 1);
+  });
+
+  test('dispatch failures still surface as ffi_dispatch_failed', () async {
     final dataSource = FfiNexaHttpNativeDataSource(
       library: ffi.DynamicLibrary.process(),
       bindings: _FakeNexaHttpBindings(
@@ -376,79 +426,37 @@ void main() {
               required _StructuredRequestWire? structuredRequest,
               required NexaHttpExecuteCallback callback,
             }) {
-              executeAsyncCalls += 1;
+              expect(clientId, 22);
+              expect(structuredRequest?.url, 'https://example.com/dispatch-fail');
               return 0;
             },
       ),
       binaryResultFinalizer: ffi.nullptr,
-      preferSynchronousExecution: true,
-      binaryExecutor: (clientId, request) async {
-        expect(clientId, 21);
-        expect(request.method, 'GET');
-        expect(request.url, 'https://example.com/sync');
-        return const NexaHttpResponse(statusCode: 204, bodyBytes: <int>[]);
-      },
     );
 
-    final response = await dataSource.execute(
-      21,
-      const NativeHttpRequestDto(
-        method: 'GET',
-        url: 'https://example.com/sync',
-      ),
-    );
-
-    expect(response.statusCode, 204);
-    expect(executeAsyncCalls, 0);
-  });
-
-  test(
-    'uses the native execution preference symbol instead of platform inference',
-    () async {
-      var executeAsyncCalls = 0;
-      final dataSource = FfiNexaHttpNativeDataSource(
-        library: ffi.DynamicLibrary.process(),
-        bindings: _FakeNexaHttpBindings(
-          nativeExecutionPreference: 1,
-          onExecuteAsync:
-              ({
-                required int clientId,
-                required int requestId,
-                required _StructuredRequestWire? structuredRequest,
-                required NexaHttpExecuteCallback callback,
-              }) {
-                executeAsyncCalls += 1;
-                return 0;
-              },
-        ),
-        binaryResultFinalizer: ffi.nullptr,
-        binaryExecutor: (clientId, request) async {
-          expect(clientId, 22);
-          expect(request.method, 'GET');
-          expect(request.url, 'https://example.com/native-preference');
-          return const NexaHttpResponse(statusCode: 202, bodyBytes: <int>[]);
-        },
-      );
-
-      final response = await dataSource.execute(
+    await expectLater(
+      () => dataSource.execute(
         22,
         const NativeHttpRequestDto(
           method: 'GET',
-          url: 'https://example.com/native-preference',
+          url: 'https://example.com/dispatch-fail',
         ),
-      );
-
-      expect(response.statusCode, 202);
-      expect(executeAsyncCalls, 0);
-    },
-  );
+      ),
+      throwsA(
+        isA<NexaHttpException>().having(
+          (error) => error.code,
+          'code',
+          'ffi_dispatch_failed',
+        ),
+      ),
+    );
+  });
 }
 
 class _FakeNexaHttpBindings extends NexaHttpBindings {
   _FakeNexaHttpBindings({
     required this.onExecuteAsync,
     this.onFreeBinaryResult,
-    this.nativeExecutionPreference = 0,
   }) : super.fromLookup(_unimplementedLookup);
 
   final int Function({
@@ -460,16 +468,10 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   onExecuteAsync;
   final void Function(ffi.Pointer<NexaHttpBinaryResult> value)?
   onFreeBinaryResult;
-  final int nativeExecutionPreference;
 
   int freedResultCount = 0;
   ffi.Pointer<NexaHttpBinaryResult> _trackedResultPointer = ffi.nullptr;
   final Set<int> _freedResultAddresses = <int>{};
-
-  @override
-  int nexa_http_runtime_prefers_binary_execution() {
-    return nativeExecutionPreference;
-  }
 
   @override
   int nexa_http_client_execute_async(

@@ -130,19 +130,6 @@ pub extern "C" fn nexa_http_client_execute_async(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_client_execute_binary(
-    client_id: u64,
-    request_args: *const NexaHttpRequestArgs,
-) -> *mut NexaHttpBinaryResult {
-    RUNTIME.execute_binary(client_id, request_args)
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_runtime_prefers_binary_execution() -> u8 {
-    0
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn nexa_http_client_close(client_id: u64) {
     RUNTIME.close_client(client_id);
 }
