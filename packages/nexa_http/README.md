@@ -2,13 +2,20 @@
 
 `nexa_http` is the public Dart package in the `nexa_http` workspace.
 
+## 1. Package Overview
+
+This package is the Flutter-facing entry point of the project.
+
 It provides:
 
 - `NexaHttpClient`
 - `NexaHttpRequest`
 - `NexaHttpResponse`
+- request and response models
+- client config and exceptions
+- image file service support
 
-It does not build or locate native binaries by itself. Native loading now happens through the matching platform package:
+This package does not own platform packaging by itself. Native loading is completed through the matching platform carrier package:
 
 - `nexa_http_native_android`
 - `nexa_http_native_ios`
@@ -16,10 +23,27 @@ It does not build or locate native binaries by itself. Native loading now happen
 - `nexa_http_native_linux`
 - `nexa_http_native_windows`
 
-## Usage
+## 2. Implementation Logic
 
-Recommended production usage is to pin `nexa_http` and the matching platform
-package to the same git tag:
+Inside the workspace, this package sits at the public API layer.
+
+Its responsibility is:
+
+- expose the Dart API used by Flutter apps
+- map Dart-side requests into the native transport contract
+- call the registered native runtime through FFI
+
+The execution path is:
+
+`NexaHttpClient -> request mapping -> FFI bridge -> registered native runtime -> nexa_http_native_core`
+
+This means the package is responsible for API shape and orchestration, while actual transport execution remains in the native runtime.
+
+## 3. Usage
+
+### Release consumption
+
+Recommended production usage is to pin `nexa_http` and the matching platform package to the same git tag:
 
 ```yaml
 dependencies:
@@ -35,9 +59,9 @@ dependencies:
       path: packages/nexa_http_native_macos
 ```
 
-For local workspace development, you can use `path` dependencies instead.
-Today that still requires a local override for `nexa_http` because carrier
-packages pin it through git in their own `pubspec.yaml`:
+### Local workspace consumption
+
+For local development, you can use `path` dependencies:
 
 ```yaml
 dependencies:
@@ -50,6 +74,10 @@ dependency_overrides:
   nexa_http:
     path: ../nexa_http/packages/nexa_http
 ```
+
+At the moment, local `path` consumption still needs the `dependency_overrides` entry for `nexa_http`.
+
+### Client usage
 
 ```dart
 import 'package:nexa_http/nexa_http.dart';
@@ -68,23 +96,30 @@ final response = await client.execute(
 await client.close();
 ```
 
-## Package internals
-
-- public API and models stay in Dart
-- FFI bindings are generated from `native/nexa_http_native_core/include/nexa_http_native.h`
-- the package uses a registry-based native runtime loader
-- platform packages register their runtime into `nexa_http`
-
-## Local verification
+### Local verification
 
 ```bash
+cd packages/nexa_http
 fvm dart test
 ```
 
-Native integration tests in this package use a host test runtime helper and expect the platform binary to exist. On macOS, the usual workflow is:
+If you need the native binary locally, build the platform artifact first. On macOS the typical flow is:
 
 ```bash
 ./scripts/build_native_macos.sh debug
 cd packages/nexa_http
 fvm dart test
 ```
+
+## 4. Test Data
+
+Verified on `2026-03-29` as part of the workspace release-consumption validation.
+
+Observed package-level result:
+
+- the package worked in external `git + ref: v1.0.0` consumption
+- the package also worked in local `path` consumption
+- real GET requests through `NexaHttpClient` passed against the fixture server
+- real image downloads through the image file service passed
+
+Image benchmark data was captured at the workspace level and is recorded in the root [README](/Users/taicheng/dev/source/taicheng/other/rust_net/README.md).
