@@ -80,13 +80,9 @@ dependencies:
     path: ../nexa_http/packages/nexa_http
   nexa_http_native_macos:
     path: ../nexa_http/packages/nexa_http_native_macos
-
-dependency_overrides:
-  nexa_http:
-    path: ../nexa_http/packages/nexa_http
 ```
 
-At the moment, local `path` consumption still needs the `dependency_overrides` entry for `nexa_http`.
+Production usage should treat `git + tag` as first-class. `path` mode is intended for local debugging and workspace iteration.
 
 ### Client usage
 
@@ -181,24 +177,20 @@ Observed result:
 
 ### Image-performance verification
 
-The existing image-performance page was reused unchanged. The benchmark was captured from an external `git` sample on macOS debug mode with `24` fixture images.
+The existing image-performance page was reused unchanged.
+
+Latest Android real-device benchmark (`2026-03-29`, device `V2405A`, LAN server `192.168.1.16:8080`, `24` fixture images):
 
 | Transport | First screen | Avg latency | P95 latency | Throughput | Requests | Failures |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `defaultHttp` | `802 ms` | `39 ms` | `61 ms` | `35.58 MiB/s` | `24` | `0` |
-| `rustNet` | `313 ms` | `9 ms` | `22 ms` | `75.40 MiB/s` | `24` | `0` |
+| `defaultHttp` | `329 ms` | `92 ms` | `167 ms` | `14.09 MiB/s` | `24` | `0` |
+| `rustNet` | `186 ms` | `55 ms` | `86 ms` | `22.03 MiB/s` | `24` | `0` |
 
-Benchmark command template:
+Relative result on this run (`rustNet` vs `defaultHttp`):
 
-```bash
-cd /path/to/your/external_git_sample
-env PUB_HOSTED_URL=https://pub.dev \
-  FLUTTER_STORAGE_BASE_URL=https://storage.googleapis.com \
-  fvm flutter run -d macos \
-  --dart-define=RUST_NET_EXAMPLE_BASE_URL=http://127.0.0.1:8080 \
-  --dart-define=RUST_NET_EXAMPLE_IMAGE_PERF_SCENARIO=image \
-  --dart-define=RUST_NET_EXAMPLE_IMAGE_PERF_TRANSPORT=nexa_http \
-  --dart-define=RUST_NET_EXAMPLE_IMAGE_PERF_IMAGE_COUNT=24
-```
+- first-screen time: `-43.47%`
+- average latency: `-40.22%`
+- p95 latency: `-48.50%`
+- throughput: `+56.42%`
 
-These numbers are local debug measurements, not release-build benchmarks.
+These are local-network measurements on one device, not universal release benchmarks.

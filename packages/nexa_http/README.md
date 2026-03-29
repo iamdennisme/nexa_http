@@ -68,13 +68,9 @@ dependencies:
     path: ../nexa_http/packages/nexa_http
   nexa_http_native_macos:
     path: ../nexa_http/packages/nexa_http_native_macos
-
-dependency_overrides:
-  nexa_http:
-    path: ../nexa_http/packages/nexa_http
 ```
 
-At the moment, local `path` consumption still needs the `dependency_overrides` entry for `nexa_http`.
+Production usage should prefer `git + tag`. `path` mode is intended for local debugging.
 
 ### Client usage
 

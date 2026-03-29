@@ -31,7 +31,7 @@ http://127.0.0.1:8080
 
 Target-specific base URLs:
 
-- macOS / Linux / Windows host: `http://127.0.0.1:8080`
+- macOS / Windows host: `http://127.0.0.1:8080`
 - Android emulator: `http://10.0.2.2:8080`
 - Android device with `adb reverse tcp:8080 tcp:8080`: `http://127.0.0.1:8080`
 - Physical device over LAN: start the fixture server with `--host 0.0.0.0` and use your host LAN IP
@@ -60,4 +60,3 @@ Supported benchmark defines:
 - `RUST_NET_EXAMPLE_IMAGE_PERF_SCENARIO`: `image` or `autoscroll`
 - `RUST_NET_EXAMPLE_IMAGE_PERF_TRANSPORT`: `default_http` or `nexa_http`
 - `RUST_NET_EXAMPLE_IMAGE_PERF_IMAGE_COUNT`: total fixture tiles to render
-```
