@@ -5,6 +5,7 @@ import 'package:nexa_http/nexa_http.dart';
 
 import 'src/image_perf/image_cache_transport_registry.dart';
 import 'src/image_perf/image_perf_page.dart';
+import 'src/nexa_http_client_initializer.dart';
 
 const String _exampleBaseUrl = String.fromEnvironment(
   'RUST_NET_EXAMPLE_BASE_URL',
@@ -28,19 +29,23 @@ void main() {
 }
 
 class NexaHttpExampleApp extends StatelessWidget {
-  const NexaHttpExampleApp({super.key});
+  const NexaHttpExampleApp({super.key, this.createClient});
+
+  final NexaHttpExampleClientFactory? createClient;
 
   @override
   Widget build(BuildContext context) {
-    return const CupertinoApp(
+    return CupertinoApp(
       debugShowCheckedModeBanner: false,
-      home: NexaHttpExamplePage(),
+      home: NexaHttpExamplePage(createClient: createClient),
     );
   }
 }
 
 class NexaHttpExamplePage extends StatefulWidget {
-  const NexaHttpExamplePage({super.key});
+  const NexaHttpExamplePage({super.key, this.createClient});
+
+  final NexaHttpExampleClientFactory? createClient;
 
   @override
   State<NexaHttpExamplePage> createState() => _NexaHttpExamplePageState();
@@ -51,9 +56,7 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
       ? ExampleDemoSection.images
       : ExampleDemoSection.http;
 
-  static const _requestHeaders = <String, String>{
-    'accept': 'application/json',
-  };
+  static const _requestHeaders = <String, String>{'accept': 'application/json'};
   static const bool _autorunImagePerfEnabled = _imagePerfScenario != '';
 
   late final TextEditingController _urlController;
@@ -61,6 +64,8 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
   String? _requestInfo;
   String? _responseInfo;
   String? _errorInfo;
+  String? _initializationInfo;
+  Timer? _initializationTimer;
   bool _isLoading = false;
 
   @override
@@ -69,11 +74,19 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
     _urlController = TextEditingController(
       text: '$_exampleBaseUrl/get?source=nexa_http_example',
     );
-    unawaited(_initializeClient());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializationTimer = Timer(const Duration(milliseconds: 1), () {
+        if (!mounted) {
+          return;
+        }
+        unawaited(_initializeClient());
+      });
+    });
   }
 
   @override
   void dispose() {
+    _initializationTimer?.cancel();
     _urlController.dispose();
     final client = _client;
     if (client != null) {
@@ -84,21 +97,35 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
 
   Future<void> _initializeClient() async {
     try {
-      final client = NexaHttpClient(
-        config: const NexaHttpClientConfig(
-          timeout: Duration(seconds: 15),
-          userAgent: 'nexa_http_example/0.1.1',
-        ),
-      );
+      NexaHttpClientInitializationTimings? timings;
+      final client =
+          widget.createClient?.call() ??
+          createInstrumentedNexaHttpClient(
+            config: const NexaHttpClientConfig(
+              timeout: Duration(seconds: 15),
+              userAgent: 'nexa_http_example/0.1.1',
+            ),
+            onTimings: (value) {
+              timings = value;
+            },
+          );
 
       if (!mounted) {
         await client.close();
         return;
       }
 
+      final initializationInfo = timings == null
+          ? null
+          : formatNexaHttpInitializationTimings(timings!);
+      if (initializationInfo != null) {
+        debugPrint('nexa_http init: $initializationInfo');
+      }
+
       setState(() {
         _client = client;
         _errorInfo = null;
+        _initializationInfo = initializationInfo;
       });
     } catch (error) {
       if (!mounted) {
@@ -106,6 +133,7 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
       }
       setState(() {
         _errorInfo = 'Initialization failed\n$error';
+        _initializationInfo = null;
       });
     }
   }
@@ -293,6 +321,15 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
                     : 'Native runtime: registered platform package',
                 style: theme.textTheme.textStyle,
               ),
+              if (_initializationInfo != null) ...<Widget>[
+                const SizedBox(height: 8),
+                Text(
+                  _initializationInfo!,
+                  style: theme.textTheme.textStyle.copyWith(
+                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
                 'Enter a full URL and send a GET request.',
@@ -339,10 +376,7 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
   }
 }
 
-enum ExampleDemoSection {
-  http,
-  images,
-}
+enum ExampleDemoSection { http, images }
 
 class _InfoCard extends StatelessWidget {
   const _InfoCard({
@@ -366,8 +400,8 @@ class _InfoCard extends StatelessWidget {
         border: Border.all(
           color: isError
               ? CupertinoColors.systemRed
-                  .resolveFrom(context)
-                  .withValues(alpha: 0.25)
+                    .resolveFrom(context)
+                    .withValues(alpha: 0.25)
               : CupertinoColors.separator.resolveFrom(context),
         ),
       ),

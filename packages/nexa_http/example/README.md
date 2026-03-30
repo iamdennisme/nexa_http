@@ -26,6 +26,36 @@ fvm flutter pub get
 fvm flutter run -d macos
 ```
 
+## Startup Initialization
+
+The first `NexaHttpClient()` construction is synchronous. It does three pieces
+of work on the calling thread:
+
+- resolve and open the native dynamic library
+- build the Dart FFI data source
+- call the native `createClient` entry point, which lazily initializes the Rust runtime
+
+Because of that, the example app intentionally delays native client
+initialization until after the first frame instead of constructing it directly
+inside the first `initState()` frame.
+
+When the client finishes initializing, the HTTP demo page shows a timing summary
+and also prints it to the console:
+
+```text
+nexa_http init: total 18.412 ms | load 3.902 ms | data source 0.115 ms | createClient 14.221 ms
+```
+
+The timing fields mean:
+
+- `total`: full synchronous `NexaHttpClient()` construction time
+- `load`: dynamic library resolution and `DynamicLibrary.open(...)`
+- `data source`: Dart FFI wrapper creation
+- `createClient`: native `nexa_http_client_create(...)`
+
+If macOS startup feels janky, check this line first. It tells you whether the
+cost is mostly in library loading or in the first native runtime/client setup.
+
 ## Local Workspace Debugging
 
 When you need to validate uncommitted local changes, create a temporary

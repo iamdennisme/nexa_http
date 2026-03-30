@@ -97,6 +97,44 @@ final response = await client.execute(
 await client.close();
 ```
 
+### Startup note
+
+`NexaHttpClient()` is a synchronous constructor. The first construction on a
+process typically includes:
+
+- native library resolution and `DynamicLibrary.open(...)`
+- Dart FFI binding/data source setup
+- native `nexa_http_client_create(...)`, including first-time Rust runtime setup
+
+For command-line tools this usually does not matter. For Flutter UI startup, do
+not assume it is free. If you create the first client inside the first screen's
+`initState()`, that synchronous work still runs on the UI thread.
+
+For startup-sensitive screens, prefer deferring the first client creation until
+after the first frame:
+
+```dart
+import 'dart:async';
+
+import 'package:flutter/widgets.dart';
+import 'package:nexa_http/nexa_http.dart';
+
+@override
+void initState() {
+  super.initState();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    Timer.run(() {
+      final client = NexaHttpClient(
+        config: const NexaHttpClientConfig(
+          timeout: Duration(seconds: 10),
+        ),
+      );
+      // Store the client and continue initialization.
+    });
+  });
+}
+```
+
 Request examples:
 
 ```dart
