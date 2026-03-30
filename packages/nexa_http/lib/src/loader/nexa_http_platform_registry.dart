@@ -6,6 +6,7 @@ final class NexaHttpPlatformRegistry {
   NexaHttpPlatformRegistry._();
 
   static NexaHttpNativeRuntime? instance;
+  static NexaHttpNativeRuntime? get instanceOrNull => instance;
 
   static bool get isRegistered => instance != null;
 

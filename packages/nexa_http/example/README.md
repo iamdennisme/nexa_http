@@ -1,8 +1,11 @@
 # nexa_http_example
 
-Demo app for `nexa_http`.
+Single consumer-style demo app for `nexa_http`.
 
-It currently includes two demos:
+This app intentionally uses `git` dependencies so it exercises the same package
+layout and platform loading path that external projects use.
+
+It includes two pages:
 
 - HTTP inspector: enter a full URL, send a `GET` request with `nexa_http`, and inspect request and response details
 - Image performance: compare the default image transport against a `nexa_http`-backed cache pipeline
@@ -22,6 +25,13 @@ cd packages/nexa_http/example
 fvm flutter pub get
 fvm flutter run -d macos
 ```
+
+## Local Workspace Debugging
+
+When you need to validate uncommitted local changes, create a temporary
+`pubspec_overrides.yaml` next to `pubspec.yaml` and point the packages back to
+the workspace paths. The file is ignored on purpose so the committed demo stays
+in `git` consumption mode by default.
 
 The default base URL is:
 

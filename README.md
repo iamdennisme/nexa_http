@@ -54,17 +54,17 @@ dependencies:
   nexa_http:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http
   nexa_http_native_android:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http_native_android
   nexa_http_native_ios:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http_native_ios
 ```
 
@@ -191,7 +191,7 @@ Verified on `2026-03-29`.
 
 The HTTP demo was verified against the local fixture server with two external consumption modes:
 
-- `git + ref: v1.0.0`
+- `git + ref: v1.0.1`
 - local `path`
 
 Observed result:

@@ -17,7 +17,7 @@ final class NexaHttpImageFileService extends FileService {
     this.onSample,
     NexaHttpClientConfig config = const NexaHttpClientConfig(
       timeout: Duration(seconds: 20),
-      userAgent: 'nexa_http_example/1.0.0',
+      userAgent: 'nexa_http_example/1.0.1',
     ),
   }) : _ownsClient = client == null,
        _client = client ?? NexaHttpClient(config: config),

@@ -49,12 +49,12 @@ dependencies:
   nexa_http:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http_native_macos
 ```
 
@@ -173,7 +173,7 @@ Verified on `2026-03-29` as part of the workspace release-consumption validation
 
 Observed package-level result:
 
-- the package worked in external `git + ref: v1.0.0` consumption
+- the package worked in external `git + ref: v1.0.1` consumption
 - the package also worked in local `path` consumption
 - real GET requests through `NexaHttpClient` passed against the fixture server
 - real image downloads through the image file service passed

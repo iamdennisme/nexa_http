@@ -54,17 +54,17 @@ dependencies:
   nexa_http:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http
   nexa_http_native_android:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http_native_android
   nexa_http_native_ios:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http_native_ios
 ```
 
@@ -191,7 +191,7 @@ dart run fixture_server/http_fixture_server.dart --port 8080
 
 HTTP demo 使用本地 fixture server，对两种外部消费方式做了验证：
 
-- `git + ref: v1.0.0`
+- `git + ref: v1.0.1`
 - 本地 `path`
 
 结果是：

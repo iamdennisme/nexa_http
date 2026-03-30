@@ -1,6 +1,6 @@
 name: nexa_http_native_ios
 description: iOS native carrier package for nexa_http artifacts and build integration.
-version: 1.0.0
+version: 1.0.1
 publish_to: none
 environment:
   sdk: ^3.11.0
@@ -12,7 +12,10 @@ dependencies:
   code_assets: ^1.0.0
   hooks: ^1.0.2
   nexa_http:
-    path: ../nexa_http
+    git:
+      url: https://github.com/iamdennisme/nexa_http.git
+      ref: v1.0.1
+      path: packages/nexa_http
   path: ^1.9.0
 
 dev_dependencies:

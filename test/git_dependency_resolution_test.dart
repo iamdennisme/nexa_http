@@ -30,10 +30,15 @@ void main() {
 
     final normalizedCarrierPubspec = File(
       'packages/nexa_http_native_android/pubspec.yaml',
-    ).readAsStringSync().replaceAll(
-      'https://github.com/iamdennisme/rust_net.git',
-      'file://${repoDir.path}',
-    );
+    ).readAsStringSync()
+        .replaceAll(
+          'https://github.com/iamdennisme/nexa_http.git',
+          'file://${repoDir.path}',
+        )
+        .replaceAll(
+          'https://github.com/iamdennisme/rust_net.git',
+          'file://${repoDir.path}',
+        );
     await _writeFile(
       repoDir,
       'packages/nexa_http_native_android/pubspec.yaml',
@@ -74,7 +79,7 @@ void main() {
     );
     await Process.run(
       'git',
-      ['tag', 'v1.0.0'],
+      ['tag', 'v1.0.1'],
       workingDirectory: repoDir.path,
     );
 
@@ -91,12 +96,12 @@ dependencies:
   nexa_http:
     git:
       url: file://${repoDir.path}
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http
   nexa_http_native_android:
     git:
       url: file://${repoDir.path}
-      ref: v1.0.0
+      ref: v1.0.1
       path: packages/nexa_http_native_android
 ''',
     );

@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 void main() {
-  test('nexa_http package family uses the 1.0.0 release version', () {
+  test('nexa_http package family uses the 1.0.1 release version', () {
     final packageNames = <String>[
       'nexa_http',
       'nexa_http_native_android',
@@ -21,8 +21,8 @@ void main() {
       final yaml = loadYaml(pubspec) as YamlMap;
       expect(
         yaml['version'],
-        '1.0.0',
-        reason: '$packageName should publish the 1.0.0 package version.',
+        '1.0.1',
+        reason: '$packageName should publish the 1.0.1 package version.',
       );
     }
   });
