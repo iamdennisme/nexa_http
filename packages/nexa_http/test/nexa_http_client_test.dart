@@ -115,6 +115,7 @@ void main() {
         dataSource.executeCalls[1].clientId,
       );
       expect(dataSource.closedClientIds, <int>[41]);
+      expect(dataSource.disposeCount, 1);
       final firstHeaders = dataSource.executeCalls[0].request.headers
           .map((header) => (header.key, header.value))
           .toList();
@@ -155,6 +156,7 @@ final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
       <NativeHttpClientConfigDto>[];
   final List<_ExecuteCall> executeCalls = <_ExecuteCall>[];
   final List<int> closedClientIds = <int>[];
+  int disposeCount = 0;
   final List<TransportResponse> _executeResponses;
   final int _nextClientId = 41;
 
@@ -176,6 +178,11 @@ final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
   @override
   void closeClient(int clientId) {
     closedClientIds.add(clientId);
+  }
+
+  @override
+  void dispose() {
+    disposeCount += 1;
   }
 }
 

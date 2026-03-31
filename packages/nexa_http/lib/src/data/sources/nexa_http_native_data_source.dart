@@ -8,4 +8,6 @@ abstract interface class NexaHttpNativeDataSource {
   Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request);
 
   void closeClient(int clientId);
+
+  void dispose();
 }

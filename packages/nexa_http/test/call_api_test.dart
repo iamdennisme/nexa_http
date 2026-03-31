@@ -115,6 +115,9 @@ final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
 
   @override
   void closeClient(int clientId) {}
+
+  @override
+  void dispose() {}
 }
 
 final class _ExecuteCall {

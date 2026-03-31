@@ -100,15 +100,15 @@ final class NexaHttpClient {
     _isClosed = true;
 
     final leaseFuture = _leaseFuture;
-    if (leaseFuture == null) {
-      return;
-    }
-
     try {
-      final leaseId = await leaseFuture;
-      _ensureDataSource().closeClient(leaseId);
+      if (leaseFuture != null) {
+        final leaseId = await leaseFuture;
+        _ensureDataSource().closeClient(leaseId);
+      }
     } catch (_) {
       // If lazy initialization failed, there is no native lease to release.
+    } finally {
+      _dataSource?.dispose();
     }
   }
 

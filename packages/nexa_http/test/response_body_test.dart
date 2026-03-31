@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:ffi';
 
 import 'package:nexa_http/nexa_http.dart';
+import 'package:nexa_http/src/internal/transport/native_response_body_bytes.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -40,6 +42,29 @@ void main() {
       expect(identical(bytes, encoding.lastEncodedBytes), isTrue);
     },
   );
+
+  test('close eagerly releases native-backed body bytes', () async {
+    var releaseCount = 0;
+    final body = adoptResponseBodyBytes(
+      adoptNativeResponseBodyBytes(
+        const <int>[1, 2, 3],
+        release: () {
+          releaseCount += 1;
+        },
+        finalizerToken: Pointer<Void>.fromAddress(1),
+      ),
+    );
+
+    final bytes = await body.bytes();
+    expect(bytes, const <int>[1, 2, 3]);
+
+    body.close();
+
+    expect(releaseCount, 1);
+    expect(() => bytes[0], throwsA(isA<StateError>()));
+    body.close();
+    expect(releaseCount, 1);
+  });
 }
 
 final class _TrackingEncoding extends Encoding {

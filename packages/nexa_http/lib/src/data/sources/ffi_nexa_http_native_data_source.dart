@@ -6,6 +6,7 @@ import 'package:ffi/ffi.dart';
 import 'package:nexa_http/nexa_http_bindings_generated.dart';
 
 import '../../api/nexa_http_exception.dart';
+import '../../internal/transport/native_response_body_bytes.dart';
 import '../../internal/transport/transport_response.dart';
 import '../dto/native_http_client_config_dto.dart';
 import '../dto/native_http_error_dto.dart';
@@ -25,7 +26,8 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
 
     return FfiNexaHttpNativeDataSource._(
       bindings: resolvedBindings,
-      binaryResultFinalizer: binaryResultFinalizer ??
+      binaryResultFinalizer:
+          binaryResultFinalizer ??
           library.lookup<NativeFunction<BinaryResultFinalizerNative>>(
             'nexa_http_binary_result_free',
           ),
@@ -35,21 +37,24 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   FfiNexaHttpNativeDataSource._({
     required NexaHttpBindings bindings,
     required Pointer<NativeFunction<BinaryResultFinalizerNative>>
-        binaryResultFinalizer,
-  })  : _bindings = bindings,
-        _binaryResultFinalizer = binaryResultFinalizer {
+    binaryResultFinalizer,
+  }) : _bindings = bindings,
+       _binaryResultNativeFinalizer = binaryResultFinalizer == nullptr
+           ? null
+           : NativeFinalizer(binaryResultFinalizer.cast()) {
     _executeCallback = NativeCallable<NexaHttpExecuteCallbackFunction>.listener(
       _handleExecuteCallback,
     );
   }
 
   final NexaHttpBindings _bindings;
-  final Pointer<NativeFunction<BinaryResultFinalizerNative>>
-      _binaryResultFinalizer;
+  final NativeFinalizer? _binaryResultNativeFinalizer;
   final _pendingExecuteRequests = <int, Completer<TransportResponse>>{};
 
   NativeCallable<NexaHttpExecuteCallbackFunction>? _executeCallback;
   int _requestSequence = 0;
+  bool _disposeRequested = false;
+  bool _isDisposed = false;
 
   @override
   int createClient(NativeHttpClientConfigDto config) {
@@ -107,6 +112,15 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     _bindings.nexa_http_client_close(clientId);
   }
 
+  @override
+  void dispose() {
+    if (_disposeRequested || _isDisposed) {
+      return;
+    }
+    _disposeRequested = true;
+    _maybeDisposeCallback();
+  }
+
   int _nextRequestId() {
     _requestSequence += 1;
     return _requestSequence;
@@ -119,6 +133,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     final completer = _pendingExecuteRequests.remove(requestId);
     if (completer == null || completer.isCompleted) {
       _bindings.nexa_http_binary_result_free(resultPointer);
+      _maybeDisposeCallback();
       return;
     }
 
@@ -133,6 +148,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       if (releaseResultPointer) {
         _bindings.nexa_http_binary_result_free(resultPointer);
       }
+      _maybeDisposeCallback();
     }
   }
 
@@ -214,19 +230,31 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       );
     }
 
-    if (_binaryResultFinalizer == nullptr) {
-      return result.body_ptr.asTypedList(result.body_len);
-    }
-
-    return result.body_ptr.asTypedList(
-      result.body_len,
-      finalizer: _binaryResultFinalizer,
-      token: resultPointer.cast(),
+    final bytes = result.body_ptr.asTypedList(result.body_len);
+    return adoptNativeResponseBodyBytes(
+      bytes,
+      release: () => _bindings.nexa_http_binary_result_free(resultPointer),
+      finalizer: _binaryResultNativeFinalizer,
+      finalizerToken: resultPointer.cast(),
+      externalSize: result.body_len,
     );
   }
 
   bool _adoptsBodyOwnership(NexaHttpBinaryResult result) {
     return result.body_ptr != nullptr && result.body_len > 0;
+  }
+
+  void _maybeDisposeCallback() {
+    if (!_disposeRequested ||
+        _pendingExecuteRequests.isNotEmpty ||
+        _isDisposed) {
+      return;
+    }
+
+    final callback = _executeCallback;
+    _executeCallback = null;
+    _isDisposed = true;
+    callback?.close();
   }
 
   Uri? _decodeFinalUri(Pointer<Char> finalUrlPointer, int finalUrlLength) {

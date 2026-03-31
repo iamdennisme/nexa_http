@@ -72,6 +72,9 @@ final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   void closeClient(int clientId) {}
 
   @override
+  void dispose() {}
+
+  @override
   int createClient(NativeHttpClientConfigDto config) => 1;
 
   @override

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../internal/transport/native_response_body_bytes.dart';
 import 'media_type.dart';
 
 ResponseBody adoptResponseBodyBytes(List<int> bytes, {MediaType? contentType}) {
@@ -56,6 +57,10 @@ final class ResponseBody {
   }
 
   void close() {
+    final bytes = _bytes;
+    if (bytes case ClosableBodyBytes()) {
+      bytes.release();
+    }
     _isClosed = true;
   }
 
