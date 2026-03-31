@@ -1,5 +1,11 @@
-export 'nexa_http_client_config.dart';
+export 'call.dart';
+export 'callback.dart';
+export 'headers.dart';
+export 'media_type.dart';
+export 'nexa_http_client_builder.dart';
 export 'nexa_http_exception.dart';
-export 'nexa_http_method.dart';
-export 'nexa_http_request.dart';
-export 'nexa_http_response.dart';
+export 'request.dart';
+export 'request_body.dart';
+export 'request_builder.dart';
+export 'response.dart';
+export 'response_body.dart';

@@ -5,7 +5,8 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:nexa_http/nexa_http_bindings_generated.dart';
 
-import '../../api/api.dart';
+import '../../api/nexa_http_exception.dart';
+import '../../internal/transport/transport_response.dart';
 import '../dto/native_http_client_config_dto.dart';
 import '../dto/native_http_error_dto.dart';
 import '../dto/native_http_request_dto.dart';
@@ -46,7 +47,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   final NexaHttpBindings _bindings;
   final Pointer<NativeFunction<BinaryResultFinalizerNative>>
   _binaryResultFinalizer;
-  final _pendingExecuteRequests = <int, Completer<NexaHttpResponse>>{};
+  final _pendingExecuteRequests = <int, Completer<TransportResponse>>{};
 
   NativeCallable<NexaHttpExecuteCallbackFunction>? _executeCallback;
   int _requestSequence = 0;
@@ -68,12 +69,12 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   }
 
   @override
-  Future<NexaHttpResponse> execute(
+  Future<TransportResponse> execute(
     int clientId,
     NativeHttpRequestDto request,
   ) async {
     final requestId = _nextRequestId();
-    final completer = Completer<NexaHttpResponse>();
+    final completer = Completer<TransportResponse>();
     _pendingExecuteRequests[requestId] = completer;
     final requestArgs = _NativeRequestArena.fromDto(request);
 
@@ -136,7 +137,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     }
   }
 
-  NexaHttpResponse _decodeBinaryResult(
+  TransportResponse _decodeBinaryResult(
     Pointer<NexaHttpBinaryResult> resultPointer,
   ) {
     if (resultPointer == nullptr) {
@@ -158,7 +159,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     );
     final bodyBytes = _takeResponseBody(resultPointer, result);
 
-    return NexaHttpResponse(
+    return TransportResponse(
       statusCode: result.status_code,
       headers: headers,
       bodyBytes: bodyBytes,

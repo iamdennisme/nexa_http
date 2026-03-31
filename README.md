@@ -24,23 +24,29 @@ The design target is simple:
 
 The end-to-end call path is:
 
-`Flutter app -> NexaHttpClient -> Dart request mapping -> FFI bridge -> native platform runtime -> nexa_http_native_core -> HTTP transport`
+`Flutter app -> NexaHttpClient -> Call -> internal engine -> worker isolate -> Dart request mapping -> FFI bridge -> platform runtime SPI -> nexa_http_native_core -> HTTP transport`
 
 Current layer responsibilities:
 
-- Public API layer: `packages/nexa_http`
-  Exposes `NexaHttpClient`, request/response models, config, exceptions, and image file service.
-- Platform carrier layer: `packages/nexa_http_native_*`
-  Registers the native runtime for each platform and delivers the packaged native binary.
+- Public HTTP API layer: `packages/nexa_http/lib/nexa_http.dart`, `packages/nexa_http/lib/src/api/*`
+  Exposes stable HTTP concepts only: `NexaHttpClient`, `NexaHttpClientBuilder`, `Request`, `RequestBuilder`, `RequestBody`, `Response`, `ResponseBody`, `Headers`, `MediaType`, `Call`, `Callback`, and `NexaHttpException`.
+- Client and call facade layer: `packages/nexa_http/lib/src/nexa_http_client.dart`, `packages/nexa_http/lib/src/client/*`
+  Owns the lightweight client shape and per-request `Call` execution model.
+- Internal engine layer: `packages/nexa_http/lib/src/internal/engine/*`
+  Lazily initializes shared worker/native resources on the first real `execute()` call and reuses pooled native clients.
+- Internal worker and FFI bridge layer: `packages/nexa_http/lib/src/worker/*`, `packages/nexa_http/lib/src/data/*`
+  Translates public requests into the worker/native transport contract and maps native results back into Dart response objects.
+- Platform carrier and SPI layer: `packages/nexa_http_native_*`, `package:nexa_http/nexa_http_platform.dart`
+  Registers the per-platform runtime hook and packages the native binary without polluting the root end-user API.
 - Native core layer: `native/nexa_http_native_core`
   Owns the shared ABI, runtime contract, transport execution, and native-side platform integration.
 
 This means:
 
-- Dart stays responsible for API shape and call orchestration
+- Dart stays responsible for API shape, call orchestration, and lazy engine startup
 - Rust stays responsible for actual transport execution
-- all supported platforms now share one async FFI request pipeline
-- platform differences are handled by native platform modules, not by the public Dart API
+- all supported platforms share one async FFI request pipeline
+- platform differences are handled by carrier packages and native platform modules, not by the public Dart API
 - proxy state is owned by each native platform runtime, and `nexa_http_native_core` only rebuilds clients when the platform proxy generation changes
 
 ## 3. Usage
@@ -86,90 +92,96 @@ Production usage should treat `git + tag` as first-class. `path` mode is intende
 
 ### Client usage
 
-`NexaHttpRequest` supports `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, and `OPTIONS`.
+The root package now exposes an OkHttp-aligned HTTP API.
 
-Convenience helpers are provided for `get`, `post`, `put`, and `delete`. For the others, use the base constructor with `method`.
+`RequestBuilder` supports `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, and `OPTIONS`.
+
+`NexaHttpClient` is lightweight and synchronous. Worker startup, native library loading, and pooled native-client creation happen lazily on the first real `call.execute()`.
 
 ```dart
-import 'dart:convert';
-
 import 'package:nexa_http/nexa_http.dart';
 
-final client = NexaHttpClient(
-  config: NexaHttpClientConfig(
-    baseUrl: Uri.parse('https://api.example.com/'),
-    timeout: const Duration(seconds: 10),
-  ),
-);
+final client = NexaHttpClientBuilder()
+    .baseUrl(Uri.parse('https://api.example.com/'))
+    .callTimeout(const Duration(seconds: 10))
+    .userAgent('nexa_http/1.0.1')
+    .build();
 
-final response = await client.execute(
-  NexaHttpRequest.get(uri: Uri(path: '/healthz')),
-);
+final request = RequestBuilder()
+    .url(Uri(path: '/healthz'))
+    .get()
+    .build();
 
-await client.close();
+final response = await client.newCall(request).execute();
+final body = await response.body!.string();
 ```
 
 Request examples:
 
 ```dart
-final getResponse = await client.execute(
-  NexaHttpRequest.get(
-    uri: Uri(path: '/healthz'),
-  ),
-);
+final getResponse = await client.newCall(
+  RequestBuilder().url(Uri(path: '/healthz')).get().build(),
+).execute();
 
-final postResponse = await client.execute(
-  NexaHttpRequest.post(
-    uri: Uri(path: '/users'),
-    headers: {'content-type': 'application/json'},
-    bodyBytes: utf8.encode('{"name":"alice"}'),
-  ),
-);
+final postResponse = await client.newCall(
+  RequestBuilder()
+      .url(Uri(path: '/users'))
+      .post(
+        RequestBody.fromString(
+          '{"name":"alice"}',
+          contentType: MediaType.parse('application/json; charset=utf-8'),
+        ),
+      )
+      .build(),
+).execute();
 
-final putResponse = await client.execute(
-  NexaHttpRequest.put(
-    uri: Uri(path: '/users/1'),
-    headers: {'content-type': 'application/json'},
-    bodyBytes: utf8.encode('{"name":"alice-updated"}'),
-  ),
-);
+final putResponse = await client.newCall(
+  RequestBuilder()
+      .url(Uri(path: '/users/1'))
+      .put(
+        RequestBody.fromString(
+          '{"name":"alice-updated"}',
+          contentType: MediaType.parse('application/json; charset=utf-8'),
+        ),
+      )
+      .build(),
+).execute();
 
-final deleteResponse = await client.execute(
-  NexaHttpRequest.delete(
-    uri: Uri(path: '/users/1'),
-  ),
-);
+final deleteResponse = await client.newCall(
+  RequestBuilder().url(Uri(path: '/users/1')).delete().build(),
+).execute();
 
-final patchResponse = await client.execute(
-  NexaHttpRequest(
-    method: NexaHttpMethod.patch,
-    uri: Uri(path: '/users/1'),
-    headers: {'content-type': 'application/json'},
-    bodyBytes: utf8.encode('{"name":"alice-patched"}'),
-  ),
-);
+final patchResponse = await client.newCall(
+  RequestBuilder()
+      .url(Uri(path: '/users/1'))
+      .method(
+        'PATCH',
+        RequestBody.fromString(
+          '{"name":"alice-patched"}',
+          contentType: MediaType.parse('application/json; charset=utf-8'),
+        ),
+      )
+      .build(),
+).execute();
 
-final headResponse = await client.execute(
-  NexaHttpRequest(
-    method: NexaHttpMethod.head,
-    uri: Uri(path: '/healthz'),
-  ),
-);
+final headResponse = await client.newCall(
+  RequestBuilder().url(Uri(path: '/healthz')).head().build(),
+).execute();
 
-final optionsResponse = await client.execute(
-  NexaHttpRequest(
-    method: NexaHttpMethod.options,
-    uri: Uri(path: '/users'),
-  ),
-);
+final optionsResponse = await client.newCall(
+  RequestBuilder().url(Uri(path: '/users')).method('OPTIONS').build(),
+).execute();
 ```
+
+Platform carrier packages should use `package:nexa_http/nexa_http_platform.dart` for runtime registration. End-user app code should stay on `package:nexa_http/nexa_http.dart`.
 
 ### Local verification commands
 
 ```bash
 dart pub get
-dart run scripts/workspace_tools.dart bootstrap
+fvm dart run scripts/workspace_tools.dart bootstrap
 fvm dart run scripts/workspace_tools.dart analyze
+fvm dart run scripts/workspace_tools.dart test
 cd packages/nexa_http && fvm dart test
 cd packages/nexa_http/example && fvm flutter test
 cargo test --workspace

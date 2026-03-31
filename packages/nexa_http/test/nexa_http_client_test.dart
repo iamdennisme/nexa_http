@@ -1,136 +1,97 @@
-import 'dart:convert';
-
 import 'package:nexa_http/nexa_http.dart';
-import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
-import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
-import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
+import 'package:nexa_http/src/internal/engine/nexa_http_engine_manager.dart';
+import 'package:nexa_http/src/worker/nexa_http_worker_protocol.dart';
+import 'package:nexa_http/src/worker/nexa_http_worker_proxy.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('resolves relative URLs and maps successful responses', () async {
-    final dataSource = _FakeNexaHttpNativeDataSource(
-      response: NexaHttpResponse(
-        statusCode: 200,
-        headers: const <String, List<String>>{
-          'content-type': <String>['application/json'],
-        },
-        bodyBytes: utf8.encode('ok'),
-      ),
+  tearDown(() {
+    NexaHttpEngineManager.resetForTesting();
+  });
+
+  test('constructs synchronously and exposes configured defaults', () {
+    final client = NexaHttpClientBuilder()
+        .baseUrl(Uri.parse('https://api.example.com/'))
+        .callTimeout(const Duration(seconds: 3))
+        .userAgent('test-agent')
+        .header('x-sdk', 'nexa_http')
+        .build();
+
+    expect(client, isA<NexaHttpClient>());
+    expect(client.baseUrl, Uri.parse('https://api.example.com/'));
+    expect(client.callTimeout, const Duration(seconds: 3));
+    expect(client.userAgent, 'test-agent');
+    expect(client.defaultHeaders['x-sdk'], 'nexa_http');
+  });
+
+  test('newCall lazily opens a worker lease on first execute', () async {
+    final proxy = _FakeWorkerProxy(
+      responses: <NexaHttpWorkerResponse>[
+        const NexaHttpWorkerSuccessResponse(
+          requestId: 1,
+          result: <String, Object?>{'leaseId': 41},
+        ),
+        const NexaHttpWorkerSuccessResponse(
+          requestId: 2,
+          result: <String, Object?>{
+            'statusCode': 200,
+            'headers': <String, Object?>{
+              'content-type': <Object?>['application/json; charset=utf-8'],
+            },
+            'bodyBytes': <Object?>[104, 105],
+            'finalUri': 'https://example.com/ok',
+          },
+        ),
+      ],
+    );
+    NexaHttpEngineManager.installForTesting(
+      NexaHttpEngineManager(workerProxy: proxy),
+    );
+    final client = NexaHttpClientBuilder()
+        .callTimeout(const Duration(seconds: 1))
+        .userAgent('test-agent')
+        .build();
+
+    final call = client.newCall(
+      RequestBuilder().url(Uri.parse('https://example.com/ok')).get().build(),
     );
 
-    final client = NexaHttpClient(
-      config: NexaHttpClientConfig(
-        baseUrl: Uri.parse('https://example.com/api/'),
-        defaultHeaders: const <String, String>{'x-sdk': 'rust-net'},
-        userAgent: 'rust-net-test',
-      ),
-      dataSource: dataSource,
-    );
+    expect(proxy.requests, isEmpty);
 
-    final response = await client.execute(
-      NexaHttpRequest.get(uri: Uri.parse('users')),
-    );
+    final response = await call.execute();
 
-    expect(dataSource.lastRequest?.url, 'https://example.com/api/users');
-    expect(dataSource.lastRequest?.headers['x-sdk'], 'rust-net');
-    expect(dataSource.lastRequest?.headers['user-agent'], 'rust-net-test');
     expect(response.statusCode, 200);
-    expect(response.bodyText, 'ok');
-  });
+    expect(await response.body!.string(), 'hi');
+    expect(response.finalUrl, Uri.parse('https://example.com/ok'));
+    expect(proxy.requests[0], isA<NexaHttpOpenClientWorkerRequest>());
+    final openRequest = proxy.requests[0] as NexaHttpOpenClientWorkerRequest;
+    expect(openRequest.config['timeout_ms'], 1000);
+    expect(openRequest.config['user_agent'], 'test-agent');
 
-  test('maps native transport errors to NexaHttpException', () async {
-    final client = NexaHttpClient(
-      dataSource: _FakeNexaHttpNativeDataSource(
-        error: const NexaHttpException(
-          code: 'timeout',
-          message: 'Request timed out.',
-          isTimeout: true,
-        ),
-      ),
-    );
-
-    expect(
-      () => client.execute(
-        NexaHttpRequest.get(uri: Uri.parse('https://example.com/timeout')),
-      ),
-      throwsA(
-        isA<NexaHttpException>().having(
-          (exception) => exception.isTimeout,
-          'isTimeout',
-          isTrue,
-        ),
-      ),
-    );
-  });
-
-  test('rejects relative URLs when baseUrl is missing', () async {
-    final client = NexaHttpClient(
-      dataSource: _FakeNexaHttpNativeDataSource(
-        response: const NexaHttpResponse(
-          statusCode: 200,
-          headers: <String, List<String>>{},
-          bodyBytes: <int>[],
-        ),
-      ),
-    );
-
-    expect(
-      () => client.execute(NexaHttpRequest.get(uri: Uri.parse('users'))),
-      throwsA(
-        isA<NexaHttpException>().having(
-          (exception) => exception.code,
-          'code',
-          'invalid_request',
-        ),
-      ),
-    );
-  });
-
-  test('does not allow requests after close', () async {
-    final client = NexaHttpClient(
-      dataSource: _FakeNexaHttpNativeDataSource(
-        response: const NexaHttpResponse(
-          statusCode: 204,
-          headers: <String, List<String>>{},
-          bodyBytes: <int>[],
-        ),
-      ),
-    );
-
-    await client.close();
-
-    expect(
-      () => client.execute(
-        NexaHttpRequest.get(uri: Uri.parse('https://example.com/ping')),
-      ),
-      throwsA(isA<StateError>()),
-    );
+    expect(proxy.requests[1], isA<NexaHttpExecuteWorkerRequest>());
+    final executeRequest = proxy.requests[1] as NexaHttpExecuteWorkerRequest;
+    expect(executeRequest.leaseId, 41);
+    expect(executeRequest.request['method'], 'GET');
+    expect(executeRequest.request['url'], 'https://example.com/ok');
   });
 }
 
-class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
-  _FakeNexaHttpNativeDataSource({this.response, this.error});
+final class _FakeWorkerProxy implements NexaHttpWorkerProxyClient {
+  _FakeWorkerProxy({required List<NexaHttpWorkerResponse> responses})
+      : _responses = responses;
 
-  final NexaHttpResponse? response;
-  final NexaHttpException? error;
-  NativeHttpRequestDto? lastRequest;
-
-  @override
-  void closeClient(int clientId) {}
+  final List<NexaHttpWorkerRequest> requests = <NexaHttpWorkerRequest>[];
+  final List<NexaHttpWorkerResponse> _responses;
 
   @override
-  int createClient(NativeHttpClientConfigDto config) => 1;
+  Future<void> warmUp() async {}
 
   @override
-  Future<NexaHttpResponse> execute(
-    int clientId,
-    NativeHttpRequestDto request,
-  ) async {
-    lastRequest = request;
-    final error = this.error;
-    if (error != null) {
-      throw error;
-    }
-    return response!;
+  Future<void> shutdown() async {}
+
+  @override
+  Future<NexaHttpWorkerResponse> send(NexaHttpWorkerRequest request) async {
+    requests.add(request);
+    return _responses[requests.length - 1];
   }
 }

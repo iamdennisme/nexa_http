@@ -1,32 +1,46 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexa_http/nexa_http.dart';
-import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
-import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
-import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
+import 'package:nexa_http/src/internal/engine/nexa_http_engine_manager.dart';
+import 'package:nexa_http/src/worker/nexa_http_worker_protocol.dart';
+import 'package:nexa_http/src/worker/nexa_http_worker_proxy.dart';
 import 'package:nexa_http_example/src/image_perf/image_perf_metrics.dart';
 import 'package:nexa_http_example/src/image_perf/nexa_http_image_file_service.dart';
 
 void main() {
+  tearDown(() {
+    NexaHttpEngineManager.resetForTesting();
+  });
+
   test(
     'forwards request headers, maps response, and records a sample',
     () async {
-      late NexaHttpRequest capturedRequest;
-      ImageRequestSample? capturedSample;
-      final service = NexaHttpImageFileService(
-        client: NexaHttpClient(
-          dataSource: _FakeNexaHttpNativeDataSource((request) async {
-            capturedRequest = request;
-            return const NexaHttpResponse(
-              statusCode: 200,
-              headers: <String, List<String>>{
-                'Cache-Control': <String>['max-age=60'],
-                'ETag': <String>['"image-etag"'],
-                'Content-Type': <String>['image/png'],
+      final proxy = _FakeWorkerProxy(
+        responses: <NexaHttpWorkerResponse>[
+          const NexaHttpWorkerSuccessResponse(
+            requestId: 1,
+            result: <String, Object?>{'leaseId': 7},
+          ),
+          const NexaHttpWorkerSuccessResponse(
+            requestId: 2,
+            result: <String, Object?>{
+              'statusCode': 200,
+              'headers': <String, Object?>{
+                'Cache-Control': <Object?>['max-age=60'],
+                'ETag': <Object?>['"image-etag"'],
+                'Content-Type': <Object?>['image/png'],
               },
-              bodyBytes: <int>[1, 2, 3, 4],
-            );
-          }),
-        ),
+              'bodyBytes': <Object?>[1, 2, 3, 4],
+            },
+          ),
+        ],
+      );
+      NexaHttpEngineManager.installForTesting(
+        NexaHttpEngineManager(workerProxy: proxy),
+      );
+      ImageRequestSample? capturedSample;
+      final client = NexaHttpClient();
+      final service = NexaHttpImageFileService(
+        client: client,
         onSample: (sample) {
           capturedSample = sample;
         },
@@ -37,8 +51,6 @@ void main() {
         headers: const <String, String>{'accept': 'image/*'},
       );
 
-      expect(capturedRequest.uri, Uri.parse('https://example.com/poster.png'));
-      expect(capturedRequest.headers['accept'], 'image/*');
       expect(response.statusCode, 200);
       expect(await response.content.expand((chunk) => chunk).toList(), <int>[
         1,
@@ -61,35 +73,83 @@ void main() {
       expect(capturedSample!.succeeded, isTrue);
       expect(capturedSample!.dispatchSequence, 0);
       expect(capturedSample!.statusCode, 200);
+
+      expect(proxy.requests[1], isA<NexaHttpExecuteWorkerRequest>());
+      final executeRequest = proxy.requests[1] as NexaHttpExecuteWorkerRequest;
+      expect(
+        executeRequest.request['url'],
+        'https://example.com/poster.png',
+      );
+      expect(
+        executeRequest.request['headers'],
+        <String, String>{'accept': 'image/*'},
+      );
     },
   );
+
+  test('close is a no-op for an externally supplied client', () async {
+    final proxy = _FakeWorkerProxy(
+      responses: <NexaHttpWorkerResponse>[
+        const NexaHttpWorkerSuccessResponse(
+          requestId: 1,
+          result: <String, Object?>{'leaseId': 13},
+        ),
+      ],
+    );
+    NexaHttpEngineManager.installForTesting(
+      NexaHttpEngineManager(workerProxy: proxy),
+    );
+    final service = NexaHttpImageFileService(client: NexaHttpClient());
+
+    await service.close();
+
+    expect(proxy.requests, isEmpty);
+  });
+
+  test('creates a default lightweight client when one is not supplied', () async {
+    final proxy = _FakeWorkerProxy(
+      responses: <NexaHttpWorkerResponse>[
+        const NexaHttpWorkerSuccessResponse(
+          requestId: 1,
+          result: <String, Object?>{'leaseId': 17},
+        ),
+        const NexaHttpWorkerSuccessResponse(
+          requestId: 2,
+          result: <String, Object?>{
+            'statusCode': 204,
+            'headers': <String, Object?>{},
+            'bodyBytes': <Object?>[],
+          },
+        ),
+      ],
+    );
+    NexaHttpEngineManager.installForTesting(
+      NexaHttpEngineManager(workerProxy: proxy),
+    );
+    final service = NexaHttpImageFileService();
+    final response = await service.get('https://example.com/late.png');
+
+    expect(response.statusCode, 204);
+    expect(proxy.requests[1], isA<NexaHttpExecuteWorkerRequest>());
+  });
 }
 
-final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
-  _FakeNexaHttpNativeDataSource(this._handler);
+final class _FakeWorkerProxy implements NexaHttpWorkerProxyClient {
+  _FakeWorkerProxy({required List<NexaHttpWorkerResponse> responses})
+    : _responses = responses;
 
-  final Future<NexaHttpResponse> Function(NexaHttpRequest request) _handler;
-
-  @override
-  void closeClient(int clientId) {}
-
-  @override
-  int createClient(NativeHttpClientConfigDto config) => 1;
+  final List<NexaHttpWorkerResponse> _responses;
+  final List<NexaHttpWorkerRequest> requests = <NexaHttpWorkerRequest>[];
 
   @override
-  Future<NexaHttpResponse> execute(int clientId, NativeHttpRequestDto request) {
-    return _handler(
-      NexaHttpRequest(
-        method: NexaHttpMethod.values.firstWhere(
-          (value) => value.wireValue == request.method,
-        ),
-        uri: Uri.parse(request.url),
-        headers: request.headers,
-        bodyBytes: request.bodyBytes,
-        timeout: request.timeoutMs == null
-            ? null
-            : Duration(milliseconds: request.timeoutMs!),
-      ),
-    );
+  Future<void> warmUp() async {}
+
+  @override
+  Future<void> shutdown() async {}
+
+  @override
+  Future<NexaHttpWorkerResponse> send(NexaHttpWorkerRequest request) async {
+    requests.add(request);
+    return _responses[requests.length - 1];
   }
 }

@@ -1,52 +1,37 @@
 import 'api/api.dart';
-import 'data/mappers/native_http_client_config_mapper.dart';
-import 'data/mappers/native_http_request_mapper.dart';
-import 'data/sources/nexa_http_native_data_source.dart';
-import 'native_bridge/nexa_http_native_data_source_factory.dart';
+import 'client/real_call.dart';
+import 'internal/config/client_options.dart';
 
-class NexaHttpClient {
-  NexaHttpClient({
-    this.config = const NexaHttpClientConfig(),
-    NexaHttpNativeDataSource? dataSource,
-    String? libraryPath,
-    String? nativeLibraryPath,
-    NexaHttpNativeDataSourceFactory dataSourceFactory =
-        const NexaHttpNativeDataSourceFactory(),
-  }) : _dataSource =
-           dataSource ??
-           dataSourceFactory.create(
-             libraryPath: libraryPath ?? nativeLibraryPath,
-           ) {
-    _clientId = _dataSource.createClient(
-      NativeHttpClientConfigMapper.toDto(config),
+final class NexaHttpClient {
+  factory NexaHttpClient({
+    Uri? baseUrl,
+    Duration? callTimeout,
+    Map<String, String> defaultHeaders = const <String, String>{},
+    String? userAgent,
+  }) {
+    return NexaHttpClient._(
+      ClientOptions(
+        baseUrl: baseUrl,
+        defaultHeaders: Map<String, String>.unmodifiable(defaultHeaders),
+        timeout: callTimeout,
+        userAgent: userAgent,
+      ),
     );
   }
 
-  final NexaHttpClientConfig config;
-  final NexaHttpNativeDataSource _dataSource;
-  late final int _clientId;
-  bool _isClosed = false;
+  NexaHttpClient._(this._options);
 
-  Future<NexaHttpResponse> execute(NexaHttpRequest request) async {
-    _ensureOpen();
+  final ClientOptions _options;
 
-    return _dataSource.execute(
-      _clientId,
-      NativeHttpRequestMapper.toDto(clientConfig: config, request: request),
-    );
-  }
+  Uri? get baseUrl => _options.baseUrl;
 
-  Future<void> close() async {
-    if (_isClosed) {
-      return;
-    }
-    _dataSource.closeClient(_clientId);
-    _isClosed = true;
-  }
+  Duration? get callTimeout => _options.timeout;
 
-  void _ensureOpen() {
-    if (_isClosed) {
-      throw StateError('NexaHttpClient has already been closed.');
-    }
+  Headers get defaultHeaders => Headers.fromMap(_options.defaultHeaders);
+
+  String? get userAgent => _options.userAgent;
+
+  Call newCall(Request request) {
+    return RealCall(clientOptions: _options, request: request);
   }
 }

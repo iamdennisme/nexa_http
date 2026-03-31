@@ -1,8 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexa_http/nexa_http.dart';
-import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
-import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
-import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
 
 import 'package:nexa_http_example/main.dart';
 
@@ -38,7 +35,7 @@ void main() {
     expect(find.text('Clear caches'), findsOneWidget);
   });
 
-  testWidgets('defers native client initialization until after first frame', (
+  testWidgets('creates the lightweight client synchronously during build', (
     WidgetTester tester,
   ) async {
     var createClientCallCount = 0;
@@ -47,29 +44,15 @@ void main() {
       NexaHttpExampleApp(
         createClient: () {
           createClientCallCount += 1;
-          return NexaHttpClient(dataSource: _FakeNexaHttpNativeDataSource());
+          return NexaHttpClient();
         },
       ),
     );
 
-    expect(createClientCallCount, 0);
-    expect(find.text('Initializing native runtime...'), findsOneWidget);
-
-    await tester.pump(const Duration(milliseconds: 1));
-
     expect(createClientCallCount, 1);
+    expect(
+      find.text('Transport initializes lazily on first request.'),
+      findsOneWidget,
+    );
   });
-}
-
-final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
-  @override
-  void closeClient(int clientId) {}
-
-  @override
-  int createClient(NativeHttpClientConfigDto config) => 1;
-
-  @override
-  Future<NexaHttpResponse> execute(int clientId, NativeHttpRequestDto request) {
-    throw UnimplementedError();
-  }
 }

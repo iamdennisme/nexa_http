@@ -1,40 +1,53 @@
 import 'package:nexa_http/nexa_http.dart';
+import 'package:nexa_http/nexa_http_platform.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('exports the NexaHttp public API surface', () {
-    expect(
-      const NexaHttpClientConfig(
-        defaultHeaders: <String, String>{'x-sdk': 'nexa_http'},
-      ).defaultHeaders['x-sdk'],
-      'nexa_http',
+  test('exports the OkHttp-aligned NexaHttp public API surface', () async {
+    final request = RequestBuilder()
+        .url(Uri.parse('https://example.com/items'))
+        .header('x-sdk', 'nexa_http')
+        .get()
+        .build();
+
+    expect(request.method, 'GET');
+    expect(request.url, Uri.parse('https://example.com/items'));
+    expect(request.headers['x-sdk'], 'nexa_http');
+
+    final requestBody = RequestBody.bytes(
+      const <int>[1, 2, 3],
+      contentType: MediaType.parse('application/octet-stream'),
+    );
+    final postRequest = RequestBuilder()
+        .url(Uri.parse('https://example.com/upload'))
+        .post(requestBody)
+        .build();
+    expect(postRequest.method, 'POST');
+    expect(postRequest.body, same(requestBody));
+
+    final responseBody = ResponseBody.fromString(
+      'ok',
+      contentType: MediaType.parse('text/plain; charset=utf-8'),
+    );
+    final response = Response(
+      request: postRequest,
+      statusCode: 200,
+      headers: Headers.of(<String, List<String>>{
+        'content-type': <String>['text/plain; charset=utf-8'],
+      }),
+      body: responseBody,
     );
 
-    final request = NexaHttpRequest.get(uri: Uri.parse('https://example.com'));
-    expect(request.method, NexaHttpMethod.get);
-
-    const response = NexaHttpResponse(statusCode: 200);
     expect(response.isSuccessful, isTrue);
-
-    const exception = NexaHttpException(
-      code: 'timeout',
-      message: 'timed out',
-      isTimeout: true,
-    );
-    expect(exception.isTimeout, isTrue);
-
-    final postRequest = NexaHttpRequest.post(
-      uri: Uri.parse('https://example.com/items'),
-      bodyBytes: const <int>[1, 2, 3],
-    );
-    expect(postRequest.method, NexaHttpMethod.post);
-
-    final putRequest = NexaHttpRequest.put(
-      uri: Uri.parse('https://example.com/items/42'),
-      bodyBytes: const <int>[4, 5, 6],
-    );
-    expect(putRequest.method, NexaHttpMethod.put);
+    expect(await response.body!.string(), 'ok');
 
     expect(NexaHttpClient, isA<Type>());
+    expect(NexaHttpClientBuilder, isA<Type>());
+    expect(Call, isA<Type>());
+    expect(Callback, isA<Type>());
+    expect(NexaHttpException, isA<Type>());
+
+    expect(registerNexaHttpNativeRuntime, isA<Function>());
+    expect(NexaHttpNativeRuntime, isA<Type>());
   });
 }

@@ -1,4 +1,4 @@
-import 'package:nexa_http/nexa_http_native_runtime.dart';
+import 'package:nexa_http/nexa_http_platform.dart';
 import 'package:nexa_http_native_android/nexa_http_native_android.dart';
 import 'package:test/test.dart';
 

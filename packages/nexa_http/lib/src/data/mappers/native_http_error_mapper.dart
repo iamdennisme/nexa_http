@@ -1,4 +1,4 @@
-import '../../api/api.dart';
+import '../../api/nexa_http_exception.dart';
 import '../dto/native_http_error_dto.dart';
 
 final class NativeHttpErrorMapper {

@@ -24,23 +24,29 @@
 
 当前的调用链路是：
 
-`Flutter app -> NexaHttpClient -> Dart 请求映射 -> FFI bridge -> 平台 native runtime -> nexa_http_native_core -> HTTP transport`
+`Flutter app -> NexaHttpClient -> Call -> internal engine -> worker isolate -> Dart 请求映射 -> FFI bridge -> platform runtime SPI -> nexa_http_native_core -> HTTP transport`
 
 当前分层职责：
 
-- 公开 API 层：`packages/nexa_http`
-  对外暴露 `NexaHttpClient`、请求/响应模型、配置、异常和图片文件服务。
-- 平台 carrier 层：`packages/nexa_http_native_*`
-  为各平台注册 native runtime，并交付最终原生二进制。
+- 公开 HTTP API 层：`packages/nexa_http/lib/nexa_http.dart`、`packages/nexa_http/lib/src/api/*`
+  只暴露稳定 HTTP 语义：`NexaHttpClient`、`NexaHttpClientBuilder`、`Request`、`RequestBuilder`、`RequestBody`、`Response`、`ResponseBody`、`Headers`、`MediaType`、`Call`、`Callback`、`NexaHttpException`。
+- Client / Call facade 层：`packages/nexa_http/lib/src/nexa_http_client.dart`、`packages/nexa_http/lib/src/client/*`
+  负责轻量 client 形态和单次请求 `Call` 的执行模型。
+- Internal engine 层：`packages/nexa_http/lib/src/internal/engine/*`
+  在第一次真实 `execute()` 时惰性初始化共享 worker / native 资源，并复用按配置分组的 native client。
+- Internal worker / FFI bridge 层：`packages/nexa_http/lib/src/worker/*`、`packages/nexa_http/lib/src/data/*`
+  把公开请求映射到 worker/native 传输协议，并把 native 结果映射回 Dart 响应对象。
+- 平台 carrier / SPI 层：`packages/nexa_http_native_*`、`package:nexa_http/nexa_http_platform.dart`
+  负责平台注册 runtime hook 和原生二进制打包，不污染根公开 API。
 - Native core 层：`native/nexa_http_native_core`
   负责统一 ABI、runtime contract、传输执行，以及 native 侧的平台能力接入。
 
 这意味着：
 
-- Dart 负责 API 形态和调用编排
+- Dart 负责 API 形态、调用编排和惰性启动
 - Rust 负责真实传输执行
-- 所有支持的平台现在统一走一条 async FFI 请求链
-- 平台差异通过 native 平台模块处理，而不是通过公开 Dart API 处理
+- 所有支持的平台统一走一条 async FFI 请求链
+- 平台差异通过 carrier package 和 native 平台模块处理，而不是通过公开 Dart API 处理
 - 代理状态由各平台 native runtime 自己维护，`nexa_http_native_core` 只在平台代理 generation 变化时重建 client
 
 ## 3. 使用方法
@@ -86,90 +92,96 @@ dependencies:
 
 ### 客户端调用
 
-`NexaHttpRequest` 支持 `GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`HEAD`、`OPTIONS`。
+根包现在对齐 OkHttp 风格的 HTTP API。
 
-其中 `get`、`post`、`put`、`delete` 有便捷 helper，其他方法可通过基础构造并显式传入 `method`。
+`RequestBuilder` 支持 `GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`HEAD`、`OPTIONS`。
+
+`NexaHttpClient` 是轻量且同步的。worker 启动、native library 加载、native client 创建都在第一次真实 `call.execute()` 时惰性触发。
 
 ```dart
-import 'dart:convert';
-
 import 'package:nexa_http/nexa_http.dart';
 
-final client = NexaHttpClient(
-  config: NexaHttpClientConfig(
-    baseUrl: Uri.parse('https://api.example.com/'),
-    timeout: const Duration(seconds: 10),
-  ),
-);
+final client = NexaHttpClientBuilder()
+    .baseUrl(Uri.parse('https://api.example.com/'))
+    .callTimeout(const Duration(seconds: 10))
+    .userAgent('nexa_http/1.0.1')
+    .build();
 
-final response = await client.execute(
-  NexaHttpRequest.get(uri: Uri(path: '/healthz')),
-);
+final request = RequestBuilder()
+    .url(Uri(path: '/healthz'))
+    .get()
+    .build();
 
-await client.close();
+final response = await client.newCall(request).execute();
+final body = await response.body!.string();
 ```
 
 请求示例：
 
 ```dart
-final getResponse = await client.execute(
-  NexaHttpRequest.get(
-    uri: Uri(path: '/healthz'),
-  ),
-);
+final getResponse = await client.newCall(
+  RequestBuilder().url(Uri(path: '/healthz')).get().build(),
+).execute();
 
-final postResponse = await client.execute(
-  NexaHttpRequest.post(
-    uri: Uri(path: '/users'),
-    headers: {'content-type': 'application/json'},
-    bodyBytes: utf8.encode('{"name":"alice"}'),
-  ),
-);
+final postResponse = await client.newCall(
+  RequestBuilder()
+      .url(Uri(path: '/users'))
+      .post(
+        RequestBody.fromString(
+          '{"name":"alice"}',
+          contentType: MediaType.parse('application/json; charset=utf-8'),
+        ),
+      )
+      .build(),
+).execute();
 
-final putResponse = await client.execute(
-  NexaHttpRequest.put(
-    uri: Uri(path: '/users/1'),
-    headers: {'content-type': 'application/json'},
-    bodyBytes: utf8.encode('{"name":"alice-updated"}'),
-  ),
-);
+final putResponse = await client.newCall(
+  RequestBuilder()
+      .url(Uri(path: '/users/1'))
+      .put(
+        RequestBody.fromString(
+          '{"name":"alice-updated"}',
+          contentType: MediaType.parse('application/json; charset=utf-8'),
+        ),
+      )
+      .build(),
+).execute();
 
-final deleteResponse = await client.execute(
-  NexaHttpRequest.delete(
-    uri: Uri(path: '/users/1'),
-  ),
-);
+final deleteResponse = await client.newCall(
+  RequestBuilder().url(Uri(path: '/users/1')).delete().build(),
+).execute();
 
-final patchResponse = await client.execute(
-  NexaHttpRequest(
-    method: NexaHttpMethod.patch,
-    uri: Uri(path: '/users/1'),
-    headers: {'content-type': 'application/json'},
-    bodyBytes: utf8.encode('{"name":"alice-patched"}'),
-  ),
-);
+final patchResponse = await client.newCall(
+  RequestBuilder()
+      .url(Uri(path: '/users/1'))
+      .method(
+        'PATCH',
+        RequestBody.fromString(
+          '{"name":"alice-patched"}',
+          contentType: MediaType.parse('application/json; charset=utf-8'),
+        ),
+      )
+      .build(),
+).execute();
 
-final headResponse = await client.execute(
-  NexaHttpRequest(
-    method: NexaHttpMethod.head,
-    uri: Uri(path: '/healthz'),
-  ),
-);
+final headResponse = await client.newCall(
+  RequestBuilder().url(Uri(path: '/healthz')).head().build(),
+).execute();
 
-final optionsResponse = await client.execute(
-  NexaHttpRequest(
-    method: NexaHttpMethod.options,
-    uri: Uri(path: '/users'),
-  ),
-);
+final optionsResponse = await client.newCall(
+  RequestBuilder().url(Uri(path: '/users')).method('OPTIONS').build(),
+).execute();
 ```
+
+平台 carrier package 应通过 `package:nexa_http/nexa_http_platform.dart` 注册 runtime。业务代码应只使用 `package:nexa_http/nexa_http.dart`。
 
 ### 本地验证命令
 
 ```bash
 dart pub get
-dart run scripts/workspace_tools.dart bootstrap
+fvm dart run scripts/workspace_tools.dart bootstrap
 fvm dart run scripts/workspace_tools.dart analyze
+fvm dart run scripts/workspace_tools.dart test
 cd packages/nexa_http && fvm dart test
 cd packages/nexa_http/example && fvm flutter test
 cargo test --workspace

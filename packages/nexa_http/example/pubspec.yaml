@@ -34,30 +34,15 @@ dependencies:
   flutter_cache_manager: ^3.4.1
 
   nexa_http:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http
+    path: ..
   nexa_http_native_android:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http_native_android
+    path: ../../nexa_http_native_android
   nexa_http_native_ios:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http_native_ios
+    path: ../../nexa_http_native_ios
   nexa_http_native_macos:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http_native_macos
+    path: ../../nexa_http_native_macos
   nexa_http_native_windows:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http_native_windows
+    path: ../../nexa_http_native_windows
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
