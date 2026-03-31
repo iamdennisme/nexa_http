@@ -12,7 +12,7 @@ final class NexaHttpClient {
     return NexaHttpClient._(
       ClientOptions(
         baseUrl: baseUrl,
-        defaultHeaders: Map<String, String>.unmodifiable(defaultHeaders),
+        defaultHeaders: _normalizeDefaultHeaders(defaultHeaders),
         timeout: callTimeout,
         userAgent: userAgent,
       ),
@@ -33,5 +33,19 @@ final class NexaHttpClient {
 
   Call newCall(Request request) {
     return RealCall(clientOptions: _options, request: request);
+  }
+
+  static Map<String, String> _normalizeDefaultHeaders(
+    Map<String, String> headers,
+  ) {
+    if (headers.isEmpty) {
+      return const <String, String>{};
+    }
+
+    final normalized = <String, String>{};
+    for (final entry in headers.entries) {
+      normalized[entry.key.trim().toLowerCase()] = entry.value;
+    }
+    return Map<String, String>.unmodifiable(normalized);
   }
 }

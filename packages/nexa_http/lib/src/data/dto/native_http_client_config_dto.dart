@@ -1,19 +1,19 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
+final class NativeHttpClientConfigDto {
+  const NativeHttpClientConfigDto({
+    this.defaultHeaders = const <String, String>{},
+    this.timeoutMs,
+    this.userAgent,
+  });
 
-part 'native_http_client_config_dto.freezed.dart';
-part 'native_http_client_config_dto.g.dart';
+  final Map<String, String> defaultHeaders;
+  final int? timeoutMs;
+  final String? userAgent;
 
-@freezed
-class NativeHttpClientConfigDto with _$NativeHttpClientConfigDto {
-  const factory NativeHttpClientConfigDto({
-    @JsonKey(name: 'base_url') String? baseUrl,
-    @JsonKey(name: 'default_headers')
-    @Default(<String, String>{})
-    Map<String, String> defaultHeaders,
-    @JsonKey(name: 'timeout_ms') int? timeoutMs,
-    @JsonKey(name: 'user_agent') String? userAgent,
-  }) = _NativeHttpClientConfigDto;
-
-  factory NativeHttpClientConfigDto.fromJson(Map<String, dynamic> json) =>
-      _$NativeHttpClientConfigDtoFromJson(json);
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'default_headers': defaultHeaders,
+      'timeout_ms': timeoutMs,
+      'user_agent': userAgent,
+    };
+  }
 }

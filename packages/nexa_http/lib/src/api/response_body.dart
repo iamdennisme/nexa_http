@@ -3,20 +3,26 @@ import 'dart:convert';
 
 import 'media_type.dart';
 
+ResponseBody adoptResponseBodyBytes(List<int> bytes, {MediaType? contentType}) {
+  return ResponseBody._(
+    bytes: bytes,
+    contentType: contentType,
+    copyBytes: false,
+  );
+}
+
 final class ResponseBody {
   ResponseBody._({
     required List<int> bytes,
     this.contentType,
-  }) : _bytes = List<int>.unmodifiable(bytes);
+    bool copyBytes = true,
+  }) : _bytes = copyBytes ? List<int>.unmodifiable(bytes) : bytes;
 
   final List<int> _bytes;
   final MediaType? contentType;
   bool _isClosed = false;
 
-  factory ResponseBody.bytes(
-    List<int> bytes, {
-    MediaType? contentType,
-  }) {
+  factory ResponseBody.bytes(List<int> bytes, {MediaType? contentType}) {
     return ResponseBody._(bytes: bytes, contentType: contentType);
   }
 
@@ -29,12 +35,13 @@ final class ResponseBody {
     return ResponseBody._(
       bytes: resolvedEncoding.encode(value),
       contentType: contentType,
+      copyBytes: false,
     );
   }
 
   Future<List<int>> bytes() async {
     _ensureOpen();
-    return List<int>.from(_bytes);
+    return _bytes;
   }
 
   Future<String> string() async {
@@ -45,7 +52,7 @@ final class ResponseBody {
 
   Stream<List<int>> byteStream() {
     _ensureOpen();
-    return Stream<List<int>>.value(List<int>.from(_bytes));
+    return Stream<List<int>>.value(_bytes);
   }
 
   void close() {

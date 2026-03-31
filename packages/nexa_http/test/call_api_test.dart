@@ -1,7 +1,12 @@
+import 'dart:ffi';
+
 import 'package:nexa_http/nexa_http.dart';
+import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
+import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
+import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
 import 'package:nexa_http/src/internal/engine/nexa_http_engine_manager.dart';
-import 'package:nexa_http/src/worker/nexa_http_worker_protocol.dart';
-import 'package:nexa_http/src/worker/nexa_http_worker_proxy.dart';
+import 'package:nexa_http/src/internal/transport/transport_response.dart';
+import 'package:nexa_http/src/native_bridge/nexa_http_native_data_source_factory.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -34,7 +39,10 @@ void main() {
   test('cancel marks the call canceled and blocks execute before start', () {
     final client = NexaHttpClient();
     final call = client.newCall(
-      RequestBuilder().url(Uri.parse('https://example.com/cancel')).get().build(),
+      RequestBuilder()
+          .url(Uri.parse('https://example.com/cancel'))
+          .get()
+          .build(),
     );
 
     call.cancel();
@@ -44,25 +52,18 @@ void main() {
   });
 
   test('execute is single-shot and clone returns a fresh call', () async {
-    final proxy = _FakeWorkerProxy(
-      responses: <NexaHttpWorkerResponse>[
-        const NexaHttpWorkerSuccessResponse(
-          requestId: 1,
-          result: <String, Object?>{'leaseId': 9},
-        ),
-        const NexaHttpWorkerSuccessResponse(
-          requestId: 2,
-          result: <String, Object?>{'statusCode': 204},
-        ),
-        const NexaHttpWorkerSuccessResponse(
-          requestId: 3,
-          result: <String, Object?>{'statusCode': 204},
-        ),
+    final dataSource = _FakeNativeDataSource(
+      executeResponses: const <TransportResponse>[
+        TransportResponse(statusCode: 204),
+        TransportResponse(statusCode: 204),
       ],
     );
-    NexaHttpEngineManager.installForTesting(
-      NexaHttpEngineManager(workerProxy: proxy),
+    final dataSourceFactory = NexaHttpNativeDataSourceFactory(
+      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
+      createDataSource: (_) => dataSource,
     );
+    final engine = NexaHttpEngineManager(dataSourceFactory: dataSourceFactory);
+    NexaHttpEngineManager.installForTesting(engine);
     final client = NexaHttpClient();
     final request = RequestBuilder()
         .url(Uri.parse('https://example.com/no-content'))
@@ -79,25 +80,47 @@ void main() {
     final clonedCall = call.clone();
     final clonedResponse = await clonedCall.execute();
     expect(clonedResponse.statusCode, 204);
+    expect(dataSource.createClientConfigs, hasLength(1));
+    expect(dataSource.executeCalls, hasLength(2));
+    expect(
+      dataSource.executeCalls[0].clientId,
+      dataSource.executeCalls[1].clientId,
+    );
   });
 }
 
-final class _FakeWorkerProxy implements NexaHttpWorkerProxyClient {
-  _FakeWorkerProxy({required List<NexaHttpWorkerResponse> responses})
-      : _responses = responses;
+final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
+  _FakeNativeDataSource({required List<TransportResponse> executeResponses})
+    : _executeResponses = executeResponses;
 
-  final List<NexaHttpWorkerRequest> requests = <NexaHttpWorkerRequest>[];
-  final List<NexaHttpWorkerResponse> _responses;
-
-  @override
-  Future<void> warmUp() async {}
-
-  @override
-  Future<void> shutdown() async {}
+  final List<NativeHttpClientConfigDto> createClientConfigs =
+      <NativeHttpClientConfigDto>[];
+  final List<_ExecuteCall> executeCalls = <_ExecuteCall>[];
+  final List<TransportResponse> _executeResponses;
+  final int _nextClientId = 9;
 
   @override
-  Future<NexaHttpWorkerResponse> send(NexaHttpWorkerRequest request) async {
-    requests.add(request);
-    return _responses[requests.length - 1];
+  int createClient(NativeHttpClientConfigDto config) {
+    createClientConfigs.add(config);
+    return _nextClientId;
   }
+
+  @override
+  Future<TransportResponse> execute(
+    int clientId,
+    NativeHttpRequestDto request,
+  ) async {
+    executeCalls.add(_ExecuteCall(clientId: clientId, request: request));
+    return _executeResponses[executeCalls.length - 1];
+  }
+
+  @override
+  void closeClient(int clientId) {}
+}
+
+final class _ExecuteCall {
+  const _ExecuteCall({required this.clientId, required this.request});
+
+  final int clientId;
+  final NativeHttpRequestDto request;
 }

@@ -6,7 +6,6 @@ final class NativeHttpClientConfigMapper {
 
   static NativeHttpClientConfigDto toDto(ClientOptions config) {
     return NativeHttpClientConfigDto(
-      baseUrl: config.baseUrl?.toString(),
       defaultHeaders: config.defaultHeaders,
       timeoutMs: config.timeout?.inMilliseconds,
       userAgent: config.userAgent,

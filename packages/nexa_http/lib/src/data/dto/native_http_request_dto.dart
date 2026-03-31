@@ -1,18 +1,15 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
+final class NativeHttpRequestDto {
+  const NativeHttpRequestDto({
+    required this.method,
+    required this.url,
+    this.headers = const <MapEntry<String, String>>[],
+    this.bodyBytes,
+    this.timeoutMs,
+  });
 
-part 'native_http_request_dto.freezed.dart';
-part 'native_http_request_dto.g.dart';
-
-@freezed
-class NativeHttpRequestDto with _$NativeHttpRequestDto {
-  const factory NativeHttpRequestDto({
-    required String method,
-    required String url,
-    @Default(<String, String>{}) Map<String, String> headers,
-    @JsonKey(includeFromJson: false, includeToJson: false) List<int>? bodyBytes,
-    @JsonKey(name: 'timeout_ms') int? timeoutMs,
-  }) = _NativeHttpRequestDto;
-
-  factory NativeHttpRequestDto.fromJson(Map<String, dynamic> json) =>
-      _$NativeHttpRequestDtoFromJson(json);
+  final String method;
+  final String url;
+  final List<MapEntry<String, String>> headers;
+  final List<int>? bodyBytes;
+  final int? timeoutMs;
 }

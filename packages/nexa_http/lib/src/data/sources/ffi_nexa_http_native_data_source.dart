@@ -25,8 +25,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
 
     return FfiNexaHttpNativeDataSource._(
       bindings: resolvedBindings,
-      binaryResultFinalizer:
-          binaryResultFinalizer ??
+      binaryResultFinalizer: binaryResultFinalizer ??
           library.lookup<NativeFunction<BinaryResultFinalizerNative>>(
             'nexa_http_binary_result_free',
           ),
@@ -36,9 +35,9 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   FfiNexaHttpNativeDataSource._({
     required NexaHttpBindings bindings,
     required Pointer<NativeFunction<BinaryResultFinalizerNative>>
-    binaryResultFinalizer,
-  }) : _bindings = bindings,
-       _binaryResultFinalizer = binaryResultFinalizer {
+        binaryResultFinalizer,
+  })  : _bindings = bindings,
+        _binaryResultFinalizer = binaryResultFinalizer {
     _executeCallback = NativeCallable<NexaHttpExecuteCallbackFunction>.listener(
       _handleExecuteCallback,
     );
@@ -46,7 +45,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
 
   final NexaHttpBindings _bindings;
   final Pointer<NativeFunction<BinaryResultFinalizerNative>>
-  _binaryResultFinalizer;
+      _binaryResultFinalizer;
   final _pendingExecuteRequests = <int, Completer<TransportResponse>>{};
 
   NativeCallable<NexaHttpExecuteCallbackFunction>? _executeCallback;
@@ -297,13 +296,14 @@ final class _NativeRequestArena {
     final pointer = arena<NexaHttpRequestArgs>();
     final method = _NativeUtf8Slice.allocate(request.method, arena);
     final url = _NativeUtf8Slice.allocate(request.url, arena);
-    final headerEntries = request.headers.entries.toList(growable: false);
-    final headersPointer = headerEntries.isEmpty
+    final headers = request.headers;
+    final headersLength = headers.length;
+    final headersPointer = headersLength == 0
         ? nullptr
-        : arena<NexaHttpHeaderEntry>(headerEntries.length);
+        : arena<NexaHttpHeaderEntry>(headersLength);
 
-    for (var index = 0; index < headerEntries.length; index += 1) {
-      final header = headerEntries[index];
+    var index = 0;
+    for (final header in headers) {
       final name = _NativeUtf8Slice.allocate(header.key, arena);
       final value = _NativeUtf8Slice.allocate(header.value, arena);
       headersPointer[index]
@@ -311,6 +311,7 @@ final class _NativeRequestArena {
         ..name_len = name.length
         ..value_ptr = value.pointer.cast()
         ..value_len = value.length;
+      index += 1;
     }
 
     final bodyBytes = request.bodyBytes;
@@ -328,7 +329,7 @@ final class _NativeRequestArena {
       ..url_ptr = url.pointer.cast()
       ..url_len = url.length
       ..headers_ptr = headersPointer
-      ..headers_len = headerEntries.length
+      ..headers_len = headersLength
       ..body_ptr = bodyPointer
       ..body_len = bodyBytes?.length ?? 0
       ..timeout_ms = timeoutMs ?? 0
@@ -349,9 +350,11 @@ final class _NativeUtf8Slice {
   final int length;
 
   factory _NativeUtf8Slice.allocate(String value, Arena arena) {
-    return _NativeUtf8Slice(
-      value.toNativeUtf8(allocator: arena),
-      utf8.encode(value).length,
-    );
+    final encoded = utf8.encode(value);
+    final pointer = arena<Uint8>(encoded.length + 1);
+    final bytes = pointer.asTypedList(encoded.length + 1);
+    bytes.setAll(0, encoded);
+    bytes[encoded.length] = 0;
+    return _NativeUtf8Slice(pointer.cast(), encoded.length);
   }
 }

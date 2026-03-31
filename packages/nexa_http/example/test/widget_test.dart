@@ -4,35 +4,38 @@ import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http_example/main.dart';
 
 void main() {
-  testWidgets('renders HTTP and image performance demos', (
+  testWidgets('renders HTTP playground and benchmark demos', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const NexaHttpExampleApp());
     await tester.pump();
 
     expect(find.text('nexa_http Demo'), findsOneWidget);
-    expect(find.text('HTTP test page'), findsOneWidget);
-    expect(find.text('Image performance'), findsOneWidget);
-    expect(find.text('Send GET'), findsOneWidget);
+    expect(find.text('HTTP Playground'), findsNWidgets(2));
+    expect(find.text('Benchmark'), findsOneWidget);
+    expect(find.text('Request Playground'), findsOneWidget);
+    expect(find.text('Send Request'), findsOneWidget);
   });
 
-  testWidgets('shows image performance controls after switching demos', (
+  testWidgets('shows benchmark controls after switching demos', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(const NexaHttpExampleApp());
     await tester.pump();
 
-    await tester.tap(find.text('Image performance'));
+    await tester.tap(find.text('Benchmark'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Transport'), findsOneWidget);
-    expect(find.text('Default'), findsOneWidget);
+    expect(find.text('Concurrent Benchmark'), findsOneWidget);
+    expect(find.text('Scenario'), findsOneWidget);
+    expect(find.text('Bytes'), findsOneWidget);
+    expect(find.text('Image'), findsOneWidget);
+    expect(find.text('Concurrency'), findsOneWidget);
+    expect(find.text('Total Requests'), findsOneWidget);
+    expect(find.text('Warmup Requests'), findsOneWidget);
+    expect(find.text('Run Benchmark'), findsOneWidget);
     expect(find.text('nexa_http'), findsOneWidget);
-    expect(find.text('Metrics'), findsOneWidget);
-    expect(find.text('Preview Grid'), findsOneWidget);
-    expect(find.text('Run image test'), findsOneWidget);
-    expect(find.text('Auto scroll'), findsOneWidget);
-    expect(find.text('Clear caches'), findsOneWidget);
+    expect(find.text('Dart HttpClient'), findsOneWidget);
   });
 
   testWidgets('creates the lightweight client synchronously during build', (
@@ -50,9 +53,7 @@ void main() {
     );
 
     expect(createClientCallCount, 1);
-    expect(
-      find.text('Transport initializes lazily on first request.'),
-      findsOneWidget,
-    );
+    expect(find.text('Transport initializes lazily on first request.'),
+        findsOneWidget);
   });
 }

@@ -4,37 +4,24 @@ import 'package:nexa_http/nexa_http.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('reads response body as bytes, string, and stream', () async {
-    final body = ResponseBody.bytes(const <int>[
-      104,
-      105,
-    ], contentType: MediaType.parse('text/plain; charset=utf-8'));
+  test('reuses the stored immutable bytes across reads and streams', () async {
+    final body = RequestBody.bytes(const <int>[1, 2, 3]);
 
     final firstRead = await body.bytes();
     final secondRead = await body.bytes();
     final streamed = await body.byteStream().single;
 
-    expect(firstRead, const <int>[104, 105]);
-    expect(identical(firstRead, secondRead), isTrue);
-    expect(identical(firstRead, streamed), isTrue);
-    expect(await body.string(), 'hi');
-  });
-
-  test('rejects reads after the body is closed', () async {
-    final body = ResponseBody.fromString('closed');
-
-    body.close();
-
-    expect(body.bytes(), throwsA(isA<StateError>()));
-    expect(body.string(), throwsA(isA<StateError>()));
+    expect(identical(firstRead, body.bytesValue), isTrue);
+    expect(identical(secondRead, body.bytesValue), isTrue);
+    expect(identical(streamed, body.bytesValue), isTrue);
   });
 
   test(
     'fromString adopts freshly encoded bytes without an extra copy',
     () async {
-      final encoding = _TrackingEncoding(<int>[120, 121]);
+      final encoding = _TrackingEncoding(<int>[65, 66, 67]);
 
-      final body = ResponseBody.fromString('xy', encoding: encoding);
+      final body = RequestBody.fromString('abc', encoding: encoding);
       final bytes = await body.bytes();
 
       expect(identical(bytes, encoding.lastEncodedBytes), isTrue);

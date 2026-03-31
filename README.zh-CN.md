@@ -2,83 +2,76 @@
 
 [English](./README.md)
 
-## 1. 项目概述
+`nexa_http` 是一个 Flutter HTTP 工作区：公开 API 走 Dart，真实传输走 Rust。
 
-`nexa_http` 是一个以 Rust 传输运行时为核心、以 Dart/Flutter 公开 API 为入口的 HTTP SDK 工作区。
+## 工作区结构
 
-当前项目由这些部分组成：
+仓库现在按职责拆成几块：
 
-- `packages/nexa_http`：Flutter 侧公开 Dart 包
-- `packages/nexa_http_native_android|ios|macos|windows`：各平台 carrier package
-- `native/nexa_http_native_core`：共享 Rust 核心 runtime 和 ABI
-- `fixture_server/`：本地真实 HTTP / 图片验证用 fixture server
-- `scripts/`：工作区、构建、分发、发布辅助脚本
+- `packages/nexa_http`：给 Flutter 应用使用的公开 Dart 包
+- `packages/nexa_http_native_android|ios|macos|windows`：各平台 carrier
+  package，负责原生 runtime 的注册和打包
+- `packages/nexa_http/native/rust_net_native`：Rust 传输实现
+- `fixture_server/`：example 和测试使用的本地 HTTP fixture server
+- `scripts/`：工作区构建和验证脚本
 
-整体目标很明确：
+对外心智模型刻意保持简单：
 
-- Flutter 应用只使用稳定的 Dart API
-- 平台打包职责放在各平台 carrier package
-- 真实传输执行和平台差异逻辑放在 Rust 原生层
+- 业务代码只接触 HTTP 语义
+- carrier package 负责平台接入
+- transport 初始化是内部惰性的
 
-## 2. 实现逻辑
+## 公开 API
 
-当前的调用链路是：
+根入口是
+[`package:nexa_http/nexa_http.dart`](./packages/nexa_http/lib/nexa_http.dart)。
 
-`Flutter app -> NexaHttpClient -> Call -> internal engine -> worker isolate -> Dart 请求映射 -> FFI bridge -> platform runtime SPI -> nexa_http_native_core -> HTTP transport`
+当前公开导出的是：
 
-当前分层职责：
+- `NexaHttpClient`
+- `NexaHttpClientBuilder`
+- `Request`
+- `RequestBuilder`
+- `RequestBody`
+- `Response`
+- `ResponseBody`
+- `Headers`
+- `MediaType`
+- `Call`
+- `Callback`
+- `NexaHttpException`
 
-- 公开 HTTP API 层：`packages/nexa_http/lib/nexa_http.dart`、`packages/nexa_http/lib/src/api/*`
-  只暴露稳定 HTTP 语义：`NexaHttpClient`、`NexaHttpClientBuilder`、`Request`、`RequestBuilder`、`RequestBody`、`Response`、`ResponseBody`、`Headers`、`MediaType`、`Call`、`Callback`、`NexaHttpException`。
-- Client / Call facade 层：`packages/nexa_http/lib/src/nexa_http_client.dart`、`packages/nexa_http/lib/src/client/*`
-  负责轻量 client 形态和单次请求 `Call` 的执行模型。
-- Internal engine 层：`packages/nexa_http/lib/src/internal/engine/*`
-  在第一次真实 `execute()` 时惰性初始化共享 worker / native 资源，并复用按配置分组的 native client。
-- Internal worker / FFI bridge 层：`packages/nexa_http/lib/src/worker/*`、`packages/nexa_http/lib/src/data/*`
-  把公开请求映射到 worker/native 传输协议，并把 native 结果映射回 Dart 响应对象。
-- 平台 carrier / SPI 层：`packages/nexa_http_native_*`、`package:nexa_http/nexa_http_platform.dart`
-  负责平台注册 runtime hook 和原生二进制打包，不污染根公开 API。
-- Native core 层：`native/nexa_http_native_core`
-  负责统一 ABI、runtime contract、传输执行，以及 native 侧的平台能力接入。
+典型调用方式：
 
-这意味着：
+```dart
+import 'package:nexa_http/nexa_http.dart';
 
-- Dart 负责 API 形态、调用编排和惰性启动
-- Rust 负责真实传输执行
-- 所有支持的平台统一走一条 async FFI 请求链
-- 平台差异通过 carrier package 和 native 平台模块处理，而不是通过公开 Dart API 处理
-- 代理状态由各平台 native runtime 自己维护，`nexa_http_native_core` 只在平台代理 generation 变化时重建 client
+final client = NexaHttpClientBuilder()
+    .callTimeout(const Duration(seconds: 10))
+    .userAgent('example-app/1.0.0')
+    .build();
 
-## 3. 使用方法
+final request = RequestBuilder()
+    .url(Uri.parse('https://api.example.com/healthz'))
+    .header('accept', 'application/json')
+    .get()
+    .build();
 
-### 正式发布使用
-
-推荐把所有依赖固定到同一个 git tag：
-
-```yaml
-dependencies:
-  nexa_http:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http
-  nexa_http_native_android:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http_native_android
-  nexa_http_native_ios:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http_native_ios
+final response = await client.newCall(request).execute();
+final body = await response.body?.string();
 ```
 
-只引入你实际需要打包的平台 carrier package。桌面端同理，使用对应的 `nexa_http_native_<platform>` 包。
+`NexaHttpClient` 本身是轻量、同步的。native 加载、worker 启动、底层
+transport 获取，都在第一次真实 `call.execute()` 时惰性发生。
 
-### 本地 workspace 使用
+## 平台包
 
-本地开发可以使用 `path` 依赖：
+业务代码应该始终使用 `package:nexa_http/nexa_http.dart`。
+
+carrier package 会在内部通过 `package:nexa_http/nexa_http_platform.dart`
+注册 runtime。这个 SPI 是给平台接入用的，不是给业务方直接用的。
+
+工作区内的依赖示例：
 
 ```yaml
 dependencies:
@@ -88,146 +81,67 @@ dependencies:
     path: ../nexa_http/packages/nexa_http_native_macos
 ```
 
-生产环境建议以 `git + tag` 作为一等依赖方式，`path` 模式用于本地联调和调试。
+如果从 Git 消费，而不是用 `path`，要保证 `nexa_http` 和对应 carrier
+package 固定到同一个 ref。
 
-### 客户端调用
+## Example App
 
-根包现在对齐 OkHttp 风格的 HTTP API。
+demo 应用在
+[`packages/nexa_http/example`](./packages/nexa_http/example)。
 
-`RequestBuilder` 支持 `GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`HEAD`、`OPTIONS`。
+当前只有两个页面：
 
-`NexaHttpClient` 是轻量且同步的。worker 启动、native library 加载、native client 创建都在第一次真实 `call.execute()` 时惰性触发。
+- `HTTP Playground`：用公开 API 发真实请求，并查看请求和响应内容
+- `Benchmark`：对比 `nexa_http` 和 Dart `HttpClient` 的并发表现，支持
+  `bytes` 和 `image` 两种场景
 
-```dart
-import 'package:nexa_http/nexa_http.dart';
+先启动 fixture server：
 
-final client = NexaHttpClientBuilder()
-    .baseUrl(Uri.parse('https://api.example.com/'))
-    .callTimeout(const Duration(seconds: 10))
-    .userAgent('nexa_http/1.0.1')
-    .build();
-
-final request = RequestBuilder()
-    .url(Uri(path: '/healthz'))
-    .get()
-    .build();
-
-final response = await client.newCall(request).execute();
-final body = await response.body!.string();
+```bash
+dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-请求示例：
+再运行 example：
 
-```dart
-final getResponse = await client.newCall(
-  RequestBuilder().url(Uri(path: '/healthz')).get().build(),
-).execute();
-
-final postResponse = await client.newCall(
-  RequestBuilder()
-      .url(Uri(path: '/users'))
-      .post(
-        RequestBody.fromString(
-          '{"name":"alice"}',
-          contentType: MediaType.parse('application/json; charset=utf-8'),
-        ),
-      )
-      .build(),
-).execute();
-
-final putResponse = await client.newCall(
-  RequestBuilder()
-      .url(Uri(path: '/users/1'))
-      .put(
-        RequestBody.fromString(
-          '{"name":"alice-updated"}',
-          contentType: MediaType.parse('application/json; charset=utf-8'),
-        ),
-      )
-      .build(),
-).execute();
-
-final deleteResponse = await client.newCall(
-  RequestBuilder().url(Uri(path: '/users/1')).delete().build(),
-).execute();
-
-final patchResponse = await client.newCall(
-  RequestBuilder()
-      .url(Uri(path: '/users/1'))
-      .method(
-        'PATCH',
-        RequestBody.fromString(
-          '{"name":"alice-patched"}',
-          contentType: MediaType.parse('application/json; charset=utf-8'),
-        ),
-      )
-      .build(),
-).execute();
-
-final headResponse = await client.newCall(
-  RequestBuilder().url(Uri(path: '/healthz')).head().build(),
-).execute();
-
-final optionsResponse = await client.newCall(
-  RequestBuilder().url(Uri(path: '/users')).method('OPTIONS').build(),
-).execute();
+```bash
+cd packages/nexa_http/example
+fvm flutter pub get
+fvm flutter run -d macos
 ```
 
-平台 carrier package 应通过 `package:nexa_http/nexa_http_platform.dart` 注册 runtime。业务代码应只使用 `package:nexa_http/nexa_http.dart`。
+本地常用 base URL：
 
-### 本地验证命令
+- macOS / Windows 主机：`http://127.0.0.1:8080`
+- Android 模拟器：`http://10.0.2.2:8080`
+
+Benchmark 页面保留了少量可调参数：
+
+- `baseUrl`
+- `scenario`：`bytes` 或 `image`
+- `concurrency`
+- `totalRequests`
+- `payloadSize`
+- `warmupRequests`
+- `timeout`
+
+## 验证命令
+
+工作区级命令：
 
 ```bash
 dart pub get
 fvm dart run scripts/workspace_tools.dart bootstrap
 fvm dart run scripts/workspace_tools.dart analyze
 fvm dart run scripts/workspace_tools.dart test
-cd packages/nexa_http && fvm dart test
-cd packages/nexa_http/example && fvm flutter test
-cargo test --workspace
 ```
 
-真实 HTTP 验证可启动本地 fixture server：
+聚焦包级命令：
 
 ```bash
-dart run fixture_server/http_fixture_server.dart --port 8080
+cd packages/nexa_http
+fvm dart test
+
+cd packages/nexa_http/example
+fvm flutter test
+fvm flutter analyze
 ```
-
-桌面端使用 `http://127.0.0.1:8080`，Android 模拟器使用 `http://10.0.2.2:8080`。
-
-## 4. 测试数据
-
-验证时间：`2026-03-29`
-
-### 接口验证
-
-HTTP demo 使用本地 fixture server，对两种外部消费方式做了验证：
-
-- `git + ref: v1.0.1`
-- 本地 `path`
-
-结果是：
-
-- 两种模式下，`NexaHttpClient` 的真实 GET 请求都通过
-- 两种模式下，外部 Flutter 测试都通过
-- 两种模式下，`NexaHttpImageFileService` 的真实图片下载链路也通过
-
-### 图片性能验证
-
-图片性能页面沿用现有实现，没有改动逻辑。
-
-最新 Android 真机 benchmark（`2026-03-29`，设备 `V2405A`，局域网服务 `192.168.1.16:8080`，`24` 张 fixture 图片）：
-
-| Transport | 首屏时间 | 平均延迟 | P95 延迟 | 吞吐 | 请求数 | 失败数 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `defaultHttp` | `329 ms` | `92 ms` | `167 ms` | `14.09 MiB/s` | `24` | `0` |
-| `rustNet` | `186 ms` | `55 ms` | `86 ms` | `22.03 MiB/s` | `24` | `0` |
-
-本轮结果中（`rustNet` 对比 `defaultHttp`）：
-
-- 首屏时间：`-43.47%`
-- 平均延迟：`-40.22%`
-- P95 延迟：`-48.50%`
-- 吞吐：`+56.42%`
-
-这组数据是单设备局域网环境的实测结果，不应直接外推为通用 release benchmark。

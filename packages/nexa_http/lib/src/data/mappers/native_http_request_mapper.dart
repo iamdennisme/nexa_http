@@ -6,27 +6,48 @@ import '../dto/native_http_request_dto.dart';
 final class NativeHttpRequestMapper {
   const NativeHttpRequestMapper._();
 
-  static Future<Map<String, Object?>> toPayload({
+  static NativeHttpRequestDto toDto({
     required ClientOptions clientConfig,
     required Request request,
-  }) async {
+  }) {
     final resolvedUri = _resolveUri(clientConfig.baseUrl, request.url);
-    final headers = <String, String>{
-      ...clientConfig.defaultHeaders,
-      ...request.headers.toMap(),
+    final requestHeaders = request.headers.toMultimap();
+    final requestHeaderNames = requestHeaders.keys.toSet();
+    final headers = <MapEntry<String, String>>[];
+
+    for (final header in clientConfig.defaultHeaders.entries) {
+      final name = header.key.trim().toLowerCase();
+      if (requestHeaderNames.contains(name)) {
+        continue;
+      }
+      headers.add(MapEntry<String, String>(name, header.value));
+    }
+
+    for (final header in requestHeaders.entries) {
+      for (final value in header.value) {
+        headers.add(MapEntry<String, String>(header.key, value));
+      }
+    }
+
+    final seenHeaderNames = <String>{
+      ...headers.map((header) => header.key),
     };
+
     final userAgent = clientConfig.userAgent;
     if (userAgent != null &&
         userAgent.isNotEmpty &&
-        !_containsHeader(headers, 'user-agent')) {
-      headers['user-agent'] = userAgent;
+        !seenHeaderNames.contains('user-agent')) {
+      headers.add(MapEntry<String, String>('user-agent', userAgent));
+      seenHeaderNames.add('user-agent');
     }
     final contentType = request.body?.contentType;
-    if (contentType != null && !_containsHeader(headers, 'content-type')) {
-      headers['content-type'] = contentType.toString();
+    if (contentType != null && !seenHeaderNames.contains('content-type')) {
+      headers.add(
+        MapEntry<String, String>('content-type', contentType.toString()),
+      );
     }
 
-    final dto = NativeHttpRequestDto(
+    return NativeHttpRequestDto(
       method: request.method,
       url: resolvedUri.toString(),
       headers: headers,
@@ -34,11 +55,6 @@ final class NativeHttpRequestMapper {
       timeoutMs: request.timeout?.inMilliseconds ??
           clientConfig.timeout?.inMilliseconds,
     );
-
-    return <String, Object?>{
-      ...dto.toJson(),
-      if (dto.bodyBytes != null) 'bodyBytes': dto.bodyBytes,
-    };
   }
 
   static Uri _resolveUri(Uri? baseUrl, Uri requestUri) {
@@ -48,15 +64,11 @@ final class NativeHttpRequestMapper {
     if (baseUrl == null) {
       throw NexaHttpException(
         code: 'invalid_request',
-        message: 'Relative request URL requires NexaHttpClientBuilder.baseUrl().',
+        message:
+            'Relative request URL requires NexaHttpClientBuilder.baseUrl().',
         uri: requestUri,
       );
     }
     return baseUrl.resolveUri(requestUri);
-  }
-
-  static bool _containsHeader(Map<String, String> headers, String name) {
-    final lowerCaseName = name.toLowerCase();
-    return headers.keys.any((key) => key.toLowerCase() == lowerCaseName);
   }
 }

@@ -2,83 +2,78 @@
 
 [中文](./README.zh-CN.md)
 
-## 1. Project Overview
+`nexa_http` is a Flutter HTTP workspace with an OkHttp-style Dart API on top of
+a Rust transport runtime.
 
-`nexa_http` is a Flutter HTTP SDK workspace built around a Dart public API and a Rust transport runtime.
+## Workspace
 
-The current project contains these parts:
+The repository is split into a small number of responsibilities:
 
-- `packages/nexa_http`: the public Dart package used by Flutter apps
-- `packages/nexa_http_native_android|ios|macos|windows`: platform carrier packages
-- `native/nexa_http_native_core`: shared Rust core runtime and ABI contract
-- `fixture_server/`: local fixture server for real HTTP and image verification
-- `scripts/`: workspace, build, distribution, and release helper scripts
+- `packages/nexa_http`: public Dart package used by Flutter apps
+- `packages/nexa_http_native_android|ios|macos|windows`: platform carrier
+  packages that register and package the native runtime
+- `packages/nexa_http/native/rust_net_native`: Rust transport implementation
+- `fixture_server/`: local HTTP fixture server used by the example app and tests
+- `scripts/`: workspace build and verification helpers
 
-The design target is simple:
+The public mental model is intentionally narrow:
 
-- Flutter apps use a stable Dart API
-- platform packaging happens in platform carrier packages
-- transport execution and platform-specific native behavior stay in Rust
+- apps use HTTP concepts only
+- carrier packages hide runtime registration
+- transport startup stays lazy and internal
 
-## 2. Implementation Logic
+## Public API
 
-The end-to-end call path is:
+The root library is [`package:nexa_http/nexa_http.dart`](./packages/nexa_http/lib/nexa_http.dart).
 
-`Flutter app -> NexaHttpClient -> Call -> internal engine -> worker isolate -> Dart request mapping -> FFI bridge -> platform runtime SPI -> nexa_http_native_core -> HTTP transport`
+It exports:
 
-Current layer responsibilities:
+- `NexaHttpClient`
+- `NexaHttpClientBuilder`
+- `Request`
+- `RequestBuilder`
+- `RequestBody`
+- `Response`
+- `ResponseBody`
+- `Headers`
+- `MediaType`
+- `Call`
+- `Callback`
+- `NexaHttpException`
 
-- Public HTTP API layer: `packages/nexa_http/lib/nexa_http.dart`, `packages/nexa_http/lib/src/api/*`
-  Exposes stable HTTP concepts only: `NexaHttpClient`, `NexaHttpClientBuilder`, `Request`, `RequestBuilder`, `RequestBody`, `Response`, `ResponseBody`, `Headers`, `MediaType`, `Call`, `Callback`, and `NexaHttpException`.
-- Client and call facade layer: `packages/nexa_http/lib/src/nexa_http_client.dart`, `packages/nexa_http/lib/src/client/*`
-  Owns the lightweight client shape and per-request `Call` execution model.
-- Internal engine layer: `packages/nexa_http/lib/src/internal/engine/*`
-  Lazily initializes shared worker/native resources on the first real `execute()` call and reuses pooled native clients.
-- Internal worker and FFI bridge layer: `packages/nexa_http/lib/src/worker/*`, `packages/nexa_http/lib/src/data/*`
-  Translates public requests into the worker/native transport contract and maps native results back into Dart response objects.
-- Platform carrier and SPI layer: `packages/nexa_http_native_*`, `package:nexa_http/nexa_http_platform.dart`
-  Registers the per-platform runtime hook and packages the native binary without polluting the root end-user API.
-- Native core layer: `native/nexa_http_native_core`
-  Owns the shared ABI, runtime contract, transport execution, and native-side platform integration.
+Typical usage:
 
-This means:
+```dart
+import 'package:nexa_http/nexa_http.dart';
 
-- Dart stays responsible for API shape, call orchestration, and lazy engine startup
-- Rust stays responsible for actual transport execution
-- all supported platforms share one async FFI request pipeline
-- platform differences are handled by carrier packages and native platform modules, not by the public Dart API
-- proxy state is owned by each native platform runtime, and `nexa_http_native_core` only rebuilds clients when the platform proxy generation changes
+final client = NexaHttpClientBuilder()
+    .callTimeout(const Duration(seconds: 10))
+    .userAgent('example-app/1.0.0')
+    .build();
 
-## 3. Usage
+final request = RequestBuilder()
+    .url(Uri.parse('https://api.example.com/healthz'))
+    .header('accept', 'application/json')
+    .get()
+    .build();
 
-### Release consumption
-
-Recommended production usage is to pin all packages to the same git tag:
-
-```yaml
-dependencies:
-  nexa_http:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http
-  nexa_http_native_android:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http_native_android
-  nexa_http_native_ios:
-    git:
-      url: https://github.com/iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http_native_ios
+final response = await client.newCall(request).execute();
+final body = await response.body?.string();
 ```
 
-Use only the platform carrier packages you actually ship. Desktop targets use the matching `nexa_http_native_<platform>` package in the same way.
+`NexaHttpClient` is lightweight and synchronous. Native loading, worker startup,
+and pooled transport acquisition happen lazily on the first real
+`call.execute()`.
 
-### Local workspace consumption
+## Platform Packages
 
-For local development, you can consume the workspace through `path` dependencies:
+End-user application code should stay on `package:nexa_http/nexa_http.dart`.
+
+Carrier packages use `package:nexa_http/nexa_http_platform.dart` internally to
+register the native runtime. That SPI exists for packaging, not for normal app
+code.
+
+Example workspace dependency setup:
 
 ```yaml
 dependencies:
@@ -88,146 +83,67 @@ dependencies:
     path: ../nexa_http/packages/nexa_http_native_macos
 ```
 
-Production usage should treat `git + tag` as first-class. `path` mode is intended for local debugging and workspace iteration.
+When consuming from Git instead of `path`, pin `nexa_http` and the matching
+carrier package to the same ref.
 
-### Client usage
+## Example App
 
-The root package now exposes an OkHttp-aligned HTTP API.
+The demo app lives in [`packages/nexa_http/example`](./packages/nexa_http/example).
 
-`RequestBuilder` supports `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, and `OPTIONS`.
+It has two pages:
 
-`NexaHttpClient` is lightweight and synchronous. Worker startup, native library loading, and pooled native-client creation happen lazily on the first real `call.execute()`.
+- `HTTP Playground`: build a request with the public API and inspect the real
+  response
+- `Benchmark`: compare `nexa_http` against Dart `HttpClient` with concurrent
+  `bytes` and `image` scenarios
 
-```dart
-import 'package:nexa_http/nexa_http.dart';
+Run the fixture server:
 
-final client = NexaHttpClientBuilder()
-    .baseUrl(Uri.parse('https://api.example.com/'))
-    .callTimeout(const Duration(seconds: 10))
-    .userAgent('nexa_http/1.0.1')
-    .build();
-
-final request = RequestBuilder()
-    .url(Uri(path: '/healthz'))
-    .get()
-    .build();
-
-final response = await client.newCall(request).execute();
-final body = await response.body!.string();
+```bash
+dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-Request examples:
+Run the example:
 
-```dart
-final getResponse = await client.newCall(
-  RequestBuilder().url(Uri(path: '/healthz')).get().build(),
-).execute();
-
-final postResponse = await client.newCall(
-  RequestBuilder()
-      .url(Uri(path: '/users'))
-      .post(
-        RequestBody.fromString(
-          '{"name":"alice"}',
-          contentType: MediaType.parse('application/json; charset=utf-8'),
-        ),
-      )
-      .build(),
-).execute();
-
-final putResponse = await client.newCall(
-  RequestBuilder()
-      .url(Uri(path: '/users/1'))
-      .put(
-        RequestBody.fromString(
-          '{"name":"alice-updated"}',
-          contentType: MediaType.parse('application/json; charset=utf-8'),
-        ),
-      )
-      .build(),
-).execute();
-
-final deleteResponse = await client.newCall(
-  RequestBuilder().url(Uri(path: '/users/1')).delete().build(),
-).execute();
-
-final patchResponse = await client.newCall(
-  RequestBuilder()
-      .url(Uri(path: '/users/1'))
-      .method(
-        'PATCH',
-        RequestBody.fromString(
-          '{"name":"alice-patched"}',
-          contentType: MediaType.parse('application/json; charset=utf-8'),
-        ),
-      )
-      .build(),
-).execute();
-
-final headResponse = await client.newCall(
-  RequestBuilder().url(Uri(path: '/healthz')).head().build(),
-).execute();
-
-final optionsResponse = await client.newCall(
-  RequestBuilder().url(Uri(path: '/users')).method('OPTIONS').build(),
-).execute();
+```bash
+cd packages/nexa_http/example
+fvm flutter pub get
+fvm flutter run -d macos
 ```
 
-Platform carrier packages should use `package:nexa_http/nexa_http_platform.dart` for runtime registration. End-user app code should stay on `package:nexa_http/nexa_http.dart`.
+Default local base URLs:
 
-### Local verification commands
+- macOS / Windows host: `http://127.0.0.1:8080`
+- Android emulator: `http://10.0.2.2:8080`
+
+The benchmark page exposes a small set of parameters:
+
+- `baseUrl`
+- `scenario`: `bytes` or `image`
+- `concurrency`
+- `totalRequests`
+- `payloadSize`
+- `warmupRequests`
+- `timeout`
+
+## Verification
+
+Workspace commands:
 
 ```bash
 dart pub get
 fvm dart run scripts/workspace_tools.dart bootstrap
 fvm dart run scripts/workspace_tools.dart analyze
 fvm dart run scripts/workspace_tools.dart test
-cd packages/nexa_http && fvm dart test
-cd packages/nexa_http/example && fvm flutter test
-cargo test --workspace
 ```
 
-For real HTTP verification:
+Focused package commands:
 
 ```bash
-dart run fixture_server/http_fixture_server.dart --port 8080
+cd packages/nexa_http
+fvm dart test
+
+cd packages/nexa_http/example
+fvm flutter test
+fvm flutter analyze
 ```
-
-Desktop apps use `http://127.0.0.1:8080`. Android emulators use `http://10.0.2.2:8080`.
-
-## 4. Test Data
-
-Verified on `2026-03-29`.
-
-### Interface verification
-
-The HTTP demo was verified against the local fixture server with two external consumption modes:
-
-- `git + ref: v1.0.1`
-- local `path`
-
-Observed result:
-
-- real GET requests through `NexaHttpClient` passed in both modes
-- external Flutter test suites passed in both modes
-- real image download flow through `NexaHttpImageFileService` also passed in both modes
-
-### Image-performance verification
-
-The existing image-performance page was reused unchanged.
-
-Latest Android real-device benchmark (`2026-03-29`, device `V2405A`, LAN server `192.168.1.16:8080`, `24` fixture images):
-
-| Transport | First screen | Avg latency | P95 latency | Throughput | Requests | Failures |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `defaultHttp` | `329 ms` | `92 ms` | `167 ms` | `14.09 MiB/s` | `24` | `0` |
-| `rustNet` | `186 ms` | `55 ms` | `86 ms` | `22.03 MiB/s` | `24` | `0` |
-
-Relative result on this run (`rustNet` vs `defaultHttp`):
-
-- first-screen time: `-43.47%`
-- average latency: `-40.22%`
-- p95 latency: `-48.50%`
-- throughput: `+56.42%`
-
-These are local-network measurements on one device, not universal release benchmarks.

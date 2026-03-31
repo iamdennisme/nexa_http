@@ -30,7 +30,7 @@ final class NexaHttpClientBuilder {
     return NexaHttpClient(
       baseUrl: _baseUrl,
       callTimeout: _callTimeout,
-      defaultHeaders: Map<String, String>.unmodifiable(_defaultHeaders),
+      defaultHeaders: _defaultHeaders,
       userAgent: _userAgent,
     );
   }

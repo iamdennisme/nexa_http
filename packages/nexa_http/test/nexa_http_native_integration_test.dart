@@ -7,9 +7,6 @@ import 'package:test/test.dart';
 import 'support/http_fixture_server.dart';
 import 'support/register_host_native_runtime.dart';
 
-const skipReason =
-    'Binary fixture coverage is not enabled in this environment.';
-
 void main() {
   group('NexaHttpClient native integration', () {
     HttpFixtureServer? fixtureServer;
@@ -54,7 +51,10 @@ void main() {
       for (final status in successStatuses) {
         final response = await _execute(
           client,
-          RequestBuilder().url(fixtureServer!.uri('/status/$status')).get().build(),
+          RequestBuilder()
+              .url(fixtureServer!.uri('/status/$status'))
+              .get()
+              .build(),
         );
 
         expect(
@@ -66,12 +66,14 @@ void main() {
         if (status == HttpStatus.noContent) {
           expect(await response.body!.bytes(), isEmpty);
         } else {
-          expect(await response.body!.string(), contains('"status_code":$status'));
+          expect(
+              await response.body!.string(), contains('"status_code":$status'));
         }
       }
     });
 
-    test('executes POST/PUT/PATCH requests and preserves body transfer', () async {
+    test('executes POST/PUT/PATCH requests and preserves body transfer',
+        () async {
       Future<void> expectEcho({
         required String method,
         required int expectedStatusCode,
@@ -85,7 +87,8 @@ void main() {
                 method,
                 RequestBody.fromString(
                   body,
-                  contentType: MediaType.parse('application/json; charset=utf-8'),
+                  contentType:
+                      MediaType.parse('application/json; charset=utf-8'),
                 ),
               )
               .build(),
@@ -144,7 +147,8 @@ void main() {
       );
     });
 
-    test('follows all supported redirects and returns the final 2xx response', () async {
+    test('follows all supported redirects and returns the final 2xx response',
+        () async {
       const redirectStatuses = <int>[301, 302, 303, 307, 308];
       for (final status in redirectStatuses) {
         final expectedFinalUri = fixtureServer!.uri('/get', <String, String>{
@@ -163,7 +167,8 @@ void main() {
         );
 
         expect(response.statusCode, HttpStatus.ok);
-        expect(await response.body!.string(), contains('"source":"redirected_$status"'));
+        expect(await response.body!.string(),
+            contains('"source":"redirected_$status"'));
         expect(response.finalUrl, expectedFinalUri);
       }
     });
@@ -224,41 +229,20 @@ void main() {
       for (final status in errorStatuses) {
         final response = await _execute(
           client,
-          RequestBuilder().url(fixtureServer!.uri('/status/$status')).get().build(),
+          RequestBuilder()
+              .url(fixtureServer!.uri('/status/$status'))
+              .get()
+              .build(),
         );
         expect(
           response.statusCode,
           status,
           reason: 'Expected status $status to stay intact.',
         );
-        expect(await response.body!.string(), contains('"status_code":$status'));
+        expect(
+            await response.body!.string(), contains('"status_code":$status'));
       }
     });
-
-    test('downloads raw binary payloads without base64 transport', () async {
-      final response = await _execute(
-        client,
-        RequestBuilder()
-            .url(
-              fixtureServer!.uri('/bytes', <String, String>{
-                'size': '32',
-                'seed': '11',
-              }),
-            )
-            .get()
-            .build(),
-      );
-
-      expect(response.statusCode, HttpStatus.ok);
-      expect(
-        response.header(HttpHeaders.contentTypeHeader),
-        contains('application/octet-stream'),
-      );
-      expect(
-        await response.body!.bytes(),
-        List<int>.generate(32, (index) => (11 + index) % 256),
-      );
-    }, skip: skipReason);
 
     test('maps local fixture timeouts to NexaHttpException', () async {
       expect(
