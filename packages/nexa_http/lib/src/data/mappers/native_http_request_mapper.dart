@@ -12,15 +12,13 @@ final class NativeHttpRequestMapper {
   }) {
     final resolvedUri = _resolveUri(clientConfig.baseUrl, request.url);
     final requestHeaders = request.headers.toMultimap();
-    final requestHeaderNames = requestHeaders.keys.toSet();
     final headers = <MapEntry<String, String>>[];
 
-    for (final header in clientConfig.defaultHeaders.entries) {
-      final name = header.key.trim().toLowerCase();
-      if (requestHeaderNames.contains(name)) {
+    for (final header in clientConfig.defaultHeaderEntries) {
+      if (requestHeaders.containsKey(header.key)) {
         continue;
       }
-      headers.add(MapEntry<String, String>(name, header.value));
+      headers.add(header);
     }
 
     for (final header in requestHeaders.entries) {
@@ -29,19 +27,17 @@ final class NativeHttpRequestMapper {
       }
     }
 
-    final seenHeaderNames = <String>{
-      ...headers.map((header) => header.key),
-    };
-
     final userAgent = clientConfig.userAgent;
     if (userAgent != null &&
         userAgent.isNotEmpty &&
-        !seenHeaderNames.contains('user-agent')) {
+        !requestHeaders.containsKey('user-agent') &&
+        !clientConfig.defaultHeaders.containsKey('user-agent')) {
       headers.add(MapEntry<String, String>('user-agent', userAgent));
-      seenHeaderNames.add('user-agent');
     }
     final contentType = request.body?.contentType;
-    if (contentType != null && !seenHeaderNames.contains('content-type')) {
+    if (contentType != null &&
+        !requestHeaders.containsKey('content-type') &&
+        !clientConfig.defaultHeaders.containsKey('content-type')) {
       headers.add(
         MapEntry<String, String>('content-type', contentType.toString()),
       );
@@ -52,7 +48,8 @@ final class NativeHttpRequestMapper {
       url: resolvedUri.toString(),
       headers: headers,
       bodyBytes: request.body?.bytesValue,
-      timeoutMs: request.timeout?.inMilliseconds ??
+      timeoutMs:
+          request.timeout?.inMilliseconds ??
           clientConfig.timeout?.inMilliseconds,
     );
   }

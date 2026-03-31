@@ -172,14 +172,14 @@ final class DartHttpClientBenchmarkTransport implements BenchmarkTransport {
   }) async {
     final request = await _client.getUrl(uri).timeout(timeout);
     final response = await request.close().timeout(timeout);
-    final bytes = <int>[];
+    var bytesReceived = 0;
     await for (final chunk in response.timeout(timeout)) {
-      bytes.addAll(chunk);
+      bytesReceived += chunk.length;
     }
 
     return BenchmarkFetchResult(
       statusCode: response.statusCode,
-      bytesReceived: bytes.length,
+      bytesReceived: bytesReceived,
     );
   }
 

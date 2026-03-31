@@ -33,6 +33,7 @@ final class NexaHttpClient {
   final ClientOptions _options;
   final NexaHttpNativeDataSourceFactory _dataSourceFactory;
   NexaHttpNativeDataSource? _dataSource;
+  Headers? _defaultHeadersView;
   Future<int>? _leaseFuture;
   Future<void>? _closeFuture;
   bool _isClosed = false;
@@ -41,7 +42,8 @@ final class NexaHttpClient {
 
   Duration? get callTimeout => _options.timeout;
 
-  Headers get defaultHeaders => Headers.fromMap(_options.defaultHeaders);
+  Headers get defaultHeaders =>
+      _defaultHeadersView ??= Headers.fromMap(_options.defaultHeaders);
 
   String? get userAgent => _options.userAgent;
 

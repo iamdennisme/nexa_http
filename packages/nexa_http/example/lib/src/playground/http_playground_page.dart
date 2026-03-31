@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/cupertino.dart';
 import 'package:nexa_http/nexa_http.dart';
 
@@ -18,6 +20,8 @@ class HttpPlaygroundPage extends StatefulWidget {
 }
 
 class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
+  static const int _maxPreviewBytes = 4096;
+  static const int _maxBinaryPreviewBytes = 32;
   static const Map<String, String> _methodDescriptions = <String, String>{
     'GET': 'Fetch JSON or bytes from the fixture server.',
     'POST': 'Send a request body to /echo.',
@@ -82,7 +86,8 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
     final uri = Uri.tryParse(_urlController.text.trim());
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
       setState(() {
-        _errorPreview = 'Request failed\nEnter a full URL such as '
+        _errorPreview =
+            'Request failed\nEnter a full URL such as '
             'http://127.0.0.1:8080/get?source=playground';
       });
       return;
@@ -101,7 +106,9 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
     try {
       final response = await client.newCall(request).execute();
       stopwatch.stop();
-      final body = response.body == null ? '' : await response.body!.string();
+      final bodyPreview = response.body == null
+          ? '[empty]'
+          : await _formatBodyPreview(response.body!);
 
       if (!mounted) {
         return;
@@ -110,7 +117,7 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
       setState(() {
         _responsePreview = _formatResponsePreview(
           response: response,
-          body: body,
+          bodyPreview: bodyPreview,
           elapsed: stopwatch.elapsed,
         );
       });
@@ -172,8 +179,9 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
         builder.patch(_requestBody());
         break;
       case 'DELETE':
-        final body =
-            _bodyController.text.trim().isEmpty ? null : _requestBody();
+        final body = _bodyController.text.trim().isEmpty
+            ? null
+            : _requestBody();
         builder.delete(body);
         break;
       case 'HEAD':
@@ -268,13 +276,9 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
 
   String _formatResponsePreview({
     required Response response,
-    required String body,
+    required String bodyPreview,
     required Duration elapsed,
   }) {
-    final preview = body.length > 4000
-        ? '${body.substring(0, 4000)}\n...[truncated]'
-        : body;
-
     return [
       'elapsed: ${elapsed.inMilliseconds} ms',
       'status: ${response.statusCode}',
@@ -282,8 +286,67 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
       'headers:',
       _formatHeaders(response.headers.toMultimap()),
       'body:',
-      preview.isEmpty ? '[empty]' : preview,
+      bodyPreview,
     ].join('\n');
+  }
+
+  Future<String> _formatBodyPreview(ResponseBody body) async {
+    final bytes = await body.bytes();
+    if (bytes.isEmpty) {
+      return '[empty]';
+    }
+
+    final previewBytes = bytes.length <= _maxPreviewBytes
+        ? bytes
+        : bytes.sublist(0, _maxPreviewBytes);
+
+    if (_isProbablyText(body.contentType)) {
+      final previewText = _decodePreview(previewBytes, body.contentType);
+      if (bytes.length <= _maxPreviewBytes) {
+        return previewText;
+      }
+      return '$previewText\n...[truncated ${bytes.length - _maxPreviewBytes} bytes]';
+    }
+
+    final binaryPreviewLength = bytes.length < _maxBinaryPreviewBytes
+        ? bytes.length
+        : _maxBinaryPreviewBytes;
+    final hexPreview = bytes
+        .take(binaryPreviewLength)
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join(' ');
+    final contentType =
+        body.contentType?.toString() ?? 'application/octet-stream';
+    final suffix = bytes.length > binaryPreviewLength ? ' ...' : '';
+    return '[binary $contentType, ${bytes.length} bytes]\n$hexPreview$suffix';
+  }
+
+  String _decodePreview(List<int> bytes, MediaType? contentType) {
+    final encoding = contentType?.encoding;
+    if (encoding == null || identical(encoding, utf8)) {
+      return utf8.decode(bytes, allowMalformed: true);
+    }
+    return encoding.decode(bytes);
+  }
+
+  bool _isProbablyText(MediaType? contentType) {
+    if (contentType == null) {
+      return true;
+    }
+
+    if (contentType.type == 'text') {
+      return true;
+    }
+
+    return switch ('${contentType.type}/${contentType.subtype}'.toLowerCase()) {
+      'application/json' ||
+      'application/problem+json' ||
+      'application/xml' ||
+      'application/xhtml+xml' ||
+      'application/x-www-form-urlencoded' ||
+      'application/javascript' => true,
+      _ => false,
+    };
   }
 
   String _formatHeaders(Map<String, List<String>> headers) {
@@ -429,7 +492,8 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
         _SurfaceCard(
           child: _PreviewBlock(
             title: 'Request Preview',
-            content: _requestPreview ??
+            content:
+                _requestPreview ??
                 'Build a request and send it to inspect the generated call chain.',
           ),
         ),
@@ -437,7 +501,8 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
         _SurfaceCard(
           child: _PreviewBlock(
             title: _errorPreview == null ? 'Response Preview' : 'Error',
-            content: _errorPreview ??
+            content:
+                _errorPreview ??
                 _responsePreview ??
                 'No response yet. Start with GET /get or HEAD /healthz.',
             isError: _errorPreview != null,
@@ -449,10 +514,7 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
 }
 
 class _LabeledField extends StatelessWidget {
-  const _LabeledField({
-    required this.label,
-    required this.child,
-  });
+  const _LabeledField({required this.label, required this.child});
 
   final String label;
   final Widget child;
@@ -511,8 +573,9 @@ class _PreviewBlock extends StatelessWidget {
             child: Text(
               content,
               style: textTheme.textStyle.copyWith(
-                color:
-                    isError ? const Color(0xFF9F1239) : const Color(0xFFE5EEF9),
+                color: isError
+                    ? const Color(0xFF9F1239)
+                    : const Color(0xFFE5EEF9),
                 fontFamily: '.SF Mono',
                 height: 1.45,
               ),
@@ -544,10 +607,7 @@ class _SurfaceCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: child,
-      ),
+      child: Padding(padding: const EdgeInsets.all(18), child: child),
     );
   }
 }
