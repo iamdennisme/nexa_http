@@ -19,16 +19,10 @@ Future<void> main(List<String> arguments) async {
   );
 
   final shutdown = Completer<void>();
-  ProcessSignal.sigint.watch().listen((_) async {
-    if (!shutdown.isCompleted) {
-      shutdown.complete();
-    }
-  });
-  ProcessSignal.sigterm.watch().listen((_) async {
-    if (!shutdown.isCompleted) {
-      shutdown.complete();
-    }
-  });
+  _watchShutdownSignal(ProcessSignal.sigint, shutdown);
+  if (!Platform.isWindows) {
+    _watchShutdownSignal(ProcessSignal.sigterm, shutdown);
+  }
 
   unawaited(
     server.forEach((request) async {
@@ -50,6 +44,21 @@ Future<void> main(List<String> arguments) async {
 
   await shutdown.future;
   await server.close(force: true);
+}
+
+void _watchShutdownSignal(
+  ProcessSignal signal,
+  Completer<void> shutdown,
+) {
+  try {
+    signal.watch().listen((_) {
+      if (!shutdown.isCompleted) {
+        shutdown.complete();
+      }
+    });
+  } on SignalException {
+    // Windows does not support every POSIX signal.
+  }
 }
 
 int? _parsePort(List<String> arguments) {

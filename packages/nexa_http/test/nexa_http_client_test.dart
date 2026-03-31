@@ -4,14 +4,14 @@ import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
-import 'package:nexa_http/src/internal/engine/nexa_http_engine_manager.dart';
+import 'package:nexa_http/src/internal/testing/nexa_http_testing_overrides.dart';
 import 'package:nexa_http/src/internal/transport/transport_response.dart';
 import 'package:nexa_http/src/native_bridge/nexa_http_native_data_source_factory.dart';
 import 'package:test/test.dart';
 
 void main() {
   tearDown(() {
-    NexaHttpEngineManager.resetForTesting();
+    NexaHttpTestingOverrides.reset();
   });
 
   test('constructs synchronously and exposes configured defaults', () {
@@ -47,8 +47,7 @@ void main() {
       loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
       createDataSource: (_) => dataSource,
     );
-    final engine = NexaHttpEngineManager(dataSourceFactory: dataSourceFactory);
-    NexaHttpEngineManager.installForTesting(engine);
+    NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
     final client = NexaHttpClientBuilder()
         .callTimeout(const Duration(seconds: 1))
         .userAgent('test-agent')
@@ -80,7 +79,7 @@ void main() {
   });
 
   test(
-    'normalizes default header names before lease caching so equivalent clients reuse one native client',
+    'reuses one native client across repeated calls and closes it once',
     () async {
       final dataSource = _FakeNativeDataSource(
         executeResponses: const <TransportResponse>[
@@ -93,54 +92,69 @@ void main() {
             DynamicLibrary.process(),
         createDataSource: (_) => dataSource,
       );
-      final engine = NexaHttpEngineManager(
-        dataSourceFactory: dataSourceFactory,
+      NexaHttpTestingOverrides.installNativeDataSourceFactory(
+        dataSourceFactory,
       );
-      NexaHttpEngineManager.installForTesting(engine);
 
-      final firstClient = NexaHttpClient(
+      final client = NexaHttpClient(
         defaultHeaders: const <String, String>{'X-SDK': 'nexa_http'},
-      );
-      final secondClient = NexaHttpClient(
-        defaultHeaders: const <String, String>{'x-sdk': 'nexa_http'},
       );
       final request = RequestBuilder()
           .url(Uri.parse('https://example.com/ping'))
           .get()
           .build();
 
-      await firstClient.newCall(request).execute();
-      await secondClient.newCall(request).execute();
+      await client.newCall(request).execute();
+      await client.newCall(request).execute();
+      await client.close();
 
       expect(dataSource.createClientConfigs, hasLength(1));
       expect(dataSource.executeCalls, hasLength(2));
-      expect(dataSource.executeCalls[0].clientId,
-          dataSource.executeCalls[1].clientId);
+      expect(
+        dataSource.executeCalls[0].clientId,
+        dataSource.executeCalls[1].clientId,
+      );
+      expect(dataSource.closedClientIds, <int>[41]);
       final firstHeaders = dataSource.executeCalls[0].request.headers
           .map((header) => (header.key, header.value))
           .toList();
-      final secondHeaders = dataSource.executeCalls[1].request.headers
-          .map((header) => (header.key, header.value))
-          .toList();
-      expect(
-        firstHeaders,
-        contains(('x-sdk', 'nexa_http')),
-      );
-      expect(
-        secondHeaders,
-        contains(('x-sdk', 'nexa_http')),
-      );
+      expect(firstHeaders, contains(('x-sdk', 'nexa_http')));
     },
   );
+
+  test('blocks new executions after the client is closed', () async {
+    final dataSourceFactory = NexaHttpNativeDataSourceFactory(
+      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
+      createDataSource: (_) =>
+          _FakeNativeDataSource(executeResponses: const <TransportResponse>[]),
+    );
+    NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
+    final client = NexaHttpClient();
+
+    await client.close();
+
+    expect(
+      client
+          .newCall(
+            RequestBuilder()
+                .url(Uri.parse('https://example.com/closed'))
+                .get()
+                .build(),
+          )
+          .execute(),
+      throwsA(isA<StateError>()),
+    );
+  });
 }
 
 final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
   _FakeNativeDataSource({required List<TransportResponse> executeResponses})
-      : _executeResponses = executeResponses;
+    : _executeResponses = executeResponses;
 
   final List<NativeHttpClientConfigDto> createClientConfigs =
       <NativeHttpClientConfigDto>[];
   final List<_ExecuteCall> executeCalls = <_ExecuteCall>[];
+  final List<int> closedClientIds = <int>[];
   final List<TransportResponse> _executeResponses;
   final int _nextClientId = 41;
 
@@ -160,7 +174,9 @@ final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
   }
 
   @override
-  void closeClient(int clientId) {}
+  void closeClient(int clientId) {
+    closedClientIds.add(clientId);
+  }
 }
 
 final class _ExecuteCall {

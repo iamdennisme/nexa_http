@@ -2,18 +2,16 @@ import '../api/call.dart';
 import '../api/callback.dart';
 import '../api/request.dart';
 import '../api/response.dart';
-import '../internal/config/client_options.dart';
-import '../internal/engine/nexa_http_engine_manager.dart';
 
 final class RealCall implements Call {
   RealCall({
-    required ClientOptions clientOptions,
     required Request request,
-  }) : _clientOptions = clientOptions,
-       _request = request;
+    required Future<Response> Function(Request request) executeRequest,
+  }) : _request = request,
+       _executeRequest = executeRequest;
 
-  final ClientOptions _clientOptions;
   final Request _request;
+  final Future<Response> Function(Request request) _executeRequest;
 
   bool _isCanceled = false;
   bool _isExecuted = false;
@@ -37,10 +35,7 @@ final class RealCall implements Call {
     }
 
     _isExecuted = true;
-    return NexaHttpEngineManager.instance.execute(
-      clientConfig: _clientOptions,
-      request: _request,
-    );
+    return _executeRequest(_request);
   }
 
   @override
@@ -60,6 +55,6 @@ final class RealCall implements Call {
 
   @override
   Call clone() {
-    return RealCall(clientOptions: _clientOptions, request: _request);
+    return RealCall(request: _request, executeRequest: _executeRequest);
   }
 }

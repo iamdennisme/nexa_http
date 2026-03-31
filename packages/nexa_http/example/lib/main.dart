@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:nexa_http/nexa_http.dart';
 
@@ -77,7 +79,8 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
   void initState() {
     super.initState();
     try {
-      _playgroundClient = widget.createClient?.call() ??
+      _playgroundClient =
+          widget.createClient?.call() ??
           NexaHttpClientBuilder()
               .callTimeout(const Duration(seconds: 15))
               .userAgent('nexa_http_example/playground')
@@ -85,6 +88,15 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
     } catch (error) {
       _clientCreationError = error;
     }
+  }
+
+  @override
+  void dispose() {
+    final client = _playgroundClient;
+    if (client != null) {
+      unawaited(client.close());
+    }
+    super.dispose();
   }
 
   @override
@@ -151,10 +163,7 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
   }
 }
 
-enum ExampleDemoSection {
-  playground,
-  benchmark,
-}
+enum ExampleDemoSection { playground, benchmark }
 
 class _HeroCard extends StatelessWidget {
   const _HeroCard();
@@ -172,7 +181,7 @@ class _HeroCard extends StatelessWidget {
           colors: <Color>[
             Color(0xFF0F172A),
             Color(0xFF17336A),
-            Color(0xFF2E6BFF)
+            Color(0xFF2E6BFF),
           ],
         ),
         boxShadow: const <BoxShadow>[

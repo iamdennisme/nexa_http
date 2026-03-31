@@ -25,9 +25,7 @@ final class BenchmarkRunner {
       case BenchmarkScenario.image:
         return baseUri.replace(
           path: '/image',
-          queryParameters: <String, String>{
-            'id': 'image-$requestIndex',
-          },
+          queryParameters: <String, String>{'id': 'image-$requestIndex'},
         );
     }
   }
@@ -61,8 +59,10 @@ final class BenchmarkRunner {
         final latency = Stopwatch()..start();
 
         try {
-          final result =
-              await transport.fetch(uri: uri, timeout: config.timeout);
+          final result = await transport.fetch(
+            uri: uri,
+            timeout: config.timeout,
+          );
           latency.stop();
           samples.add(
             BenchmarkSample(
@@ -123,7 +123,7 @@ abstract interface class BenchmarkTransport {
 
 final class NexaHttpBenchmarkTransport implements BenchmarkTransport {
   NexaHttpBenchmarkTransport({required NexaHttpClient client})
-      : _client = client;
+    : _client = client;
 
   final NexaHttpClient _client;
 
@@ -141,8 +141,9 @@ final class NexaHttpBenchmarkTransport implements BenchmarkTransport {
       ..get();
 
     final response = await _client.newCall(request.build()).execute();
-    final bytes =
-        response.body == null ? const <int>[] : await response.body!.bytes();
+    final bytes = response.body == null
+        ? const <int>[]
+        : await response.body!.bytes();
 
     return BenchmarkFetchResult(
       statusCode: response.statusCode,
@@ -151,7 +152,9 @@ final class NexaHttpBenchmarkTransport implements BenchmarkTransport {
   }
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    await _client.close();
+  }
 }
 
 final class DartHttpClientBenchmarkTransport implements BenchmarkTransport {
