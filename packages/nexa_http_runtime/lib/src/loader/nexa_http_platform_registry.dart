@@ -1,6 +1,4 @@
-export 'nexa_http_native_runtime.dart';
-
-import 'nexa_http_native_runtime.dart';
+import '../nexa_http_native_runtime.dart';
 
 final class NexaHttpPlatformRegistry {
   NexaHttpPlatformRegistry._();

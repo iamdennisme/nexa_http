@@ -1,7 +1,7 @@
 import 'dart:ffi';
 import 'dart:io';
 
-import 'package:nexa_http/nexa_http_platform.dart';
+import 'package:nexa_http_runtime/nexa_http_runtime.dart';
 
 final class NexaHttpNativeAndroidPlugin {
   NexaHttpNativeAndroidPlugin._();

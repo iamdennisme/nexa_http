@@ -69,9 +69,36 @@ and pooled transport acquisition happen lazily on the first real
 
 End-user application code should stay on `package:nexa_http/nexa_http.dart`.
 
-Carrier packages use `package:nexa_http/nexa_http_platform.dart` internally to
-register the native runtime. That SPI exists for packaging, not for normal app
-code.
+Carrier packages use `package:nexa_http_runtime/nexa_http_runtime.dart`
+internally to register the native runtime. Build hooks use
+`package:nexa_http_distribution/nexa_http_distribution.dart`. Neither package
+is for normal app code.
+
+## Package Boundaries
+
+The workspace now has three distinct Dart roles:
+
+- `nexa_http`: app-facing HTTP API and transport bridge
+- `nexa_http_runtime`: runtime SPI, loader, and host-platform discovery
+- `nexa_http_distribution`: native artifact resolution for build hooks and
+  release tooling
+
+This split is intentional. `nexa_http` no longer re-exports runtime or
+distribution entrypoints.
+
+## Versioning And Releases
+
+The workspace should be treated as one release train.
+
+- Keep `nexa_http`, `nexa_http_runtime`, `nexa_http_distribution`, and the
+  carrier packages on the same semantic version.
+- Ship native asset releases against that same version tag.
+- If a change affects runtime loading, manifest format, or carrier-package
+  integration, bump the package set together rather than drifting versions.
+
+The native-assets workflow in
+[`release-native-assets.yml`](./.github/workflows/release-native-assets.yml)
+already publishes assets by repository tag. Use one tag per workspace release.
 
 Example workspace dependency setup:
 

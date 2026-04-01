@@ -11,8 +11,10 @@ dependencies:
     sdk: flutter
   code_assets: ^1.0.0
   hooks: ^1.0.2
-  nexa_http:
-    path: ../nexa_http
+  nexa_http_distribution:
+    path: ../nexa_http_distribution
+  nexa_http_runtime:
+    path: ../nexa_http_runtime
   path: ^1.9.0
 
 dev_dependencies:

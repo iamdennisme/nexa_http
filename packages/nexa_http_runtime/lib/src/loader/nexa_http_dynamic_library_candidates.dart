@@ -2,39 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-enum NexaHttpHostPlatform { android, ios, macos, windows }
-
-NexaHttpHostPlatform currentNexaHttpHostPlatform() {
-  if (Platform.isAndroid) {
-    return NexaHttpHostPlatform.android;
-  }
-  if (Platform.isIOS) {
-    return NexaHttpHostPlatform.ios;
-  }
-  if (Platform.isMacOS) {
-    return NexaHttpHostPlatform.macos;
-  }
-  if (Platform.isWindows) {
-    return NexaHttpHostPlatform.windows;
-  }
-
-  throw UnsupportedError('Unsupported platform for nexa_http native loading.');
-}
-
-String? resolveNexaHttpDynamicLibraryOverridePath({
-  required NexaHttpHostPlatform platform,
-  Map<String, String>? environment,
-}) {
-  final env = environment ?? Platform.environment;
-  final variableName = switch (platform) {
-    NexaHttpHostPlatform.android => 'NEXA_HTTP_NATIVE_ANDROID_LIB_PATH',
-    NexaHttpHostPlatform.ios => 'NEXA_HTTP_NATIVE_IOS_LIB_PATH',
-    NexaHttpHostPlatform.macos => 'NEXA_HTTP_NATIVE_MACOS_LIB_PATH',
-    NexaHttpHostPlatform.windows => 'NEXA_HTTP_NATIVE_WINDOWS_LIB_PATH',
-  };
-  final value = env[variableName]?.trim();
-  return value != null && value.isNotEmpty ? value : null;
-}
+import 'nexa_http_host_platform.dart';
 
 List<String> resolveNexaHttpDynamicLibraryCandidates({
   required NexaHttpHostPlatform platform,
@@ -112,11 +80,7 @@ List<String> _resolveMacosCandidates({
     fileExists,
   );
   _addExistingCandidates(candidates, _discoverPackagedMacos(seeds), fileExists);
-  _addExistingCandidates(
-    candidates,
-    _discoverWorkspaceMacos(seeds),
-    fileExists,
-  );
+  _addExistingCandidates(candidates, _discoverWorkspaceMacos(seeds), fileExists);
 
   return _dedupe(candidates);
 }

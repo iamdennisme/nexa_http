@@ -1,7 +1,10 @@
 import 'dart:ffi';
 import 'dart:io';
 
-import 'nexa_http_native_library_resolver.dart';
+import '../nexa_http_native_runtime.dart';
+import 'nexa_http_dynamic_library_candidates.dart';
+import 'nexa_http_dynamic_library_override.dart';
+import 'nexa_http_host_platform.dart';
 import 'nexa_http_platform_registry.dart';
 
 DynamicLibrary loadNexaHttpDynamicLibrary({String? explicitPath}) {

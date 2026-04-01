@@ -1,12 +1,12 @@
 import 'dart:ffi';
 
-import 'package:nexa_http/nexa_http_native_runtime.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
 import 'package:nexa_http/src/internal/transport/transport_response.dart';
-import 'package:nexa_http/src/loader/nexa_http_platform_registry.dart';
 import 'package:nexa_http/src/native_bridge/nexa_http_native_data_source_factory.dart';
+import 'package:nexa_http_runtime/nexa_http_runtime.dart';
+import 'package:nexa_http_runtime/src/loader/nexa_http_platform_registry.dart';
 import 'package:test/test.dart';
 
 void main() {

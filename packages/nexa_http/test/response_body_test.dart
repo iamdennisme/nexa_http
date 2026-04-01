@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:ffi';
 
 import 'package:nexa_http/nexa_http.dart';
-import 'package:nexa_http/src/internal/transport/native_response_body_bytes.dart';
+import 'package:nexa_http/src/internal/body/native_response_body_bytes.dart';
 import 'package:test/test.dart';
 
 void main() {

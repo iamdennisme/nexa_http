@@ -1,8 +1,8 @@
 import 'dart:ffi';
 import 'dart:io';
 
-import 'package:nexa_http/nexa_http_native_runtime.dart';
 import 'package:path/path.dart' as p;
+import 'package:nexa_http_runtime/nexa_http_runtime.dart';
 
 Future<void> registerHostNativeRuntimeForTests() async {
   if (!Platform.isMacOS) {

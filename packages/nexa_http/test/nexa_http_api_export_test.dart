@@ -1,5 +1,4 @@
 import 'package:nexa_http/nexa_http.dart';
-import 'package:nexa_http/nexa_http_platform.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -46,8 +45,5 @@ void main() {
     expect(Call, isA<Type>());
     expect(Callback, isA<Type>());
     expect(NexaHttpException, isA<Type>());
-
-    expect(registerNexaHttpNativeRuntime, isA<Function>());
-    expect(NexaHttpNativeRuntime, isA<Type>());
   });
 }

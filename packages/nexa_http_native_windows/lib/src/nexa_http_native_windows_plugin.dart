@@ -1,8 +1,8 @@
 import 'dart:ffi';
 import 'dart:io';
 
-import 'package:nexa_http/nexa_http_platform.dart';
 import 'package:path/path.dart' as p;
+import 'package:nexa_http_runtime/nexa_http_runtime.dart';
 
 final class NexaHttpNativeWindowsPlugin {
   NexaHttpNativeWindowsPlugin._();

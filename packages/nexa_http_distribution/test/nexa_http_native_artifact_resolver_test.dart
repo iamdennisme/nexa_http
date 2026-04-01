@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:nexa_http/src/native_asset/nexa_http_native_artifact_resolver.dart';
+import 'package:nexa_http_distribution/nexa_http_distribution.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -43,8 +43,11 @@ void main() {
   });
 
   test('uses a prebuilt file under the source dir override when present', () async {
-    final sourceDir = Directory('${tempDir.path}/source')..createSync(recursive: true);
-    final sourceOutput = File('${sourceDir.path}/target/debug/libnexa_http_native_macos_ffi.dylib');
+    final sourceDir =
+        Directory('${tempDir.path}/source')..createSync(recursive: true);
+    final sourceOutput = File(
+      '${sourceDir.path}/target/debug/libnexa_http_native_macos_ffi.dylib',
+    );
     await sourceOutput.parent.create(recursive: true);
     await sourceOutput.writeAsString('source-build');
 
@@ -70,12 +73,15 @@ void main() {
   });
 
   test('downloads and validates an artifact from a local manifest override', () async {
-    final distDir = Directory('${tempDir.path}/dist')..createSync(recursive: true);
-    final sourceArtifact = File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
+    final distDir =
+        Directory('${tempDir.path}/dist')..createSync(recursive: true);
+    final sourceArtifact =
+        File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
     await sourceArtifact.writeAsString('download-me');
     final digest = sha256OfString('download-me');
 
-    final manifest = File('${tempDir.path}/nexa_http_native_assets_manifest.json');
+    final manifest =
+        File('${tempDir.path}/nexa_http_native_assets_manifest.json');
     await manifest.writeAsString(
       jsonEncode(<String, Object?>{
         'package': 'nexa_http',
@@ -118,12 +124,15 @@ void main() {
     await packagedArtifact.parent.create(recursive: true);
     await packagedArtifact.writeAsString('packaged-first');
 
-    final distDir = Directory('${tempDir.path}/dist')..createSync(recursive: true);
-    final sourceArtifact = File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
+    final distDir =
+        Directory('${tempDir.path}/dist')..createSync(recursive: true);
+    final sourceArtifact =
+        File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
     await sourceArtifact.writeAsString('manifest-second');
     final digest = sha256OfString('manifest-second');
 
-    final manifest = File('${tempDir.path}/nexa_http_native_assets_manifest.json');
+    final manifest =
+        File('${tempDir.path}/nexa_http_native_assets_manifest.json');
     await manifest.writeAsString(
       jsonEncode(<String, Object?>{
         'package': 'nexa_http',
@@ -160,12 +169,15 @@ void main() {
   });
 
   test('prefers default source builds over manifest download', () async {
-    final distDir = Directory('${tempDir.path}/dist')..createSync(recursive: true);
-    final sourceArtifact = File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
+    final distDir =
+        Directory('${tempDir.path}/dist')..createSync(recursive: true);
+    final sourceArtifact =
+        File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
     await sourceArtifact.writeAsString('manifest-second');
     final digest = sha256OfString('manifest-second');
 
-    final manifest = File('${tempDir.path}/nexa_http_native_assets_manifest.json');
+    final manifest =
+        File('${tempDir.path}/nexa_http_native_assets_manifest.json');
     await manifest.writeAsString(
       jsonEncode(<String, Object?>{
         'package': 'nexa_http',
@@ -182,9 +194,8 @@ void main() {
       }),
     );
 
-    final defaultSourceDir = Directory(
-      '${tempDir.path}/default-source-dir',
-    )..createSync(recursive: true);
+    final defaultSourceDir = Directory('${tempDir.path}/default-source-dir')
+      ..createSync(recursive: true);
     final builtArtifact = File(
       '${defaultSourceDir.path}/target/debug/libnexa_http_native_macos_ffi.dylib',
     );

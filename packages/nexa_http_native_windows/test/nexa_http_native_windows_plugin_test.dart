@@ -1,4 +1,4 @@
-import 'package:nexa_http/nexa_http_platform.dart';
+import 'package:nexa_http_runtime/nexa_http_runtime.dart';
 import 'package:nexa_http_native_windows/nexa_http_native_windows.dart';
 import 'package:test/test.dart';
 

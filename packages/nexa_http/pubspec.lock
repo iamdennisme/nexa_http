@@ -162,7 +162,7 @@ packages:
     source: hosted
     version: "1.15.0"
   crypto:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: crypto
       sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
@@ -345,6 +345,13 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.0.0"
+  nexa_http_runtime:
+    dependency: "direct main"
+    description:
+      path: "../nexa_http_runtime"
+      relative: true
+    source: path
+    version: "1.0.1"
   node_preamble:
     dependency: transitive
     description:
@@ -362,7 +369,7 @@ packages:
     source: hosted
     version: "2.2.0"
   path:
-    dependency: "direct main"
+    dependency: "direct dev"
     description:
       name: path
       sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
@@ -602,7 +609,7 @@ packages:
     source: hosted
     version: "1.2.1"
   yaml:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: yaml
       sha256: b9da305ac7c39faa3f030eccd175340f968459dae4af175130b3fc47e40d76ce

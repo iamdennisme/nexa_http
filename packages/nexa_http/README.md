@@ -31,7 +31,20 @@ Normal app code should not deal with:
 - manual startup or shutdown APIs
 
 Carrier packages handle runtime registration through
-`package:nexa_http/nexa_http_platform.dart`.
+`package:nexa_http_runtime/nexa_http_runtime.dart`.
+Build hooks resolve packaged or downloaded native assets through
+`package:nexa_http_distribution/nexa_http_distribution.dart`.
+
+## Versioning
+
+`nexa_http` ships in lockstep with:
+
+- `nexa_http_runtime`
+- `nexa_http_distribution`
+- the carrier packages
+
+If a change crosses SDK, runtime, or native-asset boundaries, bump the workspace
+package set together.
 
 ## Usage
 

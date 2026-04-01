@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
-import 'package:nexa_http/nexa_http_native_assets.dart';
 import 'package:nexa_http_native_windows/src/nexa_http_native_windows_asset_bundle.dart';
+import 'package:nexa_http_distribution/nexa_http_distribution.dart';
 import 'package:path/path.dart' as p;
 
 Future<void> main(List<String> args) async {

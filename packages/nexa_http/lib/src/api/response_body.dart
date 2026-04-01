@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import '../internal/transport/native_response_body_bytes.dart';
+import '../internal/body/native_response_body_bytes.dart';
 import 'media_type.dart';
 
 ResponseBody adoptResponseBodyBytes(List<int> bytes, {MediaType? contentType}) {

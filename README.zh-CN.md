@@ -68,8 +68,38 @@ transport 获取，都在第一次真实 `call.execute()` 时惰性发生。
 
 业务代码应该始终使用 `package:nexa_http/nexa_http.dart`。
 
-carrier package 会在内部通过 `package:nexa_http/nexa_http_platform.dart`
-注册 runtime。这个 SPI 是给平台接入用的，不是给业务方直接用的。
+carrier package 会在内部通过
+`package:nexa_http_runtime/nexa_http_runtime.dart` 注册 runtime，build hook
+通过 `package:nexa_http_distribution/nexa_http_distribution.dart` 解析原生产物。
+这两个入口都是给平台接入用的，不是给业务方直接用的。
+
+## 包边界
+
+现在工作区里的 Dart 侧职责明确分成三类：
+
+- `nexa_http`：面向应用的 HTTP API 和 transport bridge
+- `nexa_http_runtime`：runtime SPI、loader、host platform 发现
+- `nexa_http_distribution`：build hook 和 release tooling 使用的原生产物解析
+
+这个拆分是刻意设计的。`nexa_http` 不再反向暴露 runtime 或 distribution
+入口。
+
+## 版本与发布策略
+
+这个工作区应被视为一条统一的发布线。
+
+- `nexa_http`
+- `nexa_http_runtime`
+- `nexa_http_distribution`
+- 所有 carrier package
+
+这些包都应保持同一个语义化版本。
+
+如果改动涉及 runtime loading、manifest 格式、carrier package 集成，应该整组
+一起升级，而不是让版本漂移。
+
+native asset 的 GitHub workflow 会按仓库 tag 发布产物，所以每次工作区发布都应
+使用一个统一 tag。
 
 工作区内的依赖示例：
 

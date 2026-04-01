@@ -1,8 +1,9 @@
 import 'dart:ffi';
 
+import 'package:nexa_http_runtime/nexa_http_dynamic_library_loader.dart';
+
 import '../data/sources/ffi_nexa_http_native_data_source.dart';
 import '../data/sources/nexa_http_native_data_source.dart';
-import '../loader/nexa_http_native_library_loader.dart';
 
 typedef NexaHttpDynamicLibraryLoader =
     DynamicLibrary Function({String? explicitPath});
