@@ -21,6 +21,8 @@ void main() {
         ],
         bodyBytes: <int>[1, 2, 3, 4],
       ),
+      allocateBody: (bodyLength) => calloc<ffi.Uint8>(bodyLength),
+      releaseBody: (bodyPointer, _) => calloc.free(bodyPointer),
     );
 
     final wire = _StructuredRequestWire.fromPointer(encoded.pointer);
@@ -36,6 +38,7 @@ void main() {
     );
     expect(wire.timeoutMs, isNull);
     expect(wire.bodyBytes, Uint8List.fromList(const <int>[1, 2, 3, 4]));
+    expect(wire.bodyOwned, isTrue);
 
     encoded.dispose();
   });
@@ -48,6 +51,7 @@ class _StructuredRequestWire {
     required this.headers,
     required this.timeoutMs,
     required this.bodyBytes,
+    required this.bodyOwned,
   });
 
   factory _StructuredRequestWire.fromPointer(
@@ -73,6 +77,7 @@ class _StructuredRequestWire {
       bodyBytes: request.body_ptr == ffi.nullptr
           ? Uint8List(0)
           : Uint8List.fromList(request.body_ptr.asTypedList(request.body_len)),
+      bodyOwned: request.body_owned != 0,
     );
   }
 
@@ -81,6 +86,7 @@ class _StructuredRequestWire {
   final List<MapEntry<String, String>> headers;
   final int? timeoutMs;
   final Uint8List bodyBytes;
+  final bool bodyOwned;
 }
 
 String _readUtf8(ffi.Pointer<ffi.Char> pointer, int length) {

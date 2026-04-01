@@ -1,17 +1,19 @@
 use crate::api::error::{NativeError, NativeHttpError};
 use crate::api::ffi::{
-    NexaHttpBinaryResult, NexaHttpExecuteCallback, NexaHttpHeaderEntry, NexaHttpRequestArgs,
+    NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback,
+    NexaHttpHeaderEntry, NexaHttpRequestArgs,
 };
-use crate::api::request::{NativeHttpClientConfig, NativeHttpHeader, NativeHttpRequest};
+use crate::api::request::{
+    NativeHttpClientConfig, NativeHttpHeader, NativeHttpOwnedRequestBody, NativeHttpRequest,
+};
 use crate::api::response::{NativeHttpOwnedBody, NativeHttpRawResponse};
 use crate::platform::{PlatformFeatures, PlatformRuntimeState, apply_proxy_strategy};
 use crate::runtime::client_registry::ClientEntry;
 use crate::runtime::tokio_runtime::{build_runtime, default_max_inflight_requests};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, ClientBuilder, Method};
-use serde::de::DeserializeOwned;
 use std::collections::HashMap;
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CString, c_char};
 use std::ptr::null_mut;
 use std::slice::from_raw_parts;
 use std::str::FromStr;
@@ -28,9 +30,39 @@ pub struct NexaHttpRuntime<P: PlatformRuntimeState> {
 struct NexaHttpRuntimeInner<P: PlatformRuntimeState> {
     capabilities: P,
     clients: Mutex<HashMap<u64, ClientEntry>>,
+    inflight_requests: Mutex<HashMap<InflightRequestKey, InflightRequestState>>,
     next_client_id: AtomicU64,
     tokio: Runtime,
     request_limiter: Arc<Semaphore>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+struct InflightRequestKey {
+    client_id: u64,
+    request_id: u64,
+}
+
+enum InflightRequestState {
+    Pending,
+    CanceledPending,
+    Active(tokio::task::AbortHandle),
+}
+
+struct InflightRequestGuard<P: PlatformRuntimeState> {
+    inner: Arc<NexaHttpRuntimeInner<P>>,
+    key: InflightRequestKey,
+}
+
+impl<P: PlatformRuntimeState> InflightRequestGuard<P> {
+    fn new(inner: Arc<NexaHttpRuntimeInner<P>>, key: InflightRequestKey) -> Self {
+        Self { inner, key }
+    }
+}
+
+impl<P: PlatformRuntimeState> Drop for InflightRequestGuard<P> {
+    fn drop(&mut self) {
+        self.inner.inflight_requests.lock().unwrap().remove(&self.key);
+    }
 }
 
 impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
@@ -39,6 +71,7 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
             inner: Arc::new(NexaHttpRuntimeInner {
                 capabilities,
                 clients: Mutex::new(HashMap::new()),
+                inflight_requests: Mutex::new(HashMap::new()),
                 next_client_id: AtomicU64::new(1),
                 tokio: build_runtime(),
                 request_limiter: Arc::new(Semaphore::new(default_max_inflight_requests())),
@@ -50,8 +83,8 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
         self.inner.clients.lock().unwrap().len()
     }
 
-    pub fn create_client(&self, config_json: *const c_char) -> u64 {
-        let config = match read_json::<NativeHttpClientConfig>(config_json) {
+    pub fn create_client(&self, config_args: *const NexaHttpClientConfigArgs) -> u64 {
+        let config = match read_client_config(config_args) {
             Ok(config) => config,
             Err(_) => return 0,
         };
@@ -99,8 +132,20 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
             }
         };
 
+        let request_key = InflightRequestKey {
+            client_id,
+            request_id,
+        };
+        self.inner
+            .inflight_requests
+            .lock()
+            .unwrap()
+            .insert(request_key, InflightRequestState::Pending);
+
         let inner = Arc::clone(&self.inner);
-        self.inner.tokio.spawn(async move {
+        let cleanup_inner = Arc::clone(&self.inner);
+        let task = self.inner.tokio.spawn(async move {
+            let _guard = InflightRequestGuard::new(cleanup_inner, request_key);
             let result = execute_request_with_limit(inner, client_id, request)
                 .await
                 .map(build_binary_success_result)
@@ -110,12 +155,67 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
                 callback(request_id, Box::into_raw(Box::new(result)));
             }
         });
+        let abort_handle = task.abort_handle();
+        let mut inflight_requests = self.inner.inflight_requests.lock().unwrap();
+        match inflight_requests.get_mut(&request_key) {
+            Some(state @ InflightRequestState::Pending) => {
+                *state = InflightRequestState::Active(abort_handle);
+            }
+            Some(InflightRequestState::CanceledPending) => {
+                inflight_requests.remove(&request_key);
+                drop(inflight_requests);
+                task.abort();
+            }
+            Some(InflightRequestState::Active(_)) => {}
+            None => {
+                drop(inflight_requests);
+                task.abort();
+            }
+        }
 
+        1
+    }
+
+    pub fn cancel_request(&self, client_id: u64, request_id: u64) -> u8 {
+        let key = InflightRequestKey {
+            client_id,
+            request_id,
+        };
+
+        let abort_handle = {
+            let mut inflight_requests = self.inner.inflight_requests.lock().unwrap();
+            match inflight_requests.get_mut(&key) {
+                Some(state @ InflightRequestState::Pending) => {
+                    *state = InflightRequestState::CanceledPending;
+                    None
+                }
+                Some(InflightRequestState::CanceledPending) => None,
+                Some(InflightRequestState::Active(_)) => match inflight_requests.remove(&key) {
+                    Some(InflightRequestState::Active(abort_handle)) => Some(abort_handle),
+                    _ => None,
+                },
+                None => return 0,
+            }
+        };
+
+        if let Some(abort_handle) = abort_handle {
+            abort_handle.abort();
+        }
         1
     }
 
     pub fn close_client(&self, client_id: u64) {
         self.inner.clients.lock().unwrap().remove(&client_id);
+    }
+
+    pub fn request_body_alloc(body_len: usize) -> *mut u8 {
+        NativeHttpOwnedRequestBody::alloc_raw_parts(body_len)
+    }
+
+    pub fn request_body_free(body_ptr: *mut u8, body_len: usize) {
+        unsafe {
+            NativeHttpOwnedRequestBody::free_raw_parts(body_ptr, body_len);
+        }
     }
 
     pub fn binary_result_free(value: *mut NexaHttpBinaryResult) {
@@ -143,22 +243,33 @@ pub(crate) unsafe fn binary_result_free_impl(value: *mut NexaHttpBinaryResult) {
     }
 }
 
-fn read_json<T>(pointer: *const c_char) -> Result<T, NativeError>
-where
-    T: DeserializeOwned,
-{
-    if pointer.is_null() {
-        return Err(NativeError::new(
+fn read_client_config(
+    config_args: *const NexaHttpClientConfigArgs,
+) -> Result<NativeHttpClientConfig, NativeError> {
+    let config_args = unsafe { config_args.as_ref() }.ok_or_else(|| {
+        NativeError::new(
             "invalid_argument",
-            "Expected a non-null JSON pointer.",
-        ));
-    }
+            "Expected a non-null client config args pointer.",
+        )
+    })?;
 
-    let json = unsafe { CStr::from_ptr(pointer) }
-        .to_str()
-        .map_err(|error| NativeError::new("invalid_utf8", error.to_string()))?;
+    let default_headers =
+        read_config_headers(config_args.default_headers_ptr, config_args.default_headers_len)?;
+    let user_agent = read_optional_string_parts(
+        config_args.user_agent_ptr,
+        config_args.user_agent_len,
+        "client user agent",
+    )?;
 
-    serde_json::from_str(json).map_err(|error| NativeError::new("invalid_json", error.to_string()))
+    Ok(NativeHttpClientConfig {
+        default_headers,
+        timeout_ms: if config_args.has_timeout == 0 {
+            None
+        } else {
+            Some(config_args.timeout_ms)
+        },
+        user_agent,
+    })
 }
 
 fn read_request(
@@ -178,6 +289,8 @@ fn read_request(
             "invalid_argument",
             "Expected a non-null body pointer when body_len > 0.",
         ));
+    } else if request_args.body_owned != 0 {
+        unsafe { NativeHttpOwnedRequestBody::into_vec(request_args.body_ptr, request_args.body_len) }
     } else {
         unsafe { from_raw_parts(request_args.body_ptr, request_args.body_len) }.to_vec()
     };
@@ -204,9 +317,9 @@ fn read_request(
 fn read_request_headers(
     headers_ptr: *const NexaHttpHeaderEntry,
     headers_len: usize,
-) -> Result<HashMap<String, String>, NativeError> {
+) -> Result<Vec<NativeHttpHeader>, NativeError> {
     if headers_len == 0 {
-        return Ok(HashMap::new());
+        return Ok(Vec::new());
     }
     if headers_ptr.is_null() {
         return Err(NativeError::new(
@@ -215,11 +328,22 @@ fn read_request_headers(
         ));
     }
 
-    let mut headers = HashMap::with_capacity(headers_len);
+    let mut headers = Vec::with_capacity(headers_len);
     for entry in unsafe { from_raw_parts(headers_ptr, headers_len) } {
         let name = read_string_parts(entry.name_ptr, entry.name_len, "request header name")?;
         let value = read_string_parts(entry.value_ptr, entry.value_len, "request header value")?;
-        headers.insert(name, value);
+        headers.push(NativeHttpHeader { name, value });
+    }
+    Ok(headers)
+}
+
+fn read_config_headers(
+    headers_ptr: *const NexaHttpHeaderEntry,
+    headers_len: usize,
+) -> Result<HashMap<String, String>, NativeError> {
+    let mut headers = HashMap::new();
+    for entry in read_request_headers(headers_ptr, headers_len)? {
+        headers.insert(entry.name, entry.value);
     }
     Ok(headers)
 }
@@ -243,6 +367,17 @@ fn read_string_parts(
     let value = std::str::from_utf8(bytes)
         .map_err(|error| NativeError::new("invalid_utf8", error.to_string()))?;
     Ok(value.to_string())
+}
+
+fn read_optional_string_parts(
+    pointer: *const c_char,
+    length: usize,
+    field_name: &'static str,
+) -> Result<Option<String>, NativeError> {
+    if length == 0 {
+        return Ok(None);
+    }
+    Ok(Some(read_string_parts(pointer, length, field_name)?))
 }
 
 fn build_client(
@@ -381,15 +516,15 @@ async fn execute_request_with_client_async(
 
     let mut builder = client.request(method, &url);
 
-    for (name, value) in &headers {
-        let header_name = HeaderName::from_bytes(name.as_bytes()).map_err(|error| {
+    for header in &headers {
+        let header_name = HeaderName::from_bytes(header.name.as_bytes()).map_err(|error| {
             let mut details = HashMap::new();
-            details.insert("header".to_string(), name.clone());
+            details.insert("header".to_string(), header.name.clone());
             NativeError::new("invalid_request", error.to_string()).with_details(details)
         })?;
-        let header_value = HeaderValue::from_str(value).map_err(|error| {
+        let header_value = HeaderValue::from_str(&header.value).map_err(|error| {
             let mut details = HashMap::new();
-            details.insert("header".to_string(), name.clone());
+            details.insert("header".to_string(), header.name.clone());
             NativeError::new("invalid_request", error.to_string()).with_details(details)
         })?;
         builder = builder.header(header_name, header_value);
@@ -417,7 +552,10 @@ async fn execute_request_with_client_async(
         });
     }
 
-    let final_url = Some(response.url().to_string());
+    let final_url = match reqwest::Url::parse(&url) {
+        Ok(request_url) if response.url() == &request_url => None,
+        _ => Some(response.url().to_string()),
+    };
     let body = response
         .bytes()
         .await
@@ -426,7 +564,7 @@ async fn execute_request_with_client_async(
     Ok(NativeHttpRawResponse {
         status_code,
         headers,
-        body: NativeHttpOwnedBody::from_bytes(body.as_ref()),
+        body: NativeHttpOwnedBody::from_response_bytes(body),
         final_url,
     })
 }
@@ -453,6 +591,7 @@ fn build_binary_success_result(response: NativeHttpRawResponse) -> NexaHttpBinar
         final_url_len,
         body_ptr: null_mut(),
         body_len: 0,
+        body_owner: null_mut(),
         error_json: null_mut(),
     };
     result.set_owned_body(response.body);
@@ -481,6 +620,7 @@ fn build_binary_error_result(error: NativeHttpError) -> NexaHttpBinaryResult {
         final_url_len: 0,
         body_ptr: null_mut(),
         body_len: 0,
+        body_owner: null_mut(),
         error_json,
     }
 }
@@ -687,8 +827,9 @@ mod tests {
                 url_len: url.as_bytes().len(),
                 headers_ptr: std::ptr::null(),
                 headers_len: 0,
-                body_ptr: std::ptr::null(),
+                body_ptr: std::ptr::null_mut(),
                 body_len: 0,
+                body_owned: 0,
                 timeout_ms,
                 has_timeout: 1,
             };
@@ -704,16 +845,34 @@ mod tests {
         }
     }
 
-    fn client_config_json() -> CString {
-        CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
-            .expect("config json")
+    struct TestClientConfigArgs {
+        args: NexaHttpClientConfigArgs,
+    }
+
+    impl TestClientConfigArgs {
+        fn new() -> Self {
+            Self {
+                args: NexaHttpClientConfigArgs {
+                    default_headers_ptr: std::ptr::null(),
+                    default_headers_len: 0,
+                    user_agent_ptr: std::ptr::null(),
+                    user_agent_len: 0,
+                    timeout_ms: 0,
+                    has_timeout: 0,
+                },
+            }
+        }
+
+        fn as_args(&self) -> *const NexaHttpClientConfigArgs {
+            &self.args
+        }
     }
 
     fn native_test_request() -> NativeHttpRequest {
         NativeHttpRequest {
             method: "GET".to_string(),
             url: "http://127.0.0.1:9/ping".to_string(),
-            headers: HashMap::new(),
+            headers: Vec::new(),
             body: Vec::new(),
             timeout_ms: Some(1),
         }
@@ -761,10 +920,10 @@ mod tests {
         let runtime = NexaHttpRuntime::new(CountingCapabilities {
             proxy_settings_calls: Arc::clone(&proxy_settings_calls),
         });
-        let config = client_config_json();
+        let config = TestClientConfigArgs::new();
         let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
 
-        let client_id = runtime.create_client(config.as_ptr());
+        let client_id = runtime.create_client(config.as_args());
         assert_ne!(client_id, 0);
         let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
@@ -790,10 +949,10 @@ mod tests {
             proxy_settings_calls: Arc::clone(&calls),
             generation: Arc::clone(&generation),
         });
-        let config = client_config_json();
+        let config = TestClientConfigArgs::new();
         let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
 
-        let client_id = runtime.create_client(config.as_ptr());
+        let client_id = runtime.create_client(config.as_args());
         assert_ne!(client_id, 0);
         let calls_after_create = calls.load(Ordering::Relaxed);
 
@@ -825,10 +984,10 @@ mod tests {
             proxy_settings_calls: Arc::clone(&proxy_settings_calls),
             generation: Arc::clone(&generation),
         });
-        let config = client_config_json();
+        let config = TestClientConfigArgs::new();
         let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
 
-        let client_id = runtime.create_client(config.as_ptr());
+        let client_id = runtime.create_client(config.as_args());
         assert_ne!(client_id, 0);
         let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
@@ -857,9 +1016,9 @@ mod tests {
             proxy_settings_calls: Arc::clone(&proxy_settings_calls),
             generation: Arc::clone(&generation),
         });
-        let config = client_config_json();
+        let config = TestClientConfigArgs::new();
 
-        let client_id = runtime.create_client(config.as_ptr());
+        let client_id = runtime.create_client(config.as_args());
         assert_ne!(client_id, 0);
         let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
@@ -897,6 +1056,125 @@ mod tests {
             calls_after_concurrency,
             "once one concurrent request commits the new generation, later steady-state requests should stay on the fast path",
         );
+    }
+
+    #[test]
+    fn read_request_headers_preserves_repeated_entries_in_order() {
+        let header_names = vec![
+            CString::new("accept").unwrap(),
+            CString::new("accept").unwrap(),
+        ];
+        let header_values = vec![
+            CString::new("application/json").unwrap(),
+            CString::new("application/problem+json").unwrap(),
+        ];
+        let headers = vec![
+            NexaHttpHeaderEntry {
+                name_ptr: header_names[0].as_ptr(),
+                name_len: header_names[0].as_bytes().len(),
+                value_ptr: header_values[0].as_ptr(),
+                value_len: header_values[0].as_bytes().len(),
+            },
+            NexaHttpHeaderEntry {
+                name_ptr: header_names[1].as_ptr(),
+                name_len: header_names[1].as_bytes().len(),
+                value_ptr: header_values[1].as_ptr(),
+                value_len: header_values[1].as_bytes().len(),
+            },
+        ];
+
+        let decoded = read_request_headers(headers.as_ptr(), headers.len()).unwrap();
+
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].name, "accept");
+        assert_eq!(decoded[0].value, "application/json");
+        assert_eq!(decoded[1].name, "accept");
+        assert_eq!(decoded[1].value, "application/problem+json");
+    }
+
+    #[test]
+    fn owned_request_body_is_adopted_without_recopying() {
+        let method = CString::new("POST").unwrap();
+        let url = CString::new("https://example.com/upload").unwrap();
+        let body_ptr = NativeHttpOwnedRequestBody::alloc_raw_parts(4);
+        unsafe {
+            std::slice::from_raw_parts_mut(body_ptr, 4).copy_from_slice(&[1, 2, 3, 4]);
+        }
+        let args = NexaHttpRequestArgs {
+            method_ptr: method.as_ptr(),
+            method_len: method.as_bytes().len(),
+            url_ptr: url.as_ptr(),
+            url_len: url.as_bytes().len(),
+            headers_ptr: std::ptr::null(),
+            headers_len: 0,
+            body_ptr,
+            body_len: 4,
+            body_owned: 1,
+            timeout_ms: 0,
+            has_timeout: 0,
+        };
+
+        let request = read_request(&args).unwrap();
+
+        assert_eq!(request.body, vec![1, 2, 3, 4]);
+        assert_eq!(request.body.as_ptr(), body_ptr.cast_const());
+    }
+
+    #[test]
+    fn cancel_request_marks_pending_requests_before_abort_handle_is_installed() {
+        let runtime = NexaHttpRuntime::new(CountingCapabilities {
+            proxy_settings_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        let request_key = InflightRequestKey {
+            client_id: 7,
+            request_id: 11,
+        };
+        runtime
+            .inner
+            .inflight_requests
+            .lock()
+            .unwrap()
+            .insert(request_key, InflightRequestState::Pending);
+
+        assert_eq!(runtime.cancel_request(7, 11), 1);
+        let inflight_requests = runtime.inner.inflight_requests.lock().unwrap();
+        assert!(matches!(
+            inflight_requests.get(&request_key),
+            Some(InflightRequestState::CanceledPending)
+        ));
+    }
+
+    #[test]
+    fn cancel_request_aborts_active_handles_and_removes_tracking() {
+        let runtime = NexaHttpRuntime::new(CountingCapabilities {
+            proxy_settings_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        let request_key = InflightRequestKey {
+            client_id: 7,
+            request_id: 12,
+        };
+        let handle = runtime.inner.tokio.spawn(async {
+            std::future::pending::<()>().await;
+        });
+        let abort_handle = handle.abort_handle();
+        runtime
+            .inner
+            .inflight_requests
+            .lock()
+            .unwrap()
+            .insert(request_key, InflightRequestState::Active(abort_handle));
+
+        assert_eq!(runtime.cancel_request(7, 12), 1);
+        assert!(runtime
+            .inner
+            .inflight_requests
+            .lock()
+            .unwrap()
+            .get(&request_key)
+            .is_none());
+        runtime.inner.tokio.block_on(async {
+            assert!(handle.await.is_err());
+        });
     }
 }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ffi';
 
 import 'package:nexa_http/nexa_http.dart';
@@ -86,6 +87,62 @@ void main() {
       dataSource.executeCalls[1].clientId,
     );
   });
+
+  test('cancel after dispatch forwards cancellation into the active request',
+      () async {
+    final dataSource = _CancelableNativeDataSource();
+    final dataSourceFactory = NexaHttpNativeDataSourceFactory(
+      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
+      createDataSource: (_) => dataSource,
+    );
+    NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
+    final client = NexaHttpClient();
+    final call = client.newCall(
+      RequestBuilder()
+          .url(Uri.parse('https://example.com/cancel-in-flight'))
+          .get()
+          .build(),
+    );
+
+    final future = call.execute();
+    await Future<void>.delayed(Duration.zero);
+    call.cancel();
+
+    await expectLater(
+      future,
+      throwsA(
+        isA<NexaHttpException>().having((error) => error.code, 'code', 'canceled'),
+      ),
+    );
+    expect(call.isCanceled, isTrue);
+    expect(dataSource.cancelReadyCount, 1);
+    expect(dataSource.cancelInvocationCount, 1);
+  });
+
+  test('cancel after completion does not forward cancellation again', () async {
+    final dataSource = _CompletedCancelableNativeDataSource();
+    final dataSourceFactory = NexaHttpNativeDataSourceFactory(
+      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
+      createDataSource: (_) => dataSource,
+    );
+    NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
+    final client = NexaHttpClient();
+    final call = client.newCall(
+      RequestBuilder()
+          .url(Uri.parse('https://example.com/already-done'))
+          .get()
+          .build(),
+    );
+
+    final response = await call.execute();
+    expect(response.statusCode, 204);
+
+    call.cancel();
+
+    expect(call.isCanceled, isTrue);
+    expect(dataSource.cancelReadyCount, 1);
+    expect(dataSource.cancelInvocationCount, 0);
+  });
 }
 
 final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
@@ -105,10 +162,8 @@ final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
   }
 
   @override
-  Future<TransportResponse> execute(
-    int clientId,
-    NativeHttpRequestDto request,
-  ) async {
+  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
+      {RegisterCancelRequest? onCancelReady}) async {
     executeCalls.add(_ExecuteCall(clientId: clientId, request: request));
     return _executeResponses[executeCalls.length - 1];
   }
@@ -125,4 +180,61 @@ final class _ExecuteCall {
 
   final int clientId;
   final NativeHttpRequestDto request;
+}
+
+final class _CancelableNativeDataSource implements NexaHttpNativeDataSource {
+  int cancelReadyCount = 0;
+  int cancelInvocationCount = 0;
+
+  @override
+  void closeClient(int clientId) {}
+
+  @override
+  int createClient(NativeHttpClientConfigDto config) => 101;
+
+  @override
+  void dispose() {}
+
+  @override
+  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
+      {RegisterCancelRequest? onCancelReady}) {
+    final completer = Completer<TransportResponse>();
+    onCancelReady?.call(() {
+      cancelInvocationCount += 1;
+      completer.completeError(
+        NexaHttpException(
+          code: 'canceled',
+          message: 'The request was canceled.',
+          uri: Uri.parse(request.url),
+        ),
+      );
+    });
+    cancelReadyCount += 1;
+    return completer.future;
+  }
+}
+
+final class _CompletedCancelableNativeDataSource
+    implements NexaHttpNativeDataSource {
+  int cancelReadyCount = 0;
+  int cancelInvocationCount = 0;
+
+  @override
+  void closeClient(int clientId) {}
+
+  @override
+  int createClient(NativeHttpClientConfigDto config) => 102;
+
+  @override
+  void dispose() {}
+
+  @override
+  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
+      {RegisterCancelRequest? onCancelReady}) async {
+    onCancelReady?.call(() {
+      cancelInvocationCount += 1;
+    });
+    cancelReadyCount += 1;
+    return const TransportResponse(statusCode: 204);
+  }
 }

@@ -19,16 +19,40 @@ class NexaHttpBindings {
     ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
   ) : _lookup = lookup;
 
-  int nexa_http_client_create(ffi.Pointer<ffi.Char> config_json) {
-    return _nexa_http_client_create(config_json);
+  int nexa_http_client_create(
+    ffi.Pointer<NexaHttpClientConfigArgs> config_args,
+  ) {
+    return _nexa_http_client_create(config_args);
   }
 
   late final _nexa_http_client_createPtr =
-      _lookup<ffi.NativeFunction<ffi.Uint64 Function(ffi.Pointer<ffi.Char>)>>(
-        'nexa_http_client_create',
-      );
+      _lookup<
+        ffi.NativeFunction<ffi.Uint64 Function(ffi.Pointer<NexaHttpClientConfigArgs>)>
+      >('nexa_http_client_create');
   late final _nexa_http_client_create = _nexa_http_client_createPtr
-      .asFunction<int Function(ffi.Pointer<ffi.Char>)>();
+      .asFunction<int Function(ffi.Pointer<NexaHttpClientConfigArgs>)>();
+
+  ffi.Pointer<ffi.Uint8> nexa_http_request_body_alloc(int body_len) {
+    return _nexa_http_request_body_alloc(body_len);
+  }
+
+  late final _nexa_http_request_body_allocPtr =
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Uint8> Function(ffi.UintPtr)>>(
+        'nexa_http_request_body_alloc',
+      );
+  late final _nexa_http_request_body_alloc = _nexa_http_request_body_allocPtr
+      .asFunction<ffi.Pointer<ffi.Uint8> Function(int)>();
+
+  void nexa_http_request_body_free(ffi.Pointer<ffi.Uint8> body_ptr, int body_len) {
+    return _nexa_http_request_body_free(body_ptr, body_len);
+  }
+
+  late final _nexa_http_request_body_freePtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Uint8>, ffi.UintPtr)>
+      >('nexa_http_request_body_free');
+  late final _nexa_http_request_body_free = _nexa_http_request_body_freePtr
+      .asFunction<void Function(ffi.Pointer<ffi.Uint8>, int)>();
 
   int nexa_http_client_execute_async(
     int client_id,
@@ -65,6 +89,17 @@ class NexaHttpBindings {
               NexaHttpExecuteCallback,
             )
           >();
+
+  int nexa_http_client_cancel_request(int client_id, int request_id) {
+    return _nexa_http_client_cancel_request(client_id, request_id);
+  }
+
+  late final _nexa_http_client_cancel_requestPtr =
+      _lookup<ffi.NativeFunction<ffi.Uint8 Function(ffi.Uint64, ffi.Uint64)>>(
+        'nexa_http_client_cancel_request',
+      );
+  late final _nexa_http_client_cancel_request =
+      _nexa_http_client_cancel_requestPtr.asFunction<int Function(int, int)>();
 
   void nexa_http_client_close(int client_id) {
     return _nexa_http_client_close(client_id);
@@ -359,6 +394,24 @@ final class NexaHttpHeaderEntry extends ffi.Struct {
   external int value_len;
 }
 
+final class NexaHttpClientConfigArgs extends ffi.Struct {
+  external ffi.Pointer<NexaHttpHeaderEntry> default_headers_ptr;
+
+  @ffi.UintPtr()
+  external int default_headers_len;
+
+  external ffi.Pointer<ffi.Char> user_agent_ptr;
+
+  @ffi.UintPtr()
+  external int user_agent_len;
+
+  @ffi.Uint64()
+  external int timeout_ms;
+
+  @ffi.Uint8()
+  external int has_timeout;
+}
+
 final class NexaHttpRequestArgs extends ffi.Struct {
   external ffi.Pointer<ffi.Char> method_ptr;
 
@@ -379,6 +432,9 @@ final class NexaHttpRequestArgs extends ffi.Struct {
 
   @ffi.UintPtr()
   external int body_len;
+
+  @ffi.Uint8()
+  external int body_owned;
 
   @ffi.Uint64()
   external int timeout_ms;
@@ -408,6 +464,8 @@ final class NexaHttpBinaryResult extends ffi.Struct {
 
   @ffi.UintPtr()
   external int body_len;
+
+  external ffi.Pointer<ffi.Void> body_owner;
 
   external ffi.Pointer<ffi.Char> error_json;
 }

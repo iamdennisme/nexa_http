@@ -9,18 +9,43 @@ import '../dto/native_http_request_dto.dart';
 final class FfiNexaHttpRequestEncoder {
   const FfiNexaHttpRequestEncoder._();
 
-  static FfiEncodedNativeRequest encode(NativeHttpRequestDto request) {
-    return FfiEncodedNativeRequest._fromDto(request);
+  static FfiEncodedNativeRequest encode(
+    NativeHttpRequestDto request, {
+    required Pointer<Uint8> Function(int bodyLength) allocateBody,
+    required void Function(Pointer<Uint8> bodyPointer, int bodyLength)
+    releaseBody,
+  }) {
+    return FfiEncodedNativeRequest._fromDto(
+      request,
+      allocateBody: allocateBody,
+      releaseBody: releaseBody,
+    );
   }
 }
 
 final class FfiEncodedNativeRequest {
-  FfiEncodedNativeRequest._(this._arena, this.pointer);
+  FfiEncodedNativeRequest._({
+    required Arena arena,
+    required this.pointer,
+    required this.releaseBody,
+    required this.bodyPointer,
+    required this.bodyLength,
+    required this.bodyOwned,
+  }) : _arena = arena;
 
   final Arena _arena;
   final Pointer<NexaHttpRequestArgs> pointer;
+  final void Function(Pointer<Uint8> bodyPointer, int bodyLength) releaseBody;
+  final Pointer<Uint8> bodyPointer;
+  final int bodyLength;
+  bool bodyOwned;
 
-  factory FfiEncodedNativeRequest._fromDto(NativeHttpRequestDto request) {
+  factory FfiEncodedNativeRequest._fromDto(
+    NativeHttpRequestDto request, {
+    required Pointer<Uint8> Function(int bodyLength) allocateBody,
+    required void Function(Pointer<Uint8> bodyPointer, int bodyLength)
+    releaseBody,
+  }) {
     final arena = Arena();
     final pointer = arena<NexaHttpRequestArgs>();
     final method = _NativeUtf8Slice.allocate(request.method, arena);
@@ -46,10 +71,12 @@ final class FfiEncodedNativeRequest {
     final bodyBytes = request.bodyBytes;
     final bodyPointer = bodyBytes == null || bodyBytes.isEmpty
         ? nullptr
-        : arena<Uint8>(bodyBytes.length);
+        : allocateBody(bodyBytes.length);
     if (bodyPointer != nullptr) {
       bodyPointer.asTypedList(bodyBytes!.length).setAll(0, bodyBytes);
     }
+    final bodyLength = bodyBytes?.length ?? 0;
+    final bodyOwned = bodyPointer != nullptr && bodyLength > 0;
 
     final timeoutMs = request.timeoutMs;
     pointer.ref
@@ -60,14 +87,29 @@ final class FfiEncodedNativeRequest {
       ..headers_ptr = headersPointer
       ..headers_len = headersLength
       ..body_ptr = bodyPointer
-      ..body_len = bodyBytes?.length ?? 0
+      ..body_len = bodyLength
+      ..body_owned = bodyOwned ? 1 : 0
       ..timeout_ms = timeoutMs ?? 0
       ..has_timeout = timeoutMs == null ? 0 : 1;
 
-    return FfiEncodedNativeRequest._(arena, pointer);
+    return FfiEncodedNativeRequest._(
+      arena: arena,
+      pointer: pointer,
+      releaseBody: releaseBody,
+      bodyPointer: bodyPointer,
+      bodyLength: bodyLength,
+      bodyOwned: bodyOwned,
+    );
+  }
+
+  void transferBodyOwnership() {
+    bodyOwned = false;
   }
 
   void dispose() {
+    if (bodyOwned && bodyPointer != nullptr && bodyLength > 0) {
+      releaseBody(bodyPointer, bodyLength);
+    }
     _arena.releaseAll();
   }
 }

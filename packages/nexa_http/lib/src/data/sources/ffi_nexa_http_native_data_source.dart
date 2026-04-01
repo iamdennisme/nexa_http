@@ -1,14 +1,13 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ffi';
 
-import 'package:ffi/ffi.dart';
 import 'package:nexa_http/nexa_http_bindings_generated.dart';
 
 import '../../api/nexa_http_exception.dart';
 import '../../internal/transport/transport_response.dart';
 import '../dto/native_http_client_config_dto.dart';
 import '../dto/native_http_request_dto.dart';
+import 'ffi_nexa_http_client_config_encoder.dart';
 import 'ffi_nexa_http_pending_request_registry.dart';
 import 'ffi_nexa_http_request_encoder.dart';
 import 'ffi_nexa_http_response_decoder.dart';
@@ -65,9 +64,9 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
 
   @override
   int createClient(NativeHttpClientConfigDto config) {
-    final configPointer = jsonEncode(config.toJson()).toNativeUtf8();
+    final encodedConfig = FfiNexaHttpClientConfigEncoder.encode(config);
     try {
-      final clientId = _bindings.nexa_http_client_create(configPointer.cast());
+      final clientId = _bindings.nexa_http_client_create(encodedConfig.pointer);
       if (clientId == 0) {
         throw StateError(
           'The nexa_http native library failed to create an HTTP client.',
@@ -75,18 +74,20 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       }
       return clientId;
     } finally {
-      calloc.free(configPointer);
+      encodedConfig.dispose();
     }
   }
 
   @override
-  Future<TransportResponse> execute(
-    int clientId,
-    NativeHttpRequestDto request,
-  ) async {
+  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
+      {RegisterCancelRequest? onCancelReady}) async {
     final requestId = _pendingRequests.nextRequestId();
     final completer = _pendingRequests.register(requestId);
-    final requestArgs = FfiNexaHttpRequestEncoder.encode(request);
+    final requestArgs = FfiNexaHttpRequestEncoder.encode(
+      request,
+      allocateBody: _bindings.nexa_http_request_body_alloc,
+      releaseBody: _bindings.nexa_http_request_body_free,
+    );
 
     try {
       final dispatched = _bindings.nexa_http_client_execute_async(
@@ -103,6 +104,22 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
               'The nexa_http native library failed to dispatch the request.',
         );
       }
+      requestArgs.transferBodyOwnership();
+      onCancelReady?.call(() {
+        final canceledCompleter = _pendingRequests.cancel(requestId);
+        if (canceledCompleter == null || canceledCompleter.isCompleted) {
+          return;
+        }
+        _bindings.nexa_http_client_cancel_request(clientId, requestId);
+        canceledCompleter.completeError(
+          NexaHttpException(
+            code: 'canceled',
+            message: 'The request was canceled.',
+            uri: Uri.tryParse(request.url),
+          ),
+        );
+        _pendingRequests.didCompletePendingRequest();
+      });
     } catch (error, stackTrace) {
       _pendingRequests.take(requestId);
       Error.throwWithStackTrace(error, stackTrace);

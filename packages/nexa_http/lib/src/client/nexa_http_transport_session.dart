@@ -1,5 +1,6 @@
 import '../api/request.dart';
 import '../api/response.dart';
+import '../api/nexa_http_exception.dart';
 import '../data/dto/native_http_client_config_dto.dart';
 import '../data/dto/native_http_request_dto.dart';
 import '../data/sources/nexa_http_native_data_source.dart';
@@ -39,13 +40,24 @@ final class NexaHttpTransportSession {
   Future<void>? _closeFuture;
   bool _isClosed = false;
 
-  Future<Response> execute(Request request) async {
+  Future<Response> execute(
+    Request request, {
+    void Function(CancelNativeRequest cancelRequest)? onCancelReady,
+    bool Function()? isCanceled,
+  }) async {
+    _throwIfCanceled(request, isCanceled);
     final leaseId = await _ensureLease();
+    _throwIfCanceled(request, isCanceled);
     final requestDto = _requestMapper(
       clientConfig: _options,
       request: request,
     );
-    final response = await _ensureDataSource().execute(leaseId, requestDto);
+    final response = await _ensureDataSource().execute(
+      leaseId,
+      requestDto,
+      onCancelReady: onCancelReady,
+    );
+    _throwIfCanceled(request, isCanceled);
     return _responseMapper.map(request: request, payload: response);
   }
 
@@ -102,5 +114,16 @@ final class NexaHttpTransportSession {
 
   NexaHttpNativeDataSource _ensureDataSource() {
     return _dataSource ??= _dataSourceFactory.create();
+  }
+
+  void _throwIfCanceled(Request request, bool Function()? isCanceled) {
+    if (isCanceled?.call() != true) {
+      return;
+    }
+    throw NexaHttpException(
+      code: 'canceled',
+      message: 'The request was canceled.',
+      uri: request.url,
+    );
   }
 }

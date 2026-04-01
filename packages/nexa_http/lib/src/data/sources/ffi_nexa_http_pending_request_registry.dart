@@ -30,6 +30,10 @@ final class FfiNexaHttpPendingRequestRegistry {
     return _pendingExecuteRequests.remove(requestId);
   }
 
+  Completer<TransportResponse>? cancel(int requestId) {
+    return _pendingExecuteRequests.remove(requestId);
+  }
+
   void dispose() {
     if (_disposeRequested || _isDisposed) {
       return;

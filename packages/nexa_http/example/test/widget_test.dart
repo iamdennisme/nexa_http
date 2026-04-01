@@ -38,6 +38,18 @@ void main() {
     expect(find.text('Dart HttpClient'), findsOneWidget);
   });
 
+  testWidgets('can start directly on the benchmark demo', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const NexaHttpExampleApp(initialSection: ExampleDemoSection.benchmark),
+    );
+    await tester.pump();
+
+    expect(find.text('Concurrent Benchmark'), findsOneWidget);
+    expect(find.text('Run Benchmark'), findsOneWidget);
+  });
+
   testWidgets('creates the lightweight client synchronously during build', (
     WidgetTester tester,
   ) async {
@@ -53,7 +65,9 @@ void main() {
     );
 
     expect(createClientCallCount, 1);
-    expect(find.text('Transport initializes lazily on first request.'),
-        findsOneWidget);
+    expect(
+      find.text('Transport initializes lazily on first request.'),
+      findsOneWidget,
+    );
   });
 }

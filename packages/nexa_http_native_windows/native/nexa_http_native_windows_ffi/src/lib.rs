@@ -1,11 +1,11 @@
 mod proxy_source;
 
 use nexa_http_native_core::api::ffi::{
-    NexaHttpBinaryResult, NexaHttpExecuteCallback, NexaHttpRequestArgs,
+    NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback,
+    NexaHttpRequestArgs,
 };
 use nexa_http_native_core::runtime::{ManagedProxyState, NexaHttpRuntime};
 use once_cell::sync::Lazy;
-use std::ffi::c_char;
 
 pub use proxy_source::{WindowsProxySource, current_proxy_settings_for_test};
 
@@ -17,8 +17,18 @@ static RUNTIME: Lazy<NexaHttpRuntime<ManagedProxyState<WindowsProxySource>>> = L
 });
 
 #[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_client_create(config_json: *const c_char) -> u64 {
-    RUNTIME.create_client(config_json)
+pub extern "C" fn nexa_http_client_create(config_args: *const NexaHttpClientConfigArgs) -> u64 {
+    RUNTIME.create_client(config_args)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn nexa_http_request_body_alloc(body_len: usize) -> *mut u8 {
+    NexaHttpRuntime::<ManagedProxyState<WindowsProxySource>>::request_body_alloc(body_len)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn nexa_http_request_body_free(body_ptr: *mut u8, body_len: usize) {
+    NexaHttpRuntime::<ManagedProxyState<WindowsProxySource>>::request_body_free(body_ptr, body_len);
 }
 
 #[unsafe(no_mangle)]
@@ -29,6 +39,11 @@ pub extern "C" fn nexa_http_client_execute_async(
     callback: NexaHttpExecuteCallback,
 ) -> u8 {
     RUNTIME.execute_async(client_id, request_id, request_args, callback)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn nexa_http_client_cancel_request(client_id: u64, request_id: u64) -> u8 {
+    RUNTIME.cancel_request(client_id, request_id)
 }
 
 #[unsafe(no_mangle)]

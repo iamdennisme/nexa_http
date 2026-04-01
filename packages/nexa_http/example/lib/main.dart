@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:nexa_http/nexa_http.dart';
@@ -35,17 +37,49 @@ const int _benchmarkTimeoutMillis = int.fromEnvironment(
   'NEXA_HTTP_EXAMPLE_BENCHMARK_TIMEOUT_MS',
   defaultValue: 10000,
 );
+const bool _autoRunBenchmark = bool.fromEnvironment(
+  'NEXA_HTTP_EXAMPLE_AUTO_RUN_BENCHMARK',
+  defaultValue: false,
+);
+const bool _exitAfterBenchmark = bool.fromEnvironment(
+  'NEXA_HTTP_EXAMPLE_EXIT_AFTER_BENCHMARK',
+  defaultValue: false,
+);
+const String _benchmarkOutputPath = String.fromEnvironment(
+  'NEXA_HTTP_EXAMPLE_BENCHMARK_OUTPUT_PATH',
+  defaultValue: '',
+);
 
 typedef NexaHttpExampleClientFactory = NexaHttpClient Function();
 
 void main() {
-  runApp(const NexaHttpExampleApp());
+  runApp(
+    NexaHttpExampleApp(
+      initialSection: _autoRunBenchmark
+          ? ExampleDemoSection.benchmark
+          : ExampleDemoSection.playground,
+      autoRunBenchmark: _autoRunBenchmark,
+      onBenchmarkComplete: _handleBenchmarkComplete,
+      onBenchmarkError: _handleBenchmarkError,
+    ),
+  );
 }
 
 class NexaHttpExampleApp extends StatelessWidget {
-  const NexaHttpExampleApp({super.key, this.createClient});
+  const NexaHttpExampleApp({
+    super.key,
+    this.createClient,
+    this.initialSection = ExampleDemoSection.playground,
+    this.autoRunBenchmark = false,
+    this.onBenchmarkComplete,
+    this.onBenchmarkError,
+  });
 
   final NexaHttpExampleClientFactory? createClient;
+  final ExampleDemoSection initialSection;
+  final bool autoRunBenchmark;
+  final BenchmarkCompleteCallback? onBenchmarkComplete;
+  final BenchmarkErrorCallback? onBenchmarkError;
 
   @override
   Widget build(BuildContext context) {
@@ -56,28 +90,46 @@ class NexaHttpExampleApp extends StatelessWidget {
         primaryColor: Color(0xFF105DFB),
         scaffoldBackgroundColor: Color(0xFFF4F6FB),
       ),
-      home: NexaHttpExamplePage(createClient: createClient),
+      home: NexaHttpExamplePage(
+        createClient: createClient,
+        initialSection: initialSection,
+        autoRunBenchmark: autoRunBenchmark,
+        onBenchmarkComplete: onBenchmarkComplete,
+        onBenchmarkError: onBenchmarkError,
+      ),
     );
   }
 }
 
 class NexaHttpExamplePage extends StatefulWidget {
-  const NexaHttpExamplePage({super.key, this.createClient});
+  const NexaHttpExamplePage({
+    super.key,
+    this.createClient,
+    this.initialSection = ExampleDemoSection.playground,
+    this.autoRunBenchmark = false,
+    this.onBenchmarkComplete,
+    this.onBenchmarkError,
+  });
 
   final NexaHttpExampleClientFactory? createClient;
+  final ExampleDemoSection initialSection;
+  final bool autoRunBenchmark;
+  final BenchmarkCompleteCallback? onBenchmarkComplete;
+  final BenchmarkErrorCallback? onBenchmarkError;
 
   @override
   State<NexaHttpExamplePage> createState() => _NexaHttpExamplePageState();
 }
 
 class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
-  ExampleDemoSection _section = ExampleDemoSection.playground;
+  late ExampleDemoSection _section;
   NexaHttpClient? _playgroundClient;
   Object? _clientCreationError;
 
   @override
   void initState() {
     super.initState();
+    _section = widget.initialSection;
     try {
       _playgroundClient =
           widget.createClient?.call() ??
@@ -155,6 +207,9 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
               BenchmarkPage(
                 createClient: widget.createClient,
                 initialConfig: benchmarkDefaults,
+                autoRun: widget.autoRunBenchmark,
+                onBenchmarkComplete: widget.onBenchmarkComplete,
+                onBenchmarkError: widget.onBenchmarkError,
               ),
           ],
         ),
@@ -164,6 +219,104 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
 }
 
 enum ExampleDemoSection { playground, benchmark }
+
+void _handleBenchmarkComplete(
+  BenchmarkConfig config,
+  BenchmarkMetrics dartMetrics,
+  BenchmarkMetrics nexaMetrics,
+) {
+  final payload = jsonEncode(<String, Object?>{
+    'status': 'success',
+    'config': <String, Object?>{
+      'baseUrl': config.baseUrl,
+      'scenario': config.scenario.name,
+      'concurrency': config.concurrency,
+      'totalRequests': config.totalRequests,
+      'payloadSize': config.payloadSize,
+      'warmupRequests': config.warmupRequests,
+      'timeoutMillis': config.timeoutMillis,
+    },
+    'results': <Map<String, Object?>>[
+      _benchmarkMetricsToJson(dartMetrics),
+      _benchmarkMetricsToJson(nexaMetrics),
+    ],
+    'comparison': <String, double>{
+      'averageLatencyPercent': _percentDelta(
+        baseline: dartMetrics.averageLatency.inMicroseconds.toDouble(),
+        candidate: nexaMetrics.averageLatency.inMicroseconds.toDouble(),
+        lowerIsBetter: true,
+      ),
+      'throughputPercent': _percentDelta(
+        baseline: dartMetrics.megabytesPerSecond,
+        candidate: nexaMetrics.megabytesPerSecond,
+        lowerIsBetter: false,
+      ),
+      'requestsPerSecondPercent': _percentDelta(
+        baseline: dartMetrics.requestsPerSecond,
+        candidate: nexaMetrics.requestsPerSecond,
+        lowerIsBetter: false,
+      ),
+    },
+  });
+
+  _writeBenchmarkPayload(payload);
+  stdout.writeln('NEXA_HTTP_BENCHMARK_RESULT=$payload');
+
+  if (_exitAfterBenchmark) {
+    unawaited(Future<void>.delayed(Duration.zero, () => exit(0)));
+  }
+}
+
+void _handleBenchmarkError(Object error) {
+  final payload = jsonEncode(<String, Object?>{
+    'status': 'error',
+    'error': '$error',
+  });
+
+  _writeBenchmarkPayload(payload);
+  stderr.writeln('NEXA_HTTP_BENCHMARK_RESULT=$payload');
+
+  if (_exitAfterBenchmark) {
+    unawaited(Future<void>.delayed(Duration.zero, () => exit(1)));
+  }
+}
+
+void _writeBenchmarkPayload(String payload) {
+  if (_benchmarkOutputPath.trim().isEmpty) {
+    return;
+  }
+
+  final outputFile = File(_benchmarkOutputPath.trim());
+  outputFile.parent.createSync(recursive: true);
+  outputFile.writeAsStringSync(payload);
+}
+
+Map<String, Object?> _benchmarkMetricsToJson(BenchmarkMetrics metrics) {
+  return <String, Object?>{
+    'transportLabel': metrics.transportLabel,
+    'totalDurationMillis': metrics.totalDuration.inMilliseconds,
+    'successCount': metrics.successCount,
+    'failureCount': metrics.failureCount,
+    'totalBytes': metrics.totalBytes,
+    'averageLatencyMillis': metrics.averageLatency.inMilliseconds,
+    'p50LatencyMillis': metrics.p50Latency.inMilliseconds,
+    'p95LatencyMillis': metrics.p95Latency.inMilliseconds,
+    'requestsPerSecond': metrics.requestsPerSecond,
+    'megabytesPerSecond': metrics.megabytesPerSecond,
+  };
+}
+
+double _percentDelta({
+  required double baseline,
+  required double candidate,
+  required bool lowerIsBetter,
+}) {
+  if (baseline == 0) {
+    return 0;
+  }
+  final raw = (candidate - baseline) / baseline * 100;
+  return lowerIsBetter ? -raw : raw;
+}
 
 class _HeroCard extends StatelessWidget {
   const _HeroCard();

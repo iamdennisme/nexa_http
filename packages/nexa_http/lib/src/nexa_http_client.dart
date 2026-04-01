@@ -57,8 +57,16 @@ final class NexaHttpClient {
     return _session.close();
   }
 
-  Future<Response> _execute(Request request) async {
-    return _session.execute(request);
+  Future<Response> _execute(
+    Request request, {
+    void Function(void Function() cancelRequest)? onCancelReady,
+    bool Function()? isCanceled,
+  }) async {
+    return _session.execute(
+      request,
+      onCancelReady: onCancelReady,
+      isCanceled: isCanceled,
+    );
   }
 
   static Map<String, String> _normalizeDefaultHeaders(

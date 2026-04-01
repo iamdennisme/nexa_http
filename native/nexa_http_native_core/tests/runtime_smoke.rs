@@ -1,6 +1,5 @@
 use nexa_http_native_core::platform::{PlatformRuntimeState, PlatformRuntimeView, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
-use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -37,11 +36,10 @@ fn repeated_requests_reuse_existing_client_without_refresh() {
         proxy_settings_calls: Arc::clone(&proxy_settings_calls),
         generation: Arc::clone(&generation),
     });
-    let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
-        .expect("config json");
+    let config = TestClientConfigArgs::new();
     let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
 
-    let client_id = runtime.create_client(config.as_ptr());
+    let client_id = runtime.create_client(config.as_args());
     assert_ne!(client_id, 0);
     let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
@@ -65,11 +63,10 @@ fn steady_state_reuse_survives_multiple_request_batches() {
         proxy_settings_calls: Arc::clone(&proxy_settings_calls),
         generation: Arc::clone(&generation),
     });
-    let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
-        .expect("config json");
+    let config = TestClientConfigArgs::new();
     let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
 
-    let client_id = runtime.create_client(config.as_ptr());
+    let client_id = runtime.create_client(config.as_args());
     assert_ne!(client_id, 0);
     let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
@@ -110,15 +107,15 @@ impl PlatformRuntimeState for CountingCapabilities {
 }
 
 struct TestRequestArgs {
-    _method: CString,
-    _url: CString,
+    _method: std::ffi::CString,
+    _url: std::ffi::CString,
     args: nexa_http_native_core::api::ffi::NexaHttpRequestArgs,
 }
 
 impl TestRequestArgs {
     fn new(method: &str, url: &str, timeout_ms: u64) -> Self {
-        let method = CString::new(method).expect("request method");
-        let url = CString::new(url).expect("request url");
+        let method = std::ffi::CString::new(method).expect("request method");
+        let url = std::ffi::CString::new(url).expect("request url");
         let args = nexa_http_native_core::api::ffi::NexaHttpRequestArgs {
             method_ptr: method.as_ptr() as *const c_char,
             method_len: method.as_bytes().len(),
@@ -126,8 +123,9 @@ impl TestRequestArgs {
             url_len: url.as_bytes().len(),
             headers_ptr: std::ptr::null(),
             headers_len: 0,
-            body_ptr: std::ptr::null(),
+            body_ptr: std::ptr::null_mut(),
             body_len: 0,
+            body_owned: 0,
             timeout_ms,
             has_timeout: 1,
         };
@@ -139,6 +137,29 @@ impl TestRequestArgs {
     }
 
     fn as_args(&self) -> *const nexa_http_native_core::api::ffi::NexaHttpRequestArgs {
+        &self.args
+    }
+}
+
+struct TestClientConfigArgs {
+    args: nexa_http_native_core::api::ffi::NexaHttpClientConfigArgs,
+}
+
+impl TestClientConfigArgs {
+    fn new() -> Self {
+        Self {
+            args: nexa_http_native_core::api::ffi::NexaHttpClientConfigArgs {
+                default_headers_ptr: std::ptr::null(),
+                default_headers_len: 0,
+                user_agent_ptr: std::ptr::null(),
+                user_agent_len: 0,
+                timeout_ms: 0,
+                has_timeout: 0,
+            },
+        }
+    }
+
+    fn as_args(&self) -> *const nexa_http_native_core::api::ffi::NexaHttpClientConfigArgs {
         &self.args
     }
 }
@@ -198,9 +219,8 @@ fn execute_for_test<P: PlatformRuntimeState>(
 #[test]
 fn invalid_request_error_callback_does_not_run_on_the_caller_thread() {
     let runtime = NexaHttpRuntime::new(TestCapabilities);
-    let config = CString::new(r#"{"default_headers":{},"timeout_ms":null,"user_agent":null}"#)
-        .expect("config json");
-    let client_id = runtime.create_client(config.as_ptr());
+    let config = TestClientConfigArgs::new();
+    let client_id = runtime.create_client(config.as_args());
     assert_ne!(client_id, 0);
 
     let request = nexa_http_native_core::api::ffi::NexaHttpRequestArgs {
@@ -210,8 +230,9 @@ fn invalid_request_error_callback_does_not_run_on_the_caller_thread() {
         url_len: 0,
         headers_ptr: std::ptr::null(),
         headers_len: 0,
-        body_ptr: std::ptr::null(),
+        body_ptr: std::ptr::null_mut(),
         body_len: 0,
+        body_owned: 0,
         timeout_ms: 0,
         has_timeout: 0,
     };

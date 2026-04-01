@@ -51,7 +51,10 @@ def rustNetForceSourceBuild = (System.getenv('RUST_NET_ANDROID_FORCE_SOURCE_BUIL
     .toBoolean()
 def rustNetRequiredAndroidSymbols = [
     'nexa_http_client_create',
+    'nexa_http_request_body_alloc',
+    'nexa_http_request_body_free',
     'nexa_http_client_execute_async',
+    'nexa_http_client_cancel_request',
     'nexa_http_binary_result_free',
 ]
 

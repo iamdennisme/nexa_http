@@ -29,4 +29,19 @@ void main() {
     expect(identical(await response.body!.bytes(), bodyBytes), isTrue);
     expect(await response.body!.string(), 'hi');
   });
+
+  test('reuses the original request when finalUri is omitted', () {
+    final request = RequestBuilder()
+        .url(Uri.parse('https://example.com/start'))
+        .get()
+        .build();
+
+    final response = const NexaHttpResponseMapper().map(
+      request: request,
+      payload: const TransportResponse(statusCode: 204),
+    );
+
+    expect(identical(response.request, request), isTrue);
+    expect(response.finalUrl, request.url);
+  });
 }

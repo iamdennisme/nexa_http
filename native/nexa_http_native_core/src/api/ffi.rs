@@ -1,6 +1,6 @@
 use crate::api::response::NativeHttpOwnedBody;
 use std::collections::HashMap;
-use std::ffi::{CString, c_char};
+use std::ffi::{CString, c_char, c_void};
 use std::ptr::null_mut;
 use std::sync::{LazyLock, Mutex};
 
@@ -13,6 +13,16 @@ pub struct NexaHttpHeaderEntry {
 }
 
 #[repr(C)]
+pub struct NexaHttpClientConfigArgs {
+    pub default_headers_ptr: *const NexaHttpHeaderEntry,
+    pub default_headers_len: usize,
+    pub user_agent_ptr: *const c_char,
+    pub user_agent_len: usize,
+    pub timeout_ms: u64,
+    pub has_timeout: u8,
+}
+
+#[repr(C)]
 pub struct NexaHttpRequestArgs {
     pub method_ptr: *const c_char,
     pub method_len: usize,
@@ -20,8 +30,9 @@ pub struct NexaHttpRequestArgs {
     pub url_len: usize,
     pub headers_ptr: *const NexaHttpHeaderEntry,
     pub headers_len: usize,
-    pub body_ptr: *const u8,
+    pub body_ptr: *mut u8,
     pub body_len: usize,
+    pub body_owned: u8,
     pub timeout_ms: u64,
     pub has_timeout: u8,
 }
@@ -36,6 +47,7 @@ pub struct NexaHttpBinaryResult {
     pub final_url_len: usize,
     pub body_ptr: *mut u8,
     pub body_len: usize,
+    pub body_owner: *mut c_void,
     pub error_json: *mut c_char,
 }
 
@@ -46,17 +58,19 @@ static TEST_BINARY_RESULT_FREE_COUNTS: LazyLock<Mutex<HashMap<usize, usize>>> =
 
 impl NexaHttpBinaryResult {
     pub(crate) fn set_owned_body(&mut self, body: NativeHttpOwnedBody) {
-        let (body_ptr, body_len) = body.into_raw_parts();
+        let (body_ptr, body_len, body_owner) = body.into_raw_parts();
         self.body_ptr = body_ptr;
         self.body_len = body_len;
+        self.body_owner = body_owner;
     }
 
     pub(crate) unsafe fn free_owned_body(&mut self) {
         unsafe {
-            NativeHttpOwnedBody::free_raw_parts(self.body_ptr, self.body_len);
+            NativeHttpOwnedBody::free_raw_parts(self.body_ptr, self.body_len, self.body_owner);
         }
         self.body_ptr = null_mut();
         self.body_len = 0;
+        self.body_owner = null_mut();
     }
 }
 
@@ -89,6 +103,7 @@ pub extern "C" fn nexa_http_test_binary_result_new_success(
         final_url_len: 0,
         body_ptr: null_mut(),
         body_len: 0,
+        body_owner: null_mut(),
         error_json: null_mut(),
     };
     let body = if body_ptr.is_null() || body_len == 0 {

@@ -1,18 +1,34 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:nexa_http/nexa_http.dart';
 
 import 'benchmark_models.dart';
 import 'benchmark_runner.dart';
 
+typedef BenchmarkCompleteCallback =
+    void Function(
+      BenchmarkConfig config,
+      BenchmarkMetrics dartMetrics,
+      BenchmarkMetrics nexaMetrics,
+    );
+typedef BenchmarkErrorCallback = void Function(Object error);
+
 class BenchmarkPage extends StatefulWidget {
   const BenchmarkPage({
     super.key,
     required this.initialConfig,
     this.createClient,
+    this.autoRun = false,
+    this.onBenchmarkComplete,
+    this.onBenchmarkError,
   });
 
   final BenchmarkConfig initialConfig;
   final NexaHttpClient Function()? createClient;
+  final bool autoRun;
+  final BenchmarkCompleteCallback? onBenchmarkComplete;
+  final BenchmarkErrorCallback? onBenchmarkError;
 
   @override
   State<BenchmarkPage> createState() => _BenchmarkPageState();
@@ -31,6 +47,7 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
   BenchmarkMetrics? _dartMetrics;
   BenchmarkMetrics? _nexaMetrics;
   String? _errorText;
+  bool _didScheduleAutoRun = false;
 
   @override
   void initState() {
@@ -38,14 +55,27 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
     final config = widget.initialConfig;
     _scenario = config.scenario;
     _baseUrlController = TextEditingController(text: config.baseUrl);
-    _concurrencyController =
-        TextEditingController(text: '${config.concurrency}');
-    _totalRequestsController =
-        TextEditingController(text: '${config.totalRequests}');
-    _payloadSizeController =
-        TextEditingController(text: '${config.payloadSize}');
+    _concurrencyController = TextEditingController(
+      text: '${config.concurrency}',
+    );
+    _totalRequestsController = TextEditingController(
+      text: '${config.totalRequests}',
+    );
+    _payloadSizeController = TextEditingController(
+      text: '${config.payloadSize}',
+    );
     _warmupController = TextEditingController(text: '${config.warmupRequests}');
     _timeoutController = TextEditingController(text: '${config.timeoutMillis}');
+
+    if (widget.autoRun) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _didScheduleAutoRun) {
+          return;
+        }
+        _didScheduleAutoRun = true;
+        unawaited(_runBenchmark());
+      });
+    }
   }
 
   @override
@@ -81,7 +111,8 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
       final nexaMetrics = await runner.run(
         config: config,
         transport: NexaHttpBenchmarkTransport(
-          client: widget.createClient?.call() ??
+          client:
+              widget.createClient?.call() ??
               NexaHttpClientBuilder()
                   .callTimeout(config.timeout)
                   .userAgent('nexa_http_example/benchmark')
@@ -97,6 +128,7 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
         _dartMetrics = dartMetrics;
         _nexaMetrics = nexaMetrics;
       });
+      widget.onBenchmarkComplete?.call(config, dartMetrics, nexaMetrics);
     } catch (error) {
       if (!mounted) {
         return;
@@ -104,6 +136,7 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
       setState(() {
         _errorText = 'Benchmark failed\n$error';
       });
+      widget.onBenchmarkError?.call(error);
     } finally {
       if (mounted) {
         setState(() {
@@ -234,8 +267,9 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
               const SizedBox(height: 14),
               Text(
                 'Scenario',
-                style:
-                    textTheme.textStyle.copyWith(fontWeight: FontWeight.w600),
+                style: textTheme.textStyle.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 10),
               CupertinoSlidingSegmentedControl<BenchmarkScenario>(
@@ -296,9 +330,9 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
               Text(
                 _scenario == BenchmarkScenario.bytes
                     ? 'Bytes scenario hits /bytes with unique seeds and the '
-                        'configured payload size.'
+                          'configured payload size.'
                     : 'Image scenario hits /image with unique IDs to keep the '
-                        'download path honest.',
+                          'download path honest.',
                 style: textTheme.textStyle.copyWith(color: secondaryColor),
               ),
             ],
@@ -353,10 +387,7 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
 }
 
 class _ComparisonCard extends StatelessWidget {
-  const _ComparisonCard({
-    required this.dartMetrics,
-    required this.nexaMetrics,
-  });
+  const _ComparisonCard({required this.dartMetrics, required this.nexaMetrics});
 
   final BenchmarkMetrics dartMetrics;
   final BenchmarkMetrics nexaMetrics;
@@ -395,9 +426,7 @@ class _ComparisonCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'nexa_http vs Dart HttpClient',
-            style: textTheme.textStyle.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: textTheme.textStyle.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
           Text(
@@ -482,18 +511,9 @@ class _MetricsCard extends StatelessWidget {
             label: 'P95 Latency',
             value: '${metrics.p95Latency.inMilliseconds} ms',
           ),
-          _MetricRow(
-            label: 'Success',
-            value: '${metrics.successCount}',
-          ),
-          _MetricRow(
-            label: 'Failure',
-            value: '${metrics.failureCount}',
-          ),
-          _MetricRow(
-            label: 'Bytes Received',
-            value: '${metrics.totalBytes}',
-          ),
+          _MetricRow(label: 'Success', value: '${metrics.successCount}'),
+          _MetricRow(label: 'Failure', value: '${metrics.failureCount}'),
+          _MetricRow(label: 'Bytes Received', value: '${metrics.totalBytes}'),
         ],
       ),
     );
@@ -501,10 +521,7 @@ class _MetricsCard extends StatelessWidget {
 }
 
 class _MetricRow extends StatelessWidget {
-  const _MetricRow({
-    required this.label,
-    required this.value,
-  });
+  const _MetricRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -536,10 +553,7 @@ class _MetricRow extends StatelessWidget {
 }
 
 class _LabeledField extends StatelessWidget {
-  const _LabeledField({
-    required this.label,
-    required this.child,
-  });
+  const _LabeledField({required this.label, required this.child});
 
   final String label;
   final Widget child;
@@ -609,10 +623,7 @@ class _SurfaceCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: child,
-      ),
+      child: Padding(padding: const EdgeInsets.all(18), child: child),
     );
   }
 }

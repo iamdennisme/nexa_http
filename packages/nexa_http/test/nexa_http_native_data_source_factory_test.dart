@@ -78,10 +78,8 @@ final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   int createClient(NativeHttpClientConfigDto config) => 1;
 
   @override
-  Future<TransportResponse> execute(
-    int clientId,
-    NativeHttpRequestDto request,
-  ) async {
+  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
+      {RegisterCancelRequest? onCancelReady}) async {
     throw UnimplementedError();
   }
 }

@@ -1,6 +1,5 @@
 // ignore_for_file: non_constant_identifier_names
 
-import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
@@ -10,6 +9,7 @@ import 'package:nexa_http/src/api/api.dart';
 import 'package:nexa_http/src/data/mappers/native_http_client_config_mapper.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/ffi_nexa_http_native_data_source.dart';
+import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
 import 'package:nexa_http/src/internal/config/client_options.dart';
 import 'package:test/test.dart';
 
@@ -86,6 +86,7 @@ void main() {
     expect(response.bodyBytes, const <int>[9, 8, 7]);
     expect(response.finalUri, Uri.parse('https://example.com/upload'));
     expect(bindings.freedResultCount, 0);
+    expect(bindings.freedRequestBodyCount, 0);
 
     bindings.freeTrackedResult();
     expect(bindings.freedResultCount, 1);
@@ -380,13 +381,78 @@ void main() {
     );
   });
 
-  test('createClient only serializes config fields consumed by Rust', () {
-    late Map<String, dynamic> capturedConfig;
+  test('cancel completes pending requests and frees late native results', () async {
+    late final _FakeNexaHttpBindings bindings;
+    late NexaHttpExecuteCallback capturedCallback;
+    late int capturedRequestId;
+    bindings = _FakeNexaHttpBindings(
+      onExecuteAsync: ({
+        required int clientId,
+        required int requestId,
+        required _StructuredRequestWire? structuredRequest,
+        required NexaHttpExecuteCallback callback,
+      }) {
+        capturedRequestId = requestId;
+        capturedCallback = callback;
+        return 1;
+      },
+    );
+    final dataSource = FfiNexaHttpNativeDataSource(
+      library: ffi.DynamicLibrary.process(),
+      bindings: bindings,
+      binaryResultFinalizer: ffi.nullptr,
+    );
+
+    CancelNativeRequest? cancelRequest;
+    final responseFuture = dataSource.execute(
+      31,
+      const NativeHttpRequestDto(
+        method: 'GET',
+        url: 'https://example.com/cancel',
+      ),
+      onCancelReady: (value) => cancelRequest = value,
+    );
+
+    expect(cancelRequest, isNotNull);
+    cancelRequest!.call();
+
+    await expectLater(
+      responseFuture,
+      throwsA(
+        isA<NexaHttpException>().having((error) => error.code, 'code', 'canceled'),
+      ),
+    );
+    expect(bindings.canceledRequestCount, 1);
+
+    final resultPointer = calloc<NexaHttpBinaryResult>();
+    resultPointer.ref
+      ..is_success = 1
+      ..status_code = 204
+      ..headers_ptr = ffi.nullptr
+      ..headers_len = 0
+      ..final_url_ptr = ffi.nullptr
+      ..final_url_len = 0
+      ..body_ptr = ffi.nullptr
+      ..body_len = 0
+      ..error_json = ffi.nullptr;
+
+    bindings.trackResult(resultPointer);
+    capturedCallback
+        .asFunction<void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
+      capturedRequestId,
+      resultPointer,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(bindings.freedResultCount, 1);
+  });
+
+  test('createClient only encodes config fields consumed by Rust', () {
+    late _StructuredConfigWire capturedConfig;
     final dataSource = FfiNexaHttpNativeDataSource(
       library: ffi.DynamicLibrary.process(),
       bindings: _FakeNexaHttpBindings(
-        onCreateClient: (configJson) {
-          capturedConfig = jsonDecode(configJson) as Map<String, dynamic>;
+        onCreateClient: (configArgs) {
+          capturedConfig = _StructuredConfigWire.fromPointer(configArgs);
           return 77;
         },
         onExecuteAsync: ({
@@ -415,11 +481,9 @@ void main() {
     );
 
     expect(clientId, 77);
-    expect(capturedConfig, <String, Object?>{
-      'default_headers': <String, String>{'x-client': 'nexa'},
-      'timeout_ms': 2000,
-      'user_agent': 'nexa-test',
-    });
+    expect(capturedConfig.defaultHeaders, <String, String>{'x-client': 'nexa'});
+    expect(capturedConfig.timeoutMs, 2000);
+    expect(capturedConfig.userAgent, 'nexa-test');
   });
 }
 
@@ -429,7 +493,7 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     required this.onExecuteAsync,
   }) : super.fromLookup(_unimplementedLookup);
 
-  final int Function(String configJson)? onCreateClient;
+  final int Function(ffi.Pointer<NexaHttpClientConfigArgs> configArgs)? onCreateClient;
   final int Function({
     required int clientId,
     required int requestId,
@@ -438,16 +502,29 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   }) onExecuteAsync;
 
   int freedResultCount = 0;
+  int freedRequestBodyCount = 0;
+  int canceledRequestCount = 0;
   ffi.Pointer<NexaHttpBinaryResult> _trackedResultPointer = ffi.nullptr;
   final Set<int> _freedResultAddresses = <int>{};
 
   @override
-  int nexa_http_client_create(ffi.Pointer<ffi.Char> config_json) {
+  int nexa_http_client_create(ffi.Pointer<NexaHttpClientConfigArgs> config_args) {
     final onCreateClient = this.onCreateClient;
     if (onCreateClient == null) {
       return 1;
     }
-    return onCreateClient(config_json.cast<Utf8>().toDartString());
+    return onCreateClient(config_args);
+  }
+
+  @override
+  ffi.Pointer<ffi.Uint8> nexa_http_request_body_alloc(int body_len) {
+    return calloc<ffi.Uint8>(body_len);
+  }
+
+  @override
+  void nexa_http_request_body_free(ffi.Pointer<ffi.Uint8> body_ptr, int body_len) {
+    freedRequestBodyCount += 1;
+    calloc.free(body_ptr);
   }
 
   @override
@@ -463,6 +540,12 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
       structuredRequest: _StructuredRequestWire.fromPointer(request_args),
       callback: callback,
     );
+  }
+
+  @override
+  int nexa_http_client_cancel_request(int client_id, int request_id) {
+    canceledRequestCount += 1;
+    return 1;
   }
 
   void trackResult(ffi.Pointer<NexaHttpBinaryResult> resultPointer) {
@@ -508,7 +591,9 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
       calloc.free(value.ref.final_url_ptr.cast<Utf8>());
     }
     if (value.ref.body_ptr != ffi.nullptr) {
-      calloc.free(value.ref.body_ptr);
+      if (value.ref.body_owner == ffi.nullptr) {
+        calloc.free(value.ref.body_ptr);
+      }
     }
     calloc.free(value);
     if (_trackedResultPointer.address == value.address) {
@@ -528,6 +613,7 @@ class _StructuredRequestWire {
     required this.headers,
     required this.timeoutMs,
     required this.bodyBytes,
+    required this.bodyOwned,
   });
 
   factory _StructuredRequestWire.fromPointer(
@@ -553,6 +639,7 @@ class _StructuredRequestWire {
       bodyBytes: request.body_ptr == ffi.nullptr
           ? Uint8List(0)
           : Uint8List.fromList(request.body_ptr.asTypedList(request.body_len)),
+      bodyOwned: request.body_owned != 0,
     );
   }
 
@@ -561,6 +648,39 @@ class _StructuredRequestWire {
   final List<MapEntry<String, String>> headers;
   final int? timeoutMs;
   final Uint8List bodyBytes;
+  final bool bodyOwned;
+}
+
+class _StructuredConfigWire {
+  const _StructuredConfigWire({
+    required this.defaultHeaders,
+    required this.timeoutMs,
+    required this.userAgent,
+  });
+
+  factory _StructuredConfigWire.fromPointer(
+    ffi.Pointer<NexaHttpClientConfigArgs> pointer,
+  ) {
+    final config = pointer.ref;
+    final defaultHeaders = <String, String>{};
+    for (var index = 0; index < config.default_headers_len; index += 1) {
+      final entry = (config.default_headers_ptr + index).ref;
+      defaultHeaders[_readUtf8(entry.name_ptr, entry.name_len)] =
+          _readUtf8(entry.value_ptr, entry.value_len);
+    }
+
+    return _StructuredConfigWire(
+      defaultHeaders: defaultHeaders,
+      timeoutMs: config.has_timeout == 0 ? null : config.timeout_ms,
+      userAgent: config.user_agent_ptr == ffi.nullptr
+          ? null
+          : _readUtf8(config.user_agent_ptr, config.user_agent_len),
+    );
+  }
+
+  final Map<String, String> defaultHeaders;
+  final int? timeoutMs;
+  final String? userAgent;
 }
 
 ffi.Pointer<NexaHttpHeaderEntry> _allocateHeaders(
