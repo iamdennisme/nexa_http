@@ -95,10 +95,16 @@ The workspace should be treated as one release train.
 - Ship native asset releases against that same version tag.
 - If a change affects runtime loading, manifest format, or carrier-package
   integration, bump the package set together rather than drifting versions.
+- `dart run scripts/workspace_tools.dart verify` now checks package analysis,
+  package tests, and release-train version alignment together.
+- `dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z`
+  verifies that the repository tag matches the aligned package version before
+  release publication.
 
 The native-assets workflow in
 [`release-native-assets.yml`](./.github/workflows/release-native-assets.yml)
-already publishes assets by repository tag. Use one tag per workspace release.
+publishes assets by repository tag only after the release-train version check
+passes. Use one tag per workspace release.
 
 Example workspace dependency setup:
 

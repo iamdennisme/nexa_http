@@ -1,58 +1,30 @@
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart';
-import 'package:path/path.dart' as p;
+import 'package:nexa_http_distribution/nexa_http_distribution.dart';
 
-void main(List<String> args) async {
+Future<void> main(List<String> args) async {
   final config = _Config.parse(args);
-  final distDir = Directory(config.distDirectory);
+  final distDir = Directory(config.distDirectory).absolute;
   if (!distDir.existsSync()) {
     stderr.writeln('Asset directory does not exist: ${distDir.path}');
     exit(64);
   }
 
-  final assets = <Map<String, Object?>>[];
-  final shaLines = <String>[];
-
-  for (final descriptor in _descriptors) {
-    final file = File(p.join(distDir.path, descriptor.sourceName));
+  for (final descriptor in nexaHttpNativeReleaseAssetDescriptors) {
+    final file = File('${distDir.path}/${descriptor.fileName}');
     if (!file.existsSync()) {
       stderr.writeln('Missing required native asset: ${file.path}');
       exit(66);
     }
-
-    final digest = sha256.convert(await file.readAsBytes()).toString();
-    shaLines.add('$digest  ${descriptor.sourceName}');
-
-    assets.add(<String, Object?>{
-      'target_os': descriptor.targetOS,
-      'target_architecture': descriptor.targetArchitecture,
-      if (descriptor.targetSdk != null) 'target_sdk': descriptor.targetSdk,
-      'file_name': descriptor.sourceName,
-      'source_url': config.baseUrl == null
-          ? descriptor.sourceName
-          : '${config.baseUrl!}/${descriptor.sourceName}',
-      'sha256': digest,
-    });
   }
 
-  final manifestFile = File(config.outputPath);
-  await manifestFile.parent.create(recursive: true);
-    await manifestFile.writeAsString(
-    const JsonEncoder.withIndent('  ').convert(<String, Object?>{
-      'package': 'nexa_http',
-      'package_version': config.version,
-      'generated_at': DateTime.now().toUtc().toIso8601String(),
-      'assets': assets,
-    }),
+  await writeNexaHttpNativeReleaseManifestBundle(
+    version: config.version,
+    distDirectory: distDir.path,
+    outputPath: config.outputPath,
+    shaOutputPath: config.shaOutputPath,
+    baseUrl: config.baseUrl,
   );
-
-  if (config.shaOutputPath != null) {
-    final shaFile = File(config.shaOutputPath!);
-    await shaFile.parent.create(recursive: true);
-    await shaFile.writeAsString('${shaLines.join('\n')}\n');
-  }
 }
 
 final class _Config {
@@ -119,68 +91,3 @@ final class _Config {
     );
   }
 }
-
-final class _AssetDescriptor {
-  const _AssetDescriptor({
-    required this.targetOS,
-    required this.targetArchitecture,
-    required this.sourceName,
-    this.targetSdk,
-  });
-
-  final String targetOS;
-  final String targetArchitecture;
-  final String sourceName;
-  final String? targetSdk;
-}
-
-const _descriptors = <_AssetDescriptor>[
-  _AssetDescriptor(
-    targetOS: 'android',
-    targetArchitecture: 'arm64',
-    sourceName: 'nexa_http-native-android-arm64-v8a.so',
-  ),
-  _AssetDescriptor(
-    targetOS: 'android',
-    targetArchitecture: 'arm',
-    sourceName: 'nexa_http-native-android-armeabi-v7a.so',
-  ),
-  _AssetDescriptor(
-    targetOS: 'android',
-    targetArchitecture: 'x64',
-    sourceName: 'nexa_http-native-android-x86_64.so',
-  ),
-  _AssetDescriptor(
-    targetOS: 'ios',
-    targetArchitecture: 'arm64',
-    targetSdk: 'iphoneos',
-    sourceName: 'nexa_http-native-ios-arm64.dylib',
-  ),
-  _AssetDescriptor(
-    targetOS: 'ios',
-    targetArchitecture: 'arm64',
-    targetSdk: 'iphonesimulator',
-    sourceName: 'nexa_http-native-ios-sim-arm64.dylib',
-  ),
-  _AssetDescriptor(
-    targetOS: 'ios',
-    targetArchitecture: 'x64',
-    targetSdk: 'iphonesimulator',
-    sourceName: 'nexa_http-native-ios-sim-x64.dylib',
-  ),
-  _AssetDescriptor(
-    targetOS: 'macos',
-    targetArchitecture: 'arm64',
-    sourceName: 'nexa_http-native-macos-arm64.dylib',
-  ),
-  _AssetDescriptor(
-    targetOS: 'macos',
-    targetArchitecture: 'x64',
-    sourceName: 'nexa_http-native-macos-x64.dylib',
-  ),
-  _AssetDescriptor(
-    targetOS: 'windows',
-    targetArchitecture: 'x64',
-    sourceName: 'nexa_http-native-windows-x64.dll',
-  ),
-];

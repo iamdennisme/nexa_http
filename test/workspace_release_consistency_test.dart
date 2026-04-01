@@ -4,34 +4,43 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
-void main() {
-  test('nexa_http package family uses the 1.0.1 release version', () {
-    final packageNames = <String>[
-      'nexa_http',
-      'nexa_http_native_android',
-      'nexa_http_native_ios',
-      'nexa_http_native_macos',
-      'nexa_http_native_windows',
-    ];
+import '../scripts/workspace_tools.dart';
 
-    for (final packageName in packageNames) {
+void main() {
+  test('release-train packages stay on one aligned version and exclude example', () {
+    final versions = <String>{};
+
+    for (final packageName in releaseTrainPackageNames) {
       final pubspec = File(
         p.join('packages', packageName, 'pubspec.yaml'),
       ).readAsStringSync();
       final yaml = loadYaml(pubspec) as YamlMap;
-      expect(
-        yaml['version'],
-        '1.0.1',
-        reason: '$packageName should publish the 1.0.1 package version.',
-      );
+      versions.add(yaml['version'] as String);
     }
+
+    final examplePubspec = loadYaml(
+      File('packages/nexa_http/example/pubspec.yaml').readAsStringSync(),
+    ) as YamlMap;
+
+    expect(versions.length, 1, reason: 'Release-train packages must stay aligned.');
+    expect(
+      examplePubspec['version'],
+      isNot(versions.single),
+      reason: 'packages/nexa_http/example is intentionally excluded from the release train.',
+    );
   });
 
-  test('release workflow supports version tags prefixed with v', () {
+  test('release workflow verifies aligned versions for version tags prefixed with v', () {
     final workflow = File(
       '.github/workflows/release-native-assets.yml',
     ).readAsStringSync();
     expect(workflow, contains("- 'v*'"));
+    expect(
+      workflow,
+      contains(
+        r'dart run scripts/workspace_tools.dart check-release-train --tag "$TAG_NAME"',
+      ),
+    );
     expect(workflow, contains(r'VERSION="${TAG_NAME#v}"'));
   });
 

@@ -46,6 +46,11 @@ Build hooks resolve packaged or downloaded native assets through
 If a change crosses SDK, runtime, or native-asset boundaries, bump the workspace
 package set together.
 
+Repository verification enforces this policy through
+`dart run scripts/workspace_tools.dart verify`, and release automation enforces
+tag parity with
+`dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z`.
+
 ## Usage
 
 ```dart

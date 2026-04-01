@@ -98,8 +98,14 @@ carrier package 会在内部通过
 如果改动涉及 runtime loading、manifest 格式、carrier package 集成，应该整组
 一起升级，而不是让版本漂移。
 
-native asset 的 GitHub workflow 会按仓库 tag 发布产物，所以每次工作区发布都应
-使用一个统一 tag。
+`dart run scripts/workspace_tools.dart verify` 现在会同时检查包分析、包测试和
+release-train 版本对齐。
+
+`dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z` 会在
+发布前校验仓库 tag 与七个 release-train 包的版本完全一致。
+
+native asset 的 GitHub workflow 只有在版本校验通过后才会按仓库 tag 发布产物，
+所以每次工作区发布都应使用一个统一 tag。
 
 工作区内的依赖示例：
 

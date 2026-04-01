@@ -9,6 +9,16 @@ typedef PackageCommandRunner = Future<void> Function(
   List<String> arguments,
 );
 
+const List<String> releaseTrainPackageNames = <String>[
+  'nexa_http',
+  'nexa_http_runtime',
+  'nexa_http_distribution',
+  'nexa_http_native_android',
+  'nexa_http_native_ios',
+  'nexa_http_native_macos',
+  'nexa_http_native_windows',
+];
+
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {
     _printUsageAndExit();
@@ -29,6 +39,9 @@ Future<void> main(List<String> args) async {
       return;
     case 'verify':
       await verifyWorkspacePackages(workspaceRoot);
+      return;
+    case 'check-release-train':
+      await checkReleaseTrainVersions(workspaceRoot, args.skip(1).toList());
       return;
     default:
       stderr.writeln('Unknown workspace command: $command');
@@ -102,6 +115,7 @@ Future<void> verifyWorkspacePackages(
   String workspaceRoot, {
   PackageCommandRunner runPackageCommand = _runPackageCommand,
 }) async {
+  verifyAlignedReleaseTrainVersions(workspaceRoot);
   for (final packageDir in discoverWorkspacePackageDirs(workspaceRoot)) {
     await runPackageCommand(
       packageDir,
@@ -117,6 +131,63 @@ Future<void> verifyWorkspacePackages(
       const <String>['test'],
     );
   }
+}
+
+Map<String, String> readReleaseTrainPackageVersions(String workspaceRoot) {
+  final versions = <String, String>{};
+  for (final packageName in releaseTrainPackageNames) {
+    final pubspecFile = File(
+      p.join(workspaceRoot, 'packages', packageName, 'pubspec.yaml'),
+    );
+    if (!pubspecFile.existsSync()) {
+      throw StateError(
+        'Missing release-train pubspec for $packageName at ${pubspecFile.path}.',
+      );
+    }
+    final pubspec = _readPubspec(pubspecFile);
+    final version = (pubspec['version'] as String?)?.trim();
+    if (version == null || version.isEmpty) {
+      throw StateError(
+        'Release-train package $packageName is missing a version in ${pubspecFile.path}.',
+      );
+    }
+    versions[packageName] = version;
+  }
+  return versions;
+}
+
+String verifyAlignedReleaseTrainVersions(
+  String workspaceRoot, {
+  String? tagName,
+}) {
+  final versions = readReleaseTrainPackageVersions(workspaceRoot);
+  final uniqueVersions = versions.values.toSet();
+  if (uniqueVersions.length != 1) {
+    final details = versions.entries
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(', ');
+    throw StateError(
+      'Release-train package versions must stay aligned across '
+      '${releaseTrainPackageNames.join(', ')}. Found: $details',
+    );
+  }
+
+  final alignedVersion = versions.values.first;
+  if (tagName != null) {
+    final normalizedTag = normalizeReleaseTagVersion(tagName);
+    if (normalizedTag != alignedVersion) {
+      throw StateError(
+        'Release tag $tagName does not match aligned package version '
+        '$alignedVersion.',
+      );
+    }
+  }
+
+  return alignedVersion;
+}
+
+String normalizeReleaseTagVersion(String tagName) {
+  return tagName.startsWith('v') ? tagName.substring(1) : tagName;
 }
 
 bool _usesFlutter(Directory packageDir) {
@@ -162,7 +233,39 @@ Future<void> _runPackageCommand(
   }
 }
 
+Future<void> checkReleaseTrainVersions(
+  String workspaceRoot,
+  List<String> arguments,
+) async {
+  String? tagName;
+  for (var index = 0; index < arguments.length; index++) {
+    final argument = arguments[index];
+    if (argument == '--tag') {
+      if (index + 1 >= arguments.length) {
+        throw ArgumentError('Missing value for --tag.');
+      }
+      tagName = arguments[index + 1];
+      index++;
+      continue;
+    }
+    throw ArgumentError('Unknown check-release-train option: $argument');
+  }
+
+  final alignedVersion = verifyAlignedReleaseTrainVersions(
+    workspaceRoot,
+    tagName: tagName,
+  );
+  stdout.writeln(
+    tagName == null
+        ? 'Verified aligned release-train package version $alignedVersion.'
+        : 'Verified aligned release-train package version $alignedVersion for tag $tagName.',
+  );
+}
+
 Never _printUsageAndExit({int exitCode = 64}) {
-  stderr.writeln('Usage: dart run scripts/workspace_tools.dart <bootstrap|analyze|test|verify>');
+  stderr.writeln(
+    'Usage: dart run scripts/workspace_tools.dart '
+    '<bootstrap|analyze|test|verify|check-release-train [--tag <tag>]>',
+  );
   exit(exitCode);
 }

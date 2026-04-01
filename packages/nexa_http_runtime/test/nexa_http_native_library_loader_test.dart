@@ -77,6 +77,27 @@ void main() {
     expect(candidates, contains(expected));
   });
 
+  test('returns the Android fixed candidate set', () {
+    final candidates = resolveNexaHttpDynamicLibraryCandidates(
+      platform: NexaHttpHostPlatform.android,
+      resolvedExecutable: '/tmp/ignored',
+      currentDirectory: '/tmp',
+      fileExists: (_) => false,
+    );
+
+    expect(
+      candidates,
+      const <String>[
+        'libnexa_http_native.so',
+        'libnexa_http.so',
+        'libnexa_http_native_android_ffi.so',
+        'libnexa_http-native-android-arm64.so',
+        'libnexa_http-native-android-arm.so',
+        'libnexa_http-native-android-x64.so',
+      ],
+    );
+  });
+
   test('uses SDK resolved candidates before falling back to the runtime', () {
     final expected = p.normalize(
       p.join(

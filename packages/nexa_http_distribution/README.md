@@ -35,3 +35,8 @@ Typical consumers are:
 
 If the native asset format, manifest schema, or resolution rules change, bump
 the workspace package set together.
+
+The workspace verifies alignment with
+`dart run scripts/workspace_tools.dart verify`, and release publication checks
+repository tag parity with
+`dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z`.

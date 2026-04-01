@@ -65,3 +65,31 @@ packages/rust_net/windows/
 # FVM Version Cache
 .fvm/
 .worktrees/
+
+# Local AI tooling metadata
+/.agent/
+/.amazonq/
+/.augment/
+/.claude/
+/.cline/
+/.clinerules/
+/.codebuddy/
+/.codex/
+/.continue/
+/.cospec/
+/.crush/
+/.cursor/
+/.factory/
+/.gemini/
+/.github/prompts/
+/.github/skills/
+/.iflow/
+/.kilocode/
+/.kiro/
+/.opencode/
+/.pi/
+/.qoder/
+/.qwen/
+/.roo/
+/.trae/
+/.windsurf/

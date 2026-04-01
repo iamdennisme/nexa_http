@@ -37,3 +37,8 @@ does not re-export it.
 
 Treat it as part of one release train, not as an independently evolving public
 package.
+
+The workspace enforces this with
+`dart run scripts/workspace_tools.dart verify`, and release publication also
+checks the repository tag through
+`dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z`.

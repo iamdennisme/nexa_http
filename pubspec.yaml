@@ -5,6 +5,10 @@ publish_to: none
 environment:
   sdk: ^3.11.0
 
+dependencies:
+  nexa_http_distribution:
+    path: packages/nexa_http_distribution
+
 dev_dependencies:
   crypto: ^3.0.6
   path: ^1.9.0
