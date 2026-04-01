@@ -1,4 +1,5 @@
-use nexa_http_native_ios_ffi::{current_proxy_settings_for_test, ProxyRuntimeState};
+use nexa_http_native_core::runtime::ManagedProxyState;
+use nexa_http_native_ios_ffi::{IosProxySource, current_proxy_settings_for_test};
 
 #[test]
 fn ios_builds_proxy_settings_from_systemconfiguration_values() {
@@ -22,42 +23,47 @@ fn ios_builds_proxy_settings_from_systemconfiguration_values() {
 }
 
 #[test]
-fn ios_proxy_runtime_state_tracks_generation_and_latest_snapshot() {
-    let initial = current_proxy_settings_for_test(
+fn ios_exclude_simple_hostnames_maps_to_local_bypass() {
+    let settings = current_proxy_settings_for_test(
+        false,
+        None,
+        None,
+        false,
+        None,
+        None,
+        false,
+        None,
+        None,
+        Vec::new(),
         true,
-        Some("proxy.example.com"),
+    );
+
+    assert!(settings.bypass.contains(&"<local>".to_string()));
+}
+
+#[test]
+fn ios_sanitizes_quoted_proxy_strings_from_systemconfiguration() {
+    let settings = current_proxy_settings_for_test(
+        true,
+        Some(r#" "proxy.example.com" "#),
         Some(3128),
         false,
         None,
         None,
-        false,
-        None,
-        None,
-        Vec::new(),
-        false,
-    );
-    let state = ProxyRuntimeState::new(initial.clone());
-
-    let initial_state = state.current_platform_state();
-    assert_eq!(initial_state.proxy_generation, 0);
-    assert_eq!(initial_state.platform_features.proxy, initial);
-
-    let updated = current_proxy_settings_for_test(
         true,
-        Some("proxy.example.com"),
-        Some(4128),
-        false,
-        None,
-        None,
-        false,
-        None,
-        None,
-        Vec::new(),
-        false,
+        Some(r#" "127.0.0.1" "#),
+        Some(1080),
+        vec![r#" "example.com" "#.to_string()],
+        true,
     );
 
-    assert!(state.update_snapshot(updated.clone()));
-    let updated_state = state.current_platform_state();
-    assert_eq!(updated_state.proxy_generation, 1);
-    assert_eq!(updated_state.platform_features.proxy, updated);
+    assert_eq!(settings.http.as_deref(), Some("http://proxy.example.com:3128/"));
+    assert_eq!(settings.all.as_deref(), Some("socks5://127.0.0.1:1080"));
+    assert!(settings.bypass.contains(&"example.com".to_string()));
+}
+
+#[test]
+fn ios_proxy_source_integrates_with_shared_managed_state() {
+    let state = ManagedProxyState::new(IosProxySource::new());
+    assert_eq!(state.current_platform_state().proxy_generation, 0);
 }
