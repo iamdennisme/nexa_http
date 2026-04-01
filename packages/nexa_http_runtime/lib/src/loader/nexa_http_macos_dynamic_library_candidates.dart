@@ -65,6 +65,22 @@ Iterable<String> _macosAppBundleCandidates(String executableDirectory) sync* {
     executableDirectory,
     '..',
     'Frameworks',
+    'nexa_http_native_macos_ffi.framework',
+    'nexa_http_native_macos_ffi',
+  );
+  yield p.join(
+    executableDirectory,
+    '..',
+    'Frameworks',
+    'nexa_http_native_macos_ffi.framework',
+    'Versions',
+    'A',
+    'nexa_http_native_macos_ffi',
+  );
+  yield p.join(
+    executableDirectory,
+    '..',
+    'Frameworks',
     'nexa_http_native_macos.framework',
     'nexa_http_native_macos',
   );
@@ -124,22 +140,6 @@ Iterable<String> _macosAppBundleCandidates(String executableDirectory) sync* {
     '..',
     'Frameworks',
     'libnexa_http_native.dylib',
-  );
-  yield p.join(
-    executableDirectory,
-    '..',
-    'Frameworks',
-    'nexa_http_native_macos_ffi.framework',
-    'nexa_http_native_macos_ffi',
-  );
-  yield p.join(
-    executableDirectory,
-    '..',
-    'Frameworks',
-    'nexa_http_native_macos_ffi.framework',
-    'Versions',
-    'A',
-    'nexa_http_native_macos_ffi',
   );
 }
 

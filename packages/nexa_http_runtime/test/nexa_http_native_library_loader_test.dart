@@ -41,6 +41,49 @@ void main() {
     expect(candidates, contains(expected));
   });
 
+  test('prefers the macOS ffi framework over the wrapper framework', () {
+    final executable = p.join(
+      '/Applications',
+      'Demo.app',
+      'Contents',
+      'MacOS',
+      'Demo',
+    );
+    final wrapper = p.normalize(
+      p.join(
+        '/Applications',
+        'Demo.app',
+        'Contents',
+        'Frameworks',
+        'nexa_http_native_macos.framework',
+        'nexa_http_native_macos',
+      ),
+    );
+    final ffi = p.normalize(
+      p.join(
+        '/Applications',
+        'Demo.app',
+        'Contents',
+        'Frameworks',
+        'nexa_http_native_macos_ffi.framework',
+        'nexa_http_native_macos_ffi',
+      ),
+    );
+
+    final candidates = resolveNexaHttpDynamicLibraryCandidates(
+      platform: NexaHttpHostPlatform.macos,
+      resolvedExecutable: executable,
+      currentDirectory: '/tmp',
+      fileExists: (path) {
+        final normalized = p.normalize(path);
+        return normalized == wrapper || normalized == ffi;
+      },
+    );
+
+    expect(candidates, isNotEmpty);
+    expect(candidates.first, ffi);
+  });
+
   test('resolves the Flutter iOS framework path inside the app bundle', () {
     final executable = p.join('/Applications', 'Demo.app', 'Demo');
     final expected = p.normalize(
@@ -85,17 +128,14 @@ void main() {
       fileExists: (_) => false,
     );
 
-    expect(
-      candidates,
-      const <String>[
-        'libnexa_http_native.so',
-        'libnexa_http.so',
-        'libnexa_http_native_android_ffi.so',
-        'libnexa_http-native-android-arm64.so',
-        'libnexa_http-native-android-arm.so',
-        'libnexa_http-native-android-x64.so',
-      ],
-    );
+    expect(candidates, const <String>[
+      'libnexa_http_native.so',
+      'libnexa_http.so',
+      'libnexa_http_native_android_ffi.so',
+      'libnexa_http-native-android-arm64.so',
+      'libnexa_http-native-android-arm.so',
+      'libnexa_http-native-android-x64.so',
+    ]);
   });
 
   test('uses SDK resolved candidates before falling back to the runtime', () {
