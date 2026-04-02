@@ -188,6 +188,11 @@ The benchmark page exposes a small set of parameters:
 
 ## Verification
 
+The repository's debugging, packaging, release, and external-consumer flows are
+treated as governed operating contracts. Before changing those workflows, review
+[`docs/runtime-release-contract.md`](./docs/runtime-release-contract.md) and
+update the corresponding OpenSpec specs through a new change.
+
 Workspace commands:
 
 ```bash

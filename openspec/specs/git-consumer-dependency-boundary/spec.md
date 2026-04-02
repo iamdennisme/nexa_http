@@ -25,3 +25,10 @@ The supported external integration path SHALL use release-oriented native artifa
 - **THEN** native artifact resolution MUST execute in `release-consumer`
 - **AND** it MUST use packaged or release-published assets
 - **AND** it MUST fail with a structured setup/bootstrap error if required assets are unavailable instead of attempting hidden local Rust compilation
+
+### Requirement: External Consumer Contract Is Governed
+The supported external integration model SHALL remain a governed repository contract.
+
+#### Scenario: Maintainer changes external integration shape
+- **WHEN** a maintainer proposes to change the dependency surface, federation shape, or release-consumer expectations for external apps
+- **THEN** that change MUST be proposed through OpenSpec before implementation is considered complete

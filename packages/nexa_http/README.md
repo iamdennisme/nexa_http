@@ -131,3 +131,8 @@ fvm dart run ../../scripts/workspace_tools.dart verify-artifact-consistency
 fvm dart run ../../scripts/workspace_tools.dart verify-release-consumer
 fvm dart run ../../scripts/workspace_tools.dart verify-development-path
 ```
+
+Repository maintainers treat these verification and release flows as governed
+operating contracts. If you need to change how demo startup, external
+consumption, native artifact publication, or CI enforcement works, update the
+governing OpenSpec specs first instead of editing the scripts ad hoc.

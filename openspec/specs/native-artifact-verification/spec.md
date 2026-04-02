@@ -30,3 +30,10 @@ Repository verification SHALL assert that target metadata, packaged assets, rele
 #### Scenario: Target matrix or asset identity changes
 - **WHEN** a target tuple, file name, packaging location, or release identity changes
 - **THEN** verification MUST fail if `workspace-dev` and `release-consumer` expectations drift from the authoritative distribution metadata
+
+### Requirement: Artifact Verification Is A Governed Release Contract
+Artifact-consistency verification SHALL remain a governed prerequisite for supported release publication.
+
+#### Scenario: Maintainer changes artifact verification policy
+- **WHEN** a maintainer proposes to weaken, bypass, or substantially redefine the repository artifact verification contract
+- **THEN** that change MUST be proposed through OpenSpec before implementation is considered complete

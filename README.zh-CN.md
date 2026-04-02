@@ -189,6 +189,11 @@ Benchmark 页面保留了少量可调参数：
 
 ## 验证命令
 
+这个仓库把调试、打包、发布和外部集成流程都视为稳定 operating contract。
+如果以后要改这些流程，先看
+[`docs/runtime-release-contract.md`](./docs/runtime-release-contract.md)，并通过新的
+OpenSpec change 更新对应 specs，再改实现。
+
 工作区级命令：
 
 ```bash

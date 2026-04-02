@@ -24,3 +24,10 @@ The official demo SHALL surface structured bootstrap errors when native startup 
 - **WHEN** native artifact resolution, library loading, proxy preparation, config decoding, or client creation fails
 - **THEN** the demo MUST surface a structured failure with a machine-readable code and stage
 - **AND** verification MUST be able to assert on those diagnostics
+
+### Requirement: Demo Startup Is A Governed Development Contract
+The official demo startup path SHALL remain a governed repository workflow.
+
+#### Scenario: Maintainer changes demo startup semantics
+- **WHEN** a maintainer proposes to change how the official demo resolves artifacts, starts native transport, or is launched for repository development
+- **THEN** that change MUST be proposed through OpenSpec before implementation is considered complete

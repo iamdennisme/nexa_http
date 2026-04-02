@@ -23,3 +23,10 @@ The release workflow SHALL run the same release-consumer and artifact-consistenc
 - **WHEN** the release workflow is about to publish manifests or native assets
 - **THEN** it MUST execute the repository verification that protects the release-consumer path
 - **AND** it MUST NOT rely on a separate unpublished rule set
+
+### Requirement: CI Blocks On Governed Contract Verification
+The repository SHALL treat development-path, release-consumer-path, and artifact-consistency CI checks as governed workflow contracts.
+
+#### Scenario: Maintainer changes governed CI behavior
+- **WHEN** a maintainer proposes to remove, rename, weaken, or bypass the official CI verification for a governed workflow
+- **THEN** that change MUST be proposed through OpenSpec before implementation is considered complete
