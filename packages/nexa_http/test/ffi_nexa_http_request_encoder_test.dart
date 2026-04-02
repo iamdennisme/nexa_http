@@ -12,14 +12,14 @@ import 'package:test/test.dart';
 void main() {
   test('encodes structured native request fields into request args', () {
     final encoded = FfiNexaHttpRequestEncoder.encode(
-      const NativeHttpRequestDto(
+      NativeHttpRequestDto(
         method: 'POST',
         url: 'https://example.com/upload',
         headers: <MapEntry<String, String>>[
           MapEntry<String, String>('accept', 'application/json'),
           MapEntry<String, String>('accept', 'application/problem+json'),
         ],
-        bodyBytes: <int>[1, 2, 3, 4],
+        bodyBytes: Uint8List.fromList(const <int>[1, 2, 3, 4]),
       ),
       allocateBody: (bodyLength) => calloc<ffi.Uint8>(bodyLength),
       releaseBody: (bodyPointer, _) => calloc.free(bodyPointer),
@@ -43,34 +43,36 @@ void main() {
     encoded.dispose();
   });
 
-  test('releases owned request buffers exactly once when dispatch keeps ownership',
-      () {
-    var releaseCount = 0;
-    final encoded = FfiNexaHttpRequestEncoder.encode(
-      const NativeHttpRequestDto(
-        method: 'POST',
-        url: 'https://example.com/upload',
-        bodyBytes: <int>[1, 2, 3, 4],
-      ),
-      allocateBody: (bodyLength) => calloc<ffi.Uint8>(bodyLength),
-      releaseBody: (bodyPointer, _) {
-        releaseCount += 1;
-        calloc.free(bodyPointer);
-      },
-    );
+  test(
+    'releases owned request buffers exactly once when dispatch keeps ownership',
+    () {
+      var releaseCount = 0;
+      final encoded = FfiNexaHttpRequestEncoder.encode(
+        NativeHttpRequestDto(
+          method: 'POST',
+          url: 'https://example.com/upload',
+          bodyBytes: Uint8List.fromList(const <int>[1, 2, 3, 4]),
+        ),
+        allocateBody: (bodyLength) => calloc<ffi.Uint8>(bodyLength),
+        releaseBody: (bodyPointer, _) {
+          releaseCount += 1;
+          calloc.free(bodyPointer);
+        },
+      );
 
-    encoded.dispose();
+      encoded.dispose();
 
-    expect(releaseCount, 1);
-  });
+      expect(releaseCount, 1);
+    },
+  );
 
   test('does not release request buffers after body ownership transfer', () {
     var releaseCount = 0;
     final encoded = FfiNexaHttpRequestEncoder.encode(
-      const NativeHttpRequestDto(
+      NativeHttpRequestDto(
         method: 'POST',
         url: 'https://example.com/upload',
-        bodyBytes: <int>[1, 2, 3, 4],
+        bodyBytes: Uint8List.fromList(const <int>[1, 2, 3, 4]),
       ),
       allocateBody: (bodyLength) => calloc<ffi.Uint8>(bodyLength),
       releaseBody: (bodyPointer, _) {

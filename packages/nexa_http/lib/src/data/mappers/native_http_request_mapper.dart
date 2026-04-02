@@ -32,7 +32,7 @@ final class NativeHttpRequestMapper {
       method: request.method,
       url: resolvedUri.toString(),
       headers: headers,
-      bodyBytes: request.body?.ffiTransferBytes,
+      bodyBytes: request.body?.payloadBytes,
       timeoutMs: request.timeout?.inMilliseconds,
     );
   }

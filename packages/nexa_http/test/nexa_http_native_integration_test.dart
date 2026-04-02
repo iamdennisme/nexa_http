@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:convert';
 import 'dart:io';
 
@@ -67,54 +68,59 @@ void main() {
           expect(await response.body!.bytes(), isEmpty);
         } else {
           expect(
-              await response.body!.string(), contains('"status_code":$status'));
+            await response.body!.string(),
+            contains('"status_code":$status'),
+          );
         }
       }
     });
 
-    test('executes POST/PUT/PATCH requests and preserves body transfer',
-        () async {
-      Future<void> expectEcho({
-        required String method,
-        required int expectedStatusCode,
-        required String body,
-      }) async {
-        final response = await _execute(
-          client,
-          RequestBuilder()
-              .url(fixtureServer!.uri('/echo'))
-              .method(
-                method,
-                RequestBody.fromString(
-                  body,
-                  contentType:
-                      MediaType.parse('application/json; charset=utf-8'),
-                ),
-              )
-              .build(),
+    test(
+      'executes POST/PUT/PATCH requests and preserves body transfer',
+      () async {
+        Future<void> expectEcho({
+          required String method,
+          required int expectedStatusCode,
+          required String body,
+        }) async {
+          final response = await _execute(
+            client,
+            RequestBuilder()
+                .url(fixtureServer!.uri('/echo'))
+                .method(
+                  method,
+                  RequestBody.text(
+                    body,
+                    contentType: MediaType.parse(
+                      'application/json; charset=utf-8',
+                    ),
+                  ),
+                )
+                .build(),
+          );
+
+          expect(response.statusCode, expectedStatusCode);
+          expect(response.header('x-request-method'), contains(method));
+          expect(await response.body!.string(), body);
+        }
+
+        await expectEcho(
+          method: 'POST',
+          expectedStatusCode: HttpStatus.created,
+          body: '{"method":"POST"}',
         );
-
-        expect(response.statusCode, expectedStatusCode);
-        expect(response.header('x-request-method'), contains(method));
-        expect(await response.body!.string(), body);
-      }
-
-      await expectEcho(
-        method: 'POST',
-        expectedStatusCode: HttpStatus.created,
-        body: '{"method":"POST"}',
-      );
-      await expectEcho(
-        method: 'PUT',
-        expectedStatusCode: HttpStatus.ok,
-        body: '{"method":"PUT"}',
-      );
-      await expectEcho(
-        method: 'PATCH',
-        expectedStatusCode: HttpStatus.ok,
-        body: '{"method":"PATCH"}',
-      );
-    });
+        await expectEcho(
+          method: 'PUT',
+          expectedStatusCode: HttpStatus.ok,
+          body: '{"method":"PUT"}',
+        );
+        await expectEcho(
+          method: 'PATCH',
+          expectedStatusCode: HttpStatus.ok,
+          body: '{"method":"PATCH"}',
+        );
+      },
+    );
 
     test('supports DELETE, HEAD, and OPTIONS', () async {
       final deleteResponse = await _execute(
@@ -136,7 +142,7 @@ void main() {
         client,
         RequestBuilder()
             .url(fixtureServer!.uri('/options'))
-            .method('OPTIONS', RequestBody.bytes(const <int>[]))
+            .method('OPTIONS', RequestBody.bytes(Uint8List(0)))
             .build(),
       );
       expect(optionsResponse.statusCode, HttpStatus.noContent);
@@ -147,31 +153,35 @@ void main() {
       );
     });
 
-    test('follows all supported redirects and returns the final 2xx response',
-        () async {
-      const redirectStatuses = <int>[301, 302, 303, 307, 308];
-      for (final status in redirectStatuses) {
-        final expectedFinalUri = fixtureServer!.uri('/get', <String, String>{
-          'source': 'redirected_$status',
-        });
-        final response = await _execute(
-          client,
-          RequestBuilder()
-              .url(
-                fixtureServer!.uri('/redirect/$status', <String, String>{
-                  'location': expectedFinalUri.toString(),
-                }),
-              )
-              .get()
-              .build(),
-        );
+    test(
+      'follows all supported redirects and returns the final 2xx response',
+      () async {
+        const redirectStatuses = <int>[301, 302, 303, 307, 308];
+        for (final status in redirectStatuses) {
+          final expectedFinalUri = fixtureServer!.uri('/get', <String, String>{
+            'source': 'redirected_$status',
+          });
+          final response = await _execute(
+            client,
+            RequestBuilder()
+                .url(
+                  fixtureServer!.uri('/redirect/$status', <String, String>{
+                    'location': expectedFinalUri.toString(),
+                  }),
+                )
+                .get()
+                .build(),
+          );
 
-        expect(response.statusCode, HttpStatus.ok);
-        expect(await response.body!.string(),
-            contains('"source":"redirected_$status"'));
-        expect(response.finalUrl, expectedFinalUri);
-      }
-    });
+          expect(response.statusCode, HttpStatus.ok);
+          expect(
+            await response.body!.string(),
+            contains('"source":"redirected_$status"'),
+          );
+          expect(response.finalUrl, expectedFinalUri);
+        }
+      },
+    );
 
     test(
       'follows POST redirects with the reqwest method policy and exposes finalUrl',
@@ -194,13 +204,12 @@ void main() {
             client,
             RequestBuilder()
                 .url(
-                  fixtureServer!.uri(
-                    '/redirect/${entry.key}',
-                    <String, String>{'location': expectedFinalUri.toString()},
-                  ),
+                  fixtureServer!.uri('/redirect/${entry.key}', <String, String>{
+                    'location': expectedFinalUri.toString(),
+                  }),
                 )
                 .post(
-                  RequestBody.fromString(
+                  RequestBody.text(
                     payload,
                     contentType: MediaType.parse(
                       'application/json; charset=utf-8',
@@ -240,7 +249,9 @@ void main() {
           reason: 'Expected status $status to stay intact.',
         );
         expect(
-            await response.body!.string(), contains('"status_code":$status'));
+          await response.body!.string(),
+          contains('"status_code":$status'),
+        );
       }
     });
 

@@ -14,57 +14,60 @@ import 'package:nexa_http/src/internal/config/client_options.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('encodes structured native request fields without request json',
-      () async {
+  test('encodes structured native request fields without request json', () async {
     late final _FakeNexaHttpBindings bindings;
     bindings = _FakeNexaHttpBindings(
-      onExecuteAsync: ({
-        required int clientId,
-        required int requestId,
-        required _StructuredRequestWire? structuredRequest,
-        required NexaHttpExecuteCallback callback,
-      }) {
-        expect(clientId, 7);
-        expect(
-          structuredRequest,
-          isNotNull,
-          reason:
-              'method/url/headers/timeout should be passed through request args',
-        );
-        expect(structuredRequest!.method, 'POST');
-        expect(structuredRequest.url, 'https://example.com/upload');
-        expect(
-          structuredRequest.headers,
-          const <MapEntry<String, String>>[],
-        );
-        expect(structuredRequest.timeoutMs, isNull);
-        expect(
-          structuredRequest.bodyBytes,
-          Uint8List.fromList(const <int>[1, 2, 3, 4]),
-        );
+      onExecuteAsync:
+          ({
+            required int clientId,
+            required int requestId,
+            required _StructuredRequestWire? structuredRequest,
+            required NexaHttpExecuteCallback callback,
+          }) {
+            expect(clientId, 7);
+            expect(
+              structuredRequest,
+              isNotNull,
+              reason:
+                  'method/url/headers/timeout should be passed through request args',
+            );
+            expect(structuredRequest!.method, 'POST');
+            expect(structuredRequest.url, 'https://example.com/upload');
+            expect(
+              structuredRequest.headers,
+              const <MapEntry<String, String>>[],
+            );
+            expect(structuredRequest.timeoutMs, isNull);
+            expect(
+              structuredRequest.bodyBytes,
+              Uint8List.fromList(const <int>[1, 2, 3, 4]),
+            );
 
-        final resultPointer = calloc<NexaHttpBinaryResult>();
-        resultPointer.ref
-          ..is_success = 1
-          ..status_code = 200
-          ..headers_ptr = ffi.nullptr
-          ..headers_len = 0
-          ..final_url_ptr = 'https://example.com/upload'.toNativeUtf8().cast()
-          ..final_url_len = 'https://example.com/upload'.length
-          ..error_json = ffi.nullptr;
+            final resultPointer = calloc<NexaHttpBinaryResult>();
+            resultPointer.ref
+              ..is_success = 1
+              ..status_code = 200
+              ..headers_ptr = ffi.nullptr
+              ..headers_len = 0
+              ..final_url_ptr = 'https://example.com/upload'
+                  .toNativeUtf8()
+                  .cast()
+              ..final_url_len = 'https://example.com/upload'.length
+              ..error_json = ffi.nullptr;
 
-        final bodyPointer = calloc<ffi.Uint8>(3);
-        bodyPointer.asTypedList(3).setAll(0, const <int>[9, 8, 7]);
-        resultPointer.ref
-          ..body_ptr = bodyPointer
-          ..body_len = 3;
+            final bodyPointer = calloc<ffi.Uint8>(3);
+            bodyPointer.asTypedList(3).setAll(0, const <int>[9, 8, 7]);
+            resultPointer.ref
+              ..body_ptr = bodyPointer
+              ..body_len = 3;
 
-        bindings.trackResult(resultPointer);
-        callback.asFunction<
-                void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
-            requestId, resultPointer);
-        return 1;
-      },
+            bindings.trackResult(resultPointer);
+            callback
+                .asFunction<
+                  void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                >()(requestId, resultPointer);
+            return 1;
+          },
     );
 
     final dataSource = FfiNexaHttpNativeDataSource(
@@ -75,10 +78,10 @@ void main() {
 
     final response = await dataSource.execute(
       7,
-      const NativeHttpRequestDto(
+      NativeHttpRequestDto(
         method: 'POST',
         url: 'https://example.com/upload',
-        bodyBytes: <int>[1, 2, 3, 4],
+        bodyBytes: Uint8List.fromList(const <int>[1, 2, 3, 4]),
       ),
     );
 
@@ -92,112 +95,119 @@ void main() {
     expect(bindings.freedResultCount, 1);
   });
 
-  test('preserves repeated structured request headers on the FFI wire',
-      () async {
-    late final _FakeNexaHttpBindings bindings;
-    bindings = _FakeNexaHttpBindings(
-      onExecuteAsync: ({
-        required int clientId,
-        required int requestId,
-        required _StructuredRequestWire? structuredRequest,
-        required NexaHttpExecuteCallback callback,
-      }) {
-        expect(clientId, 8);
-        expect(structuredRequest, isNotNull);
-        expect(
-          structuredRequest!.headers
-              .map((header) => (header.key, header.value))
-              .toList(),
-          equals(const <(String, String)>[
-            ('accept', 'application/json'),
-            ('accept', 'application/problem+json'),
-          ]),
-        );
+  test(
+    'preserves repeated structured request headers on the FFI wire',
+    () async {
+      late final _FakeNexaHttpBindings bindings;
+      bindings = _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 8);
+              expect(structuredRequest, isNotNull);
+              expect(
+                structuredRequest!.headers
+                    .map((header) => (header.key, header.value))
+                    .toList(),
+                equals(const <(String, String)>[
+                  ('accept', 'application/json'),
+                  ('accept', 'application/problem+json'),
+                ]),
+              );
 
-        final resultPointer = calloc<NexaHttpBinaryResult>();
-        resultPointer.ref
-          ..is_success = 1
-          ..status_code = 204
-          ..headers_ptr = ffi.nullptr
-          ..headers_len = 0
-          ..final_url_ptr = ffi.nullptr
-          ..final_url_len = 0
-          ..body_ptr = ffi.nullptr
-          ..body_len = 0
-          ..error_json = ffi.nullptr;
+              final resultPointer = calloc<NexaHttpBinaryResult>();
+              resultPointer.ref
+                ..is_success = 1
+                ..status_code = 204
+                ..headers_ptr = ffi.nullptr
+                ..headers_len = 0
+                ..final_url_ptr = ffi.nullptr
+                ..final_url_len = 0
+                ..body_ptr = ffi.nullptr
+                ..body_len = 0
+                ..error_json = ffi.nullptr;
 
-        bindings.trackResult(resultPointer);
-        callback.asFunction<
-                void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
-            requestId, resultPointer);
-        return 1;
-      },
-    );
+              bindings.trackResult(resultPointer);
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                  >()(requestId, resultPointer);
+              return 1;
+            },
+      );
 
-    final dataSource = FfiNexaHttpNativeDataSource(
-      library: ffi.DynamicLibrary.process(),
-      bindings: bindings,
-      binaryResultFinalizer: ffi.nullptr,
-    );
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: bindings,
+        binaryResultFinalizer: ffi.nullptr,
+      );
 
-    final response = await dataSource.execute(
-      8,
-      const NativeHttpRequestDto(
-        method: 'GET',
-        url: 'https://example.com/items',
-        headers: <MapEntry<String, String>>[
-          MapEntry<String, String>('accept', 'application/json'),
-          MapEntry<String, String>('accept', 'application/problem+json'),
-        ],
-      ),
-    );
+      final response = await dataSource.execute(
+        8,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/items',
+          headers: <MapEntry<String, String>>[
+            MapEntry<String, String>('accept', 'application/json'),
+            MapEntry<String, String>('accept', 'application/problem+json'),
+          ],
+        ),
+      );
 
-    expect(response.statusCode, 204);
-    expect(bindings.freedResultCount, 1);
-  });
+      expect(response.statusCode, 204);
+      expect(bindings.freedResultCount, 1);
+    },
+  );
 
   test(
     'decodes structured native response metadata without header json',
     () async {
       late final _FakeNexaHttpBindings bindings;
       bindings = _FakeNexaHttpBindings(
-        onExecuteAsync: ({
-          required int clientId,
-          required int requestId,
-          required _StructuredRequestWire? structuredRequest,
-          required NexaHttpExecuteCallback callback,
-        }) {
-          expect(clientId, 9);
-          expect(structuredRequest, isNotNull);
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 9);
+              expect(structuredRequest, isNotNull);
 
-          final resultPointer = calloc<NexaHttpBinaryResult>();
-          final headersPointer =
-              _allocateHeaders(const <MapEntry<String, String>>[
-            MapEntry<String, String>('cache-control', 'max-age=60'),
-            MapEntry<String, String>('content-type', 'image/png'),
-          ]);
-          resultPointer.ref
-            ..is_success = 1
-            ..status_code = 201
-            ..headers_ptr = headersPointer
-            ..headers_len = 2
-            ..final_url_ptr =
-                'https://cdn.example.com/final.png'.toNativeUtf8().cast()
-            ..final_url_len = 'https://cdn.example.com/final.png'.length
-            ..error_json = ffi.nullptr;
+              final resultPointer = calloc<NexaHttpBinaryResult>();
+              final headersPointer =
+                  _allocateHeaders(const <MapEntry<String, String>>[
+                    MapEntry<String, String>('cache-control', 'max-age=60'),
+                    MapEntry<String, String>('content-type', 'image/png'),
+                  ]);
+              resultPointer.ref
+                ..is_success = 1
+                ..status_code = 201
+                ..headers_ptr = headersPointer
+                ..headers_len = 2
+                ..final_url_ptr = 'https://cdn.example.com/final.png'
+                    .toNativeUtf8()
+                    .cast()
+                ..final_url_len = 'https://cdn.example.com/final.png'.length
+                ..error_json = ffi.nullptr;
 
-          final bodyPointer = calloc<ffi.Uint8>(4);
-          bodyPointer.asTypedList(4).setAll(0, const <int>[5, 6, 7, 8]);
-          resultPointer.ref
-            ..body_ptr = bodyPointer
-            ..body_len = 4;
+              final bodyPointer = calloc<ffi.Uint8>(4);
+              bodyPointer.asTypedList(4).setAll(0, const <int>[5, 6, 7, 8]);
+              resultPointer.ref
+                ..body_ptr = bodyPointer
+                ..body_len = 4;
 
-          bindings.trackResult(resultPointer);
-          callback.asFunction<
-                  void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
-              requestId, resultPointer);
-          return 1;
-        },
+              bindings.trackResult(resultPointer);
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                  >()(requestId, resultPointer);
+              return 1;
+            },
       );
 
       final dataSource = FfiNexaHttpNativeDataSource(
@@ -233,35 +243,37 @@ void main() {
     () async {
       late final _FakeNexaHttpBindings bindings;
       bindings = _FakeNexaHttpBindings(
-        onExecuteAsync: ({
-          required int clientId,
-          required int requestId,
-          required _StructuredRequestWire? structuredRequest,
-          required NexaHttpExecuteCallback callback,
-        }) {
-          expect(clientId, 11);
-          expect(structuredRequest, isNotNull);
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 11);
+              expect(structuredRequest, isNotNull);
 
-          final resultPointer = calloc<NexaHttpBinaryResult>();
-          final bodyPointer = calloc<ffi.Uint8>(4);
-          bodyPointer.asTypedList(4).setAll(0, const <int>[1, 2, 3, 4]);
-          resultPointer.ref
-            ..is_success = 1
-            ..status_code = 202
-            ..headers_ptr = ffi.nullptr
-            ..headers_len = 0
-            ..final_url_ptr = ffi.nullptr
-            ..final_url_len = 0
-            ..body_ptr = bodyPointer
-            ..body_len = 4
-            ..error_json = ffi.nullptr;
+              final resultPointer = calloc<NexaHttpBinaryResult>();
+              final bodyPointer = calloc<ffi.Uint8>(4);
+              bodyPointer.asTypedList(4).setAll(0, const <int>[1, 2, 3, 4]);
+              resultPointer.ref
+                ..is_success = 1
+                ..status_code = 202
+                ..headers_ptr = ffi.nullptr
+                ..headers_len = 0
+                ..final_url_ptr = ffi.nullptr
+                ..final_url_len = 0
+                ..body_ptr = bodyPointer
+                ..body_len = 4
+                ..error_json = ffi.nullptr;
 
-          bindings.trackResult(resultPointer);
-          callback.asFunction<
-                  void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
-              requestId, resultPointer);
-          return 1;
-        },
+              bindings.trackResult(resultPointer);
+              callback
+                  .asFunction<
+                    void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                  >()(requestId, resultPointer);
+              return 1;
+            },
       );
       final dataSource = FfiNexaHttpNativeDataSource(
         library: ffi.DynamicLibrary.process(),
@@ -297,30 +309,32 @@ void main() {
     late final _FakeNexaHttpBindings bindings;
     var executeAsyncCalls = 0;
     bindings = _FakeNexaHttpBindings(
-      onExecuteAsync: ({
-        required int clientId,
-        required int requestId,
-        required _StructuredRequestWire? structuredRequest,
-        required NexaHttpExecuteCallback callback,
-      }) {
-        executeAsyncCalls += 1;
-        final resultPointer = calloc<NexaHttpBinaryResult>();
-        resultPointer.ref
-          ..is_success = 1
-          ..status_code = 204
-          ..headers_ptr = ffi.nullptr
-          ..headers_len = 0
-          ..final_url_ptr = ffi.nullptr
-          ..final_url_len = 0
-          ..body_ptr = ffi.nullptr
-          ..body_len = 0
-          ..error_json = ffi.nullptr;
-        bindings.trackResult(resultPointer);
-        callback.asFunction<
-                void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
-            requestId, resultPointer);
-        return 1;
-      },
+      onExecuteAsync:
+          ({
+            required int clientId,
+            required int requestId,
+            required _StructuredRequestWire? structuredRequest,
+            required NexaHttpExecuteCallback callback,
+          }) {
+            executeAsyncCalls += 1;
+            final resultPointer = calloc<NexaHttpBinaryResult>();
+            resultPointer.ref
+              ..is_success = 1
+              ..status_code = 204
+              ..headers_ptr = ffi.nullptr
+              ..headers_len = 0
+              ..final_url_ptr = ffi.nullptr
+              ..final_url_len = 0
+              ..body_ptr = ffi.nullptr
+              ..body_len = 0
+              ..error_json = ffi.nullptr;
+            bindings.trackResult(resultPointer);
+            callback
+                .asFunction<
+                  void Function(int, ffi.Pointer<NexaHttpBinaryResult>)
+                >()(requestId, resultPointer);
+            return 1;
+          },
     );
     final dataSource = FfiNexaHttpNativeDataSource(
       library: ffi.DynamicLibrary.process(),
@@ -330,10 +344,10 @@ void main() {
 
     final response = await dataSource.execute(
       21,
-      const NativeHttpRequestDto(
+      NativeHttpRequestDto(
         method: 'POST',
         url: 'https://example.com/async-only',
-        bodyBytes: <int>[4, 2],
+        bodyBytes: Uint8List.fromList(const <int>[4, 2]),
       ),
     );
 
@@ -346,19 +360,20 @@ void main() {
     final dataSource = FfiNexaHttpNativeDataSource(
       library: ffi.DynamicLibrary.process(),
       bindings: _FakeNexaHttpBindings(
-        onExecuteAsync: ({
-          required int clientId,
-          required int requestId,
-          required _StructuredRequestWire? structuredRequest,
-          required NexaHttpExecuteCallback callback,
-        }) {
-          expect(clientId, 22);
-          expect(
-            structuredRequest?.url,
-            'https://example.com/dispatch-fail',
-          );
-          return 0;
-        },
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              expect(clientId, 22);
+              expect(
+                structuredRequest?.url,
+                'https://example.com/dispatch-fail',
+              );
+              return 0;
+            },
       ),
       binaryResultFinalizer: ffi.nullptr,
     );
@@ -381,70 +396,78 @@ void main() {
     );
   });
 
-  test('cancel completes pending requests and frees late native results', () async {
-    late final _FakeNexaHttpBindings bindings;
-    late NexaHttpExecuteCallback capturedCallback;
-    late int capturedRequestId;
-    bindings = _FakeNexaHttpBindings(
-      onExecuteAsync: ({
-        required int clientId,
-        required int requestId,
-        required _StructuredRequestWire? structuredRequest,
-        required NexaHttpExecuteCallback callback,
-      }) {
-        capturedRequestId = requestId;
-        capturedCallback = callback;
-        return 1;
-      },
-    );
-    final dataSource = FfiNexaHttpNativeDataSource(
-      library: ffi.DynamicLibrary.process(),
-      bindings: bindings,
-      binaryResultFinalizer: ffi.nullptr,
-    );
+  test(
+    'cancel completes pending requests and frees late native results',
+    () async {
+      late final _FakeNexaHttpBindings bindings;
+      late NexaHttpExecuteCallback capturedCallback;
+      late int capturedRequestId;
+      bindings = _FakeNexaHttpBindings(
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              capturedRequestId = requestId;
+              capturedCallback = callback;
+              return 1;
+            },
+      );
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: bindings,
+        binaryResultFinalizer: ffi.nullptr,
+      );
 
-    CancelNativeRequest? cancelRequest;
-    final responseFuture = dataSource.execute(
-      31,
-      const NativeHttpRequestDto(
-        method: 'GET',
-        url: 'https://example.com/cancel',
-      ),
-      onCancelReady: (value) => cancelRequest = value,
-    );
+      CancelNativeRequest? cancelRequest;
+      final responseFuture = dataSource.execute(
+        31,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/cancel',
+        ),
+        onCancelReady: (value) => cancelRequest = value,
+      );
 
-    expect(cancelRequest, isNotNull);
-    cancelRequest!.call();
+      expect(cancelRequest, isNotNull);
+      cancelRequest!.call();
 
-    await expectLater(
-      responseFuture,
-      throwsA(
-        isA<NexaHttpException>().having((error) => error.code, 'code', 'canceled'),
-      ),
-    );
-    expect(bindings.canceledRequestCount, 1);
+      await expectLater(
+        responseFuture,
+        throwsA(
+          isA<NexaHttpException>().having(
+            (error) => error.code,
+            'code',
+            'canceled',
+          ),
+        ),
+      );
+      expect(bindings.canceledRequestCount, 1);
 
-    final resultPointer = calloc<NexaHttpBinaryResult>();
-    resultPointer.ref
-      ..is_success = 1
-      ..status_code = 204
-      ..headers_ptr = ffi.nullptr
-      ..headers_len = 0
-      ..final_url_ptr = ffi.nullptr
-      ..final_url_len = 0
-      ..body_ptr = ffi.nullptr
-      ..body_len = 0
-      ..error_json = ffi.nullptr;
+      final resultPointer = calloc<NexaHttpBinaryResult>();
+      resultPointer.ref
+        ..is_success = 1
+        ..status_code = 204
+        ..headers_ptr = ffi.nullptr
+        ..headers_len = 0
+        ..final_url_ptr = ffi.nullptr
+        ..final_url_len = 0
+        ..body_ptr = ffi.nullptr
+        ..body_len = 0
+        ..error_json = ffi.nullptr;
 
-    bindings.trackResult(resultPointer);
-    capturedCallback
-        .asFunction<void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
-      capturedRequestId,
-      resultPointer,
-    );
-    await Future<void>.delayed(Duration.zero);
-    expect(bindings.freedResultCount, 1);
-  });
+      bindings.trackResult(resultPointer);
+      capturedCallback
+          .asFunction<void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
+        capturedRequestId,
+        resultPointer,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(bindings.freedResultCount, 1);
+    },
+  );
 
   test('createClient only encodes config fields consumed by Rust', () {
     late _StructuredConfigWire capturedConfig;
@@ -455,16 +478,17 @@ void main() {
           capturedConfig = _StructuredConfigWire.fromPointer(configArgs);
           return 77;
         },
-        onExecuteAsync: ({
-          required int clientId,
-          required int requestId,
-          required _StructuredRequestWire? structuredRequest,
-          required NexaHttpExecuteCallback callback,
-        }) {
-          throw UnimplementedError(
-            'execute_async is not used by this test',
-          );
-        },
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              throw UnimplementedError(
+                'execute_async is not used by this test',
+              );
+            },
       ),
       binaryResultFinalizer: ffi.nullptr,
     );
@@ -488,18 +512,18 @@ void main() {
 }
 
 class _FakeNexaHttpBindings extends NexaHttpBindings {
-  _FakeNexaHttpBindings({
-    this.onCreateClient,
-    required this.onExecuteAsync,
-  }) : super.fromLookup(_unimplementedLookup);
+  _FakeNexaHttpBindings({this.onCreateClient, required this.onExecuteAsync})
+    : super.fromLookup(_unimplementedLookup);
 
-  final int Function(ffi.Pointer<NexaHttpClientConfigArgs> configArgs)? onCreateClient;
+  final int Function(ffi.Pointer<NexaHttpClientConfigArgs> configArgs)?
+  onCreateClient;
   final int Function({
     required int clientId,
     required int requestId,
     required _StructuredRequestWire? structuredRequest,
     required NexaHttpExecuteCallback callback,
-  }) onExecuteAsync;
+  })
+  onExecuteAsync;
 
   int freedResultCount = 0;
   int freedRequestBodyCount = 0;
@@ -508,7 +532,9 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   final Set<int> _freedResultAddresses = <int>{};
 
   @override
-  int nexa_http_client_create(ffi.Pointer<NexaHttpClientConfigArgs> config_args) {
+  int nexa_http_client_create(
+    ffi.Pointer<NexaHttpClientConfigArgs> config_args,
+  ) {
     final onCreateClient = this.onCreateClient;
     if (onCreateClient == null) {
       return 1;
@@ -522,7 +548,10 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   }
 
   @override
-  void nexa_http_request_body_free(ffi.Pointer<ffi.Uint8> body_ptr, int body_len) {
+  void nexa_http_request_body_free(
+    ffi.Pointer<ffi.Uint8> body_ptr,
+    int body_len,
+  ) {
     freedRequestBodyCount += 1;
     calloc.free(body_ptr);
   }
@@ -665,8 +694,10 @@ class _StructuredConfigWire {
     final defaultHeaders = <String, String>{};
     for (var index = 0; index < config.default_headers_len; index += 1) {
       final entry = (config.default_headers_ptr + index).ref;
-      defaultHeaders[_readUtf8(entry.name_ptr, entry.name_len)] =
-          _readUtf8(entry.value_ptr, entry.value_len);
+      defaultHeaders[_readUtf8(entry.name_ptr, entry.name_len)] = _readUtf8(
+        entry.value_ptr,
+        entry.value_len,
+      );
     }
 
     return _StructuredConfigWire(

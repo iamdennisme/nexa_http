@@ -21,7 +21,7 @@ void main() {
         .url(Uri.parse('https://example.com/items'))
         .header('x-request-id', 'abc')
         .post(
-          RequestBody.fromString(
+          RequestBody.text(
             '{"hello":"world"}',
             contentType: MediaType.parse('application/json; charset=utf-8'),
           ),
@@ -88,36 +88,45 @@ void main() {
     );
   });
 
-  test('cancel after dispatch forwards cancellation into the active request',
-      () async {
-    final dataSource = _CancelableNativeDataSource();
-    final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
-      createDataSource: (_) => dataSource,
-    );
-    NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
-    final client = NexaHttpClient();
-    final call = client.newCall(
-      RequestBuilder()
-          .url(Uri.parse('https://example.com/cancel-in-flight'))
-          .get()
-          .build(),
-    );
+  test(
+    'cancel after dispatch forwards cancellation into the active request',
+    () async {
+      final dataSource = _CancelableNativeDataSource();
+      final dataSourceFactory = NexaHttpNativeDataSourceFactory(
+        loadDynamicLibrary: ({String? explicitPath}) =>
+            DynamicLibrary.process(),
+        createDataSource: (_) => dataSource,
+      );
+      NexaHttpTestingOverrides.installNativeDataSourceFactory(
+        dataSourceFactory,
+      );
+      final client = NexaHttpClient();
+      final call = client.newCall(
+        RequestBuilder()
+            .url(Uri.parse('https://example.com/cancel-in-flight'))
+            .get()
+            .build(),
+      );
 
-    final future = call.execute();
-    await Future<void>.delayed(Duration.zero);
-    call.cancel();
+      final future = call.execute();
+      await Future<void>.delayed(Duration.zero);
+      call.cancel();
 
-    await expectLater(
-      future,
-      throwsA(
-        isA<NexaHttpException>().having((error) => error.code, 'code', 'canceled'),
-      ),
-    );
-    expect(call.isCanceled, isTrue);
-    expect(dataSource.cancelReadyCount, 1);
-    expect(dataSource.cancelInvocationCount, 1);
-  });
+      await expectLater(
+        future,
+        throwsA(
+          isA<NexaHttpException>().having(
+            (error) => error.code,
+            'code',
+            'canceled',
+          ),
+        ),
+      );
+      expect(call.isCanceled, isTrue);
+      expect(dataSource.cancelReadyCount, 1);
+      expect(dataSource.cancelInvocationCount, 1);
+    },
+  );
 
   test('cancel after completion does not forward cancellation again', () async {
     final dataSource = _CompletedCancelableNativeDataSource();
@@ -162,8 +171,11 @@ final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
   }
 
   @override
-  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
-      {RegisterCancelRequest? onCancelReady}) async {
+  Future<TransportResponse> execute(
+    int clientId,
+    NativeHttpRequestDto request, {
+    RegisterCancelRequest? onCancelReady,
+  }) async {
     executeCalls.add(_ExecuteCall(clientId: clientId, request: request));
     return _executeResponses[executeCalls.length - 1];
   }
@@ -196,8 +208,11 @@ final class _CancelableNativeDataSource implements NexaHttpNativeDataSource {
   void dispose() {}
 
   @override
-  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
-      {RegisterCancelRequest? onCancelReady}) {
+  Future<TransportResponse> execute(
+    int clientId,
+    NativeHttpRequestDto request, {
+    RegisterCancelRequest? onCancelReady,
+  }) {
     final completer = Completer<TransportResponse>();
     onCancelReady?.call(() {
       cancelInvocationCount += 1;
@@ -229,8 +244,11 @@ final class _CompletedCancelableNativeDataSource
   void dispose() {}
 
   @override
-  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
-      {RegisterCancelRequest? onCancelReady}) async {
+  Future<TransportResponse> execute(
+    int clientId,
+    NativeHttpRequestDto request, {
+    RegisterCancelRequest? onCancelReady,
+  }) async {
     onCancelReady?.call(() {
       cancelInvocationCount += 1;
     });

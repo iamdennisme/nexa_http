@@ -11,24 +11,6 @@ final class ClientOptions {
   final Duration? timeout;
   final String? userAgent;
 
-  static final Expando<List<MapEntry<String, String>>> _defaultHeaderEntries =
-      Expando<List<MapEntry<String, String>>>();
-
-  List<MapEntry<String, String>> get defaultHeaderEntries {
-    final cached = _defaultHeaderEntries[this];
-    if (cached != null) {
-      return cached;
-    }
-
-    final entries = List<MapEntry<String, String>>.unmodifiable(
-      defaultHeaders.entries.map(
-        (entry) => MapEntry<String, String>(entry.key, entry.value),
-      ),
-    );
-    _defaultHeaderEntries[this] = entries;
-    return entries;
-  }
-
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) {

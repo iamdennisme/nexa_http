@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 final class NativeHttpRequestDto {
   const NativeHttpRequestDto({
     required this.method,
@@ -10,6 +12,6 @@ final class NativeHttpRequestDto {
   final String method;
   final String url;
   final List<MapEntry<String, String>> headers;
-  final List<int>? bodyBytes;
+  final Uint8List? bodyBytes;
   final int? timeoutMs;
 }

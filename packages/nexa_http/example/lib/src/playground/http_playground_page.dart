@@ -199,7 +199,7 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
   }
 
   RequestBody _requestBody() {
-    return RequestBody.fromString(
+    return RequestBody.text(
       _bodyController.text,
       contentType: MediaType.parse('application/json; charset=utf-8'),
     );
@@ -252,14 +252,12 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
       case 'PATCH':
         buffer.writeln(
           "  ..${request.method.toLowerCase()}("
-          "RequestBody.fromString('${_bodyController.text.replaceAll('\n', '\\n')}'))",
+          "RequestBody.text('${_bodyController.text.replaceAll('\n', '\\n')}'))",
         );
         break;
       case 'DELETE':
         buffer.writeln(
-          body == null
-              ? '  ..delete()'
-              : '  ..delete(RequestBody.fromString(...))',
+          body == null ? '  ..delete()' : '  ..delete(RequestBody.text(...))',
         );
         break;
       case 'HEAD':

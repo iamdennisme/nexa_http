@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:nexa_http/nexa_http.dart';
 import 'package:test/test.dart';
 
@@ -9,7 +11,7 @@ void main() {
         .timeout(const Duration(seconds: 5))
         .post(
           RequestBody.bytes(
-            const <int>[1, 2, 3],
+            Uint8List.fromList(const <int>[1, 2, 3]),
             contentType: MediaType.parse('application/json'),
           ),
         )
@@ -26,13 +28,14 @@ void main() {
     final original = RequestBuilder()
         .url(Uri.parse('https://example.com/items/42'))
         .header('x-sdk', 'nexa_http')
-        .put(RequestBody.bytes(const <int>[4, 5, 6]))
+        .put(RequestBody.bytes(Uint8List.fromList(const <int>[4, 5, 6])))
         .timeout(const Duration(seconds: 3))
         .build();
 
-    final updated = original.newBuilder().url(
-      Uri.parse('https://example.com/items/43'),
-    ).build();
+    final updated = original
+        .newBuilder()
+        .url(Uri.parse('https://example.com/items/43'))
+        .build();
 
     expect(updated.method, 'PUT');
     expect(updated.url, Uri.parse('https://example.com/items/43'));

@@ -1,64 +1,46 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:nexa_http/nexa_http.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('reuses the stored immutable bytes across reads and streams', () async {
-    final body = RequestBody.bytes(const <int>[1, 2, 3]);
+  test('adopts the owned binary payload across reads and streams', () async {
+    final payload = Uint8List.fromList(const <int>[1, 2, 3]);
+    final body = RequestBody.bytes(payload);
 
     final firstRead = await body.bytes();
     final secondRead = await body.bytes();
     final streamed = await body.byteStream().single;
 
-    expect(identical(firstRead, body.bytesValue), isTrue);
-    expect(identical(secondRead, body.bytesValue), isTrue);
-    expect(identical(streamed, body.bytesValue), isTrue);
+    expect(identical(firstRead, payload), isTrue);
+    expect(identical(secondRead, payload), isTrue);
+    expect(identical(streamed, payload), isTrue);
   });
 
-  test(
-    'fromString adopts freshly encoded bytes without an extra copy',
-    () async {
-      final encoding = _TrackingEncoding(<int>[65, 66, 67]);
+  test('text adopts freshly encoded bytes without an extra copy', () async {
+    final encoding = _TrackingEncoding(<int>[65, 66, 67]);
 
-      final body = RequestBody.fromString('abc', encoding: encoding);
-      final bytes = await body.bytes();
+    final body = RequestBody.text('abc', encoding: encoding);
+    final bytes = await body.bytes();
 
-      expect(identical(bytes, encoding.lastEncodedBytes), isTrue);
-    },
-  );
+    expect(identical(bytes, encoding.lastEncodedBytes), isTrue);
+  });
 
-  test(
-    'fromString reuses freshly encoded bytes for ffi transfer',
-    () async {
-      final encoding = _TrackingEncoding(<int>[65, 66, 67]);
+  test('text uses one canonical payload for reads and transport', () async {
+    final body = RequestBody.text('abc');
 
-      final body = RequestBody.fromString('abc', encoding: encoding);
-
-      expect(identical(body.ffiTransferBytes, encoding.lastEncodedBytes), isTrue);
-    },
-  );
-
-  test(
-    'bytes creates an owned transfer buffer without exposing caller mutations',
-    () async {
-      final source = <int>[1, 2, 3];
-      final body = RequestBody.bytes(source);
-      source[0] = 9;
-
-      expect(await body.bytes(), const <int>[1, 2, 3]);
-      expect(body.ffiTransferBytes, const <int>[1, 2, 3]);
-      expect(identical(body.ffiTransferBytes, await body.bytes()), isFalse);
-    },
-  );
+    expect(body.payloadBytes, same(await body.bytes()));
+    expect(body.payloadBytes, same(await body.byteStream().single));
+  });
 }
 
 final class _TrackingEncoding extends Encoding {
   _TrackingEncoding(List<int> encodedBytes)
-    : _encodedBytes = List<int>.unmodifiable(encodedBytes);
+    : _encodedBytes = Uint8List.fromList(encodedBytes);
 
-  final List<int> _encodedBytes;
-  List<int>? lastEncodedBytes;
+  final Uint8List _encodedBytes;
+  Uint8List? lastEncodedBytes;
 
   @override
   String get name => 'tracking';
@@ -70,13 +52,13 @@ final class _TrackingEncoding extends Encoding {
   Converter<String, List<int>> get encoder => _TrackingEncoder(this);
 }
 
-final class _TrackingEncoder extends Converter<String, List<int>> {
+final class _TrackingEncoder extends Converter<String, Uint8List> {
   const _TrackingEncoder(this._encoding);
 
   final _TrackingEncoding _encoding;
 
   @override
-  List<int> convert(String input) {
+  Uint8List convert(String input) {
     _encoding.lastEncodedBytes = _encoding._encodedBytes;
     return _encoding._encodedBytes;
   }

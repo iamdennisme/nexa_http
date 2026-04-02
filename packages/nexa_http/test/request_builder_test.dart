@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:nexa_http/nexa_http.dart';
 import 'package:test/test.dart';
 
@@ -17,7 +19,7 @@ void main() {
 
   test('builds a POST request with a request body', () async {
     final body = RequestBody.bytes(
-      const <int>[1, 2, 3],
+      Uint8List.fromList(const <int>[1, 2, 3]),
       contentType: MediaType.parse('application/octet-stream'),
     );
 
