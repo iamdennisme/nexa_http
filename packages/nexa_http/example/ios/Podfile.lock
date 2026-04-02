@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - nexa_http_native_ios (0.1.1):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - nexa_http_native_ios (from `.symlinks/plugins/nexa_http_native_ios/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  nexa_http_native_ios:
+    :path: ".symlinks/plugins/nexa_http_native_ios/ios"
+
+SPEC CHECKSUMS:
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  nexa_http_native_ios: d5b423c62dc9968cac5cb5b0b970dc8262876931
+
+PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
+
+COCOAPODS: 1.16.2

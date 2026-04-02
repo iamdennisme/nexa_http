@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  verify-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+      - uses: android-actions/setup-android@v3
+      - name: Install Android NDK
+        run: sdkmanager "ndk;29.0.14206865"
+      - name: Export Android environment
+        run: |
+          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
+      - name: Prepare Android native artifacts
+        run: ./scripts/build_native_android.sh debug
+      - name: Workspace artifact verification
+        run: dart run scripts/workspace_tools.dart verify-artifact-consistency
+      - name: Release consumer verification
+        run: dart run scripts/workspace_tools.dart verify-release-consumer
+      - name: Development path verification
+        run: dart run scripts/workspace_tools.dart verify-development-path
+
+  verify-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin,aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - name: Prepare Apple native artifacts
+        run: |
+          ./scripts/build_native_macos.sh debug
+          ./scripts/build_native_ios.sh debug
+      - name: Workspace artifact verification
+        run: dart run scripts/workspace_tools.dart verify-artifact-consistency
+      - name: Release consumer verification
+        run: dart run scripts/workspace_tools.dart verify-release-consumer
+      - name: Development path verification
+        run: dart run scripts/workspace_tools.dart verify-development-path
+
+  verify-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Prepare Windows native artifacts
+        run: ./scripts/build_native_windows.sh debug
+      - name: Workspace artifact verification
+        run: dart run scripts/workspace_tools.dart verify-artifact-consistency
+      - name: Release consumer verification
+        run: dart run scripts/workspace_tools.dart verify-release-consumer
+      - name: Development path verification
+        run: dart run scripts/workspace_tools.dart verify-development-path

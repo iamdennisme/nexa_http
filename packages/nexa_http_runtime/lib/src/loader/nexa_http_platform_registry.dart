@@ -21,7 +21,7 @@ final class NexaHttpPlatformRegistry {
     if (runtime == null) {
       throw StateError(
         'No nexa_http native runtime is registered. '
-        'Add the matching nexa_http_native_<platform> package to your app.',
+        'Add package:nexa_http to your app and ensure the matching platform implementation is available.',
       );
     }
     return runtime;

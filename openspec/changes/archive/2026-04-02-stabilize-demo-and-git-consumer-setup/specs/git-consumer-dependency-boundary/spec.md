@@ -1,0 +1,27 @@
+## ADDED Requirements
+
+### Requirement: External consumers SHALL declare only `nexa_http`
+The supported external integration contract SHALL require app consumers to declare only `nexa_http` as a dependency input.
+
+#### Scenario: External app integrates the SDK through git
+- **WHEN** a Flutter app outside the repository consumes the SDK through git/ssh
+- **THEN** it MUST be sufficient to declare `nexa_http`
+- **AND** it MUST NOT be necessary to declare platform carrier packages manually
+- **AND** it MUST NOT be necessary to declare `nexa_http_runtime` or `nexa_http_distribution`
+
+### Requirement: Platform implementations SHALL remain internal to the public contract
+Platform carrier packages SHALL be selected through the plugin/federation wiring owned by `nexa_http`, not through public setup instructions.
+
+#### Scenario: Public documentation describes platform integration
+- **WHEN** README or package documentation explains how to integrate the SDK
+- **THEN** it MUST present `nexa_http` as the public package surface
+- **AND** it MUST NOT instruct users to add platform carrier packages as public dependencies
+
+### Requirement: External consumers SHALL use release-consumer artifact resolution
+The supported external integration path SHALL use release-oriented native artifact resolution and SHALL NOT implicitly compile Rust from local source.
+
+#### Scenario: Consumer resolves native assets from a pinned git ref
+- **WHEN** an external app runs dependency resolution and platform build steps from a supported git/ssh setup
+- **THEN** native artifact resolution MUST execute in `release-consumer`
+- **AND** it MUST use packaged or release-published assets
+- **AND** it MUST fail with a structured setup/bootstrap error if required assets are unavailable instead of attempting hidden local Rust compilation

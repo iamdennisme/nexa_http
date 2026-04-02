@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import 'nexa_http_native_digest.dart';
@@ -11,6 +12,13 @@ const _releaseBaseUrlEnvironmentVariable = 'NEXA_HTTP_NATIVE_RELEASE_BASE_URL';
 const _defaultReleaseBaseUrl =
     'https://github.com/iamdennisme/nexa_http/releases/download';
 const _manifestFileName = 'nexa_http_native_assets_manifest.json';
+const _artifactResolutionModeEnvironmentVariable =
+    'NEXA_HTTP_NATIVE_ARTIFACT_MODE';
+
+enum NexaHttpNativeArtifactResolutionMode {
+  workspaceDev,
+  releaseConsumer,
+}
 
 typedef SourceDirCandidatesBuilder = Iterable<String> Function(
   String sourceDir,
@@ -20,6 +28,7 @@ typedef SourceDirBuilder = Future<void> Function(String sourceDir);
 Future<File> resolveNexaHttpNativeArtifactFile({
   required Uri packageRoot,
   required Uri cacheRoot,
+  required NexaHttpNativeArtifactResolutionMode mode,
   required String packageVersion,
   required String targetOS,
   required String targetArchitecture,
@@ -50,12 +59,9 @@ Future<File> resolveNexaHttpNativeArtifactFile({
     return sourceDirFile;
   }
 
-  final packagedFile = File.fromUri(packageRoot.resolve(packagedRelativePath));
-  if (await packagedFile.exists()) {
-    return packagedFile;
-  }
-
-  if (defaultSourceDir != null && defaultSourceDir.isNotEmpty) {
+  if (mode == NexaHttpNativeArtifactResolutionMode.workspaceDev &&
+      defaultSourceDir != null &&
+      defaultSourceDir.isNotEmpty) {
     final builtFromDefault = await _resolveDefaultSourceDir(
       defaultSourceDir: defaultSourceDir,
       sourceDirCandidates: sourceDirCandidates,
@@ -64,6 +70,11 @@ Future<File> resolveNexaHttpNativeArtifactFile({
     if (builtFromDefault != null) {
       return builtFromDefault;
     }
+  }
+
+  final packagedFile = File.fromUri(packageRoot.resolve(packagedRelativePath));
+  if (await packagedFile.exists()) {
+    return packagedFile;
   }
 
   return _downloadFromManifest(
@@ -91,6 +102,46 @@ Uri resolveNexaHttpNativeManifestUri({
       ? releaseBaseUrl
       : '$_defaultReleaseBaseUrl/v$packageVersion';
   return Uri.parse('$base/$_manifestFileName');
+}
+
+NexaHttpNativeArtifactResolutionMode
+    resolveNexaHttpNativeArtifactResolutionMode({
+  required Map<String, String> environment,
+  NexaHttpNativeArtifactResolutionMode defaultMode =
+      NexaHttpNativeArtifactResolutionMode.releaseConsumer,
+}) {
+  final configured =
+      environment[_artifactResolutionModeEnvironmentVariable]?.trim();
+  if (configured == null || configured.isEmpty) {
+    return defaultMode;
+  }
+
+  return switch (configured) {
+    'workspace-dev' => NexaHttpNativeArtifactResolutionMode.workspaceDev,
+    'release-consumer' =>
+      NexaHttpNativeArtifactResolutionMode.releaseConsumer,
+    _ => throw StateError(
+        'Unsupported $_artifactResolutionModeEnvironmentVariable value '
+        '"$configured". Expected "workspace-dev" or "release-consumer".',
+      ),
+  };
+}
+
+NexaHttpNativeArtifactResolutionMode
+    defaultNexaHttpNativeArtifactResolutionMode({
+  required Uri packageRoot,
+  String? defaultSourceDir,
+}) {
+  final packagePath = Directory.fromUri(packageRoot).absolute.path;
+  if (_looksLikePubCachePath(packagePath)) {
+    return NexaHttpNativeArtifactResolutionMode.releaseConsumer;
+  }
+  if (defaultSourceDir != null &&
+      defaultSourceDir.isNotEmpty &&
+      Directory(defaultSourceDir).existsSync()) {
+    return NexaHttpNativeArtifactResolutionMode.workspaceDev;
+  }
+  return NexaHttpNativeArtifactResolutionMode.releaseConsumer;
 }
 
 String packageVersionForRoot(Uri packageRoot) {
@@ -222,4 +273,23 @@ Future<File> _downloadFromManifest({
   }
 
   return destination;
+}
+
+bool _looksLikePubCachePath(String path) {
+  final segments = p
+      .split(p.normalize(path))
+      .map((segment) => segment.toLowerCase())
+      .toList(growable: false);
+  for (var index = 0; index < segments.length; index++) {
+    final segment = segments[index];
+    if (segment == '.pub-cache') {
+      return true;
+    }
+    if (segment == 'pub' &&
+        index + 1 < segments.length &&
+        segments[index + 1] == 'cache') {
+      return true;
+    }
+  }
+  return false;
 }

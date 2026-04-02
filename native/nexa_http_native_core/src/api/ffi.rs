@@ -1,3 +1,4 @@
+use crate::api::error::{NativeError, NativeHttpError};
 use crate::api::response::NativeHttpOwnedBody;
 use std::collections::HashMap;
 use std::ffi::{CString, c_char, c_void};
@@ -55,6 +56,7 @@ pub type NexaHttpExecuteCallback = Option<unsafe extern "C" fn(u64, *mut NexaHtt
 
 static TEST_BINARY_RESULT_FREE_COUNTS: LazyLock<Mutex<HashMap<usize, usize>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+static LAST_ERROR_JSON: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
 
 impl NexaHttpBinaryResult {
     pub(crate) fn set_owned_body(&mut self, body: NativeHttpOwnedBody) {
@@ -86,6 +88,47 @@ pub(crate) fn record_test_binary_result_free(value: *mut NexaHttpBinaryResult) -
     let count = tracked.entry(value as usize).or_insert(0);
     *count += 1;
     *count == 1
+}
+
+pub(crate) fn clear_last_error_json() {
+    *LAST_ERROR_JSON.lock().unwrap() = None;
+}
+
+pub(crate) fn store_bootstrap_error(stage: &'static str, error: NativeError) {
+    let mut details = error.details.unwrap_or_default();
+    details.insert("stage".to_string(), stage.to_string());
+    details.insert("native_code".to_string(), error.code.to_string());
+    details.insert("native_message".to_string(), error.message.clone());
+
+    let serialized = serde_json::to_string(&NativeHttpError {
+        code: "native_bootstrap_failed".to_string(),
+        message: "The nexa_http native bootstrap failed.".to_string(),
+        status_code: None,
+        is_timeout: false,
+        uri: None,
+        details: Some(details),
+    })
+    .unwrap_or_else(|_| {
+        r#"{"code":"native_bootstrap_failed","message":"The nexa_http native bootstrap failed.","is_timeout":false,"details":{"stage":"serialization"}} "#.trim().to_string()
+    });
+    *LAST_ERROR_JSON.lock().unwrap() = Some(serialized);
+}
+
+pub fn take_last_error_json() -> *mut c_char {
+    let last_error = LAST_ERROR_JSON.lock().unwrap().take();
+    match last_error.and_then(|json| CString::new(json).ok()) {
+        Some(value) => value.into_raw(),
+        None => null_mut(),
+    }
+}
+
+pub unsafe fn string_free(value: *mut c_char) {
+    if value.is_null() {
+        return;
+    }
+    unsafe {
+        drop(CString::from_raw(value));
+    }
 }
 
 #[unsafe(no_mangle)]

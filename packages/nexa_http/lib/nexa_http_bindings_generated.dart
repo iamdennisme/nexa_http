@@ -32,6 +32,29 @@ class NexaHttpBindings {
   late final _nexa_http_client_create = _nexa_http_client_createPtr
       .asFunction<int Function(ffi.Pointer<NexaHttpClientConfigArgs>)>();
 
+  ffi.Pointer<ffi.Char> nexa_http_take_last_error_json() {
+    return _nexa_http_take_last_error_json();
+  }
+
+  late final _nexa_http_take_last_error_jsonPtr =
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Char> Function()>>(
+        'nexa_http_take_last_error_json',
+      );
+  late final _nexa_http_take_last_error_json =
+      _nexa_http_take_last_error_jsonPtr
+          .asFunction<ffi.Pointer<ffi.Char> Function()>();
+
+  void nexa_http_string_free(ffi.Pointer<ffi.Char> value) {
+    return _nexa_http_string_free(value);
+  }
+
+  late final _nexa_http_string_freePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Char>)>>(
+        'nexa_http_string_free',
+      );
+  late final _nexa_http_string_free = _nexa_http_string_freePtr
+      .asFunction<void Function(ffi.Pointer<ffi.Char>)>();
+
   ffi.Pointer<ffi.Uint8> nexa_http_request_body_alloc(int body_len) {
     return _nexa_http_request_body_alloc(body_len);
   }

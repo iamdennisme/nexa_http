@@ -112,12 +112,20 @@ Example workspace dependency setup:
 dependencies:
   nexa_http:
     path: ../nexa_http/packages/nexa_http
-  nexa_http_native_macos:
-    path: ../nexa_http/packages/nexa_http_native_macos
 ```
 
-When consuming from Git instead of `path`, pin `nexa_http` and the matching
-carrier package to the same ref.
+When consuming from Git instead of `path`, pin `nexa_http` to the desired ref.
+
+Example git dependency setup:
+
+```yaml
+dependencies:
+  nexa_http:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: v1.0.1
+      path: packages/nexa_http
+```
 
 ## Example App
 
@@ -144,10 +152,29 @@ fvm flutter pub get
 fvm flutter run -d macos
 ```
 
+Other supported targets use the same app without source edits:
+
+```bash
+cd packages/nexa_http/example
+fvm flutter pub get
+fvm flutter run -d windows
+fvm flutter run -d android
+fvm flutter run -d ios
+```
+
 Default local base URLs:
 
 - macOS / Windows host: `http://127.0.0.1:8080`
 - Android emulator: `http://10.0.2.2:8080`
+- Android device with `adb reverse tcp:8080 tcp:8080`: `http://127.0.0.1:8080`
+- iOS simulator on the same host: `http://127.0.0.1:8080`
+
+Platform notes:
+
+- macOS / Windows: run the fixture server on the same machine before `flutter run`
+- Android emulator: keep the default `10.0.2.2` base URL
+- Android device: use `adb reverse tcp:8080 tcp:8080` if the fixture server is on your host machine
+- iOS simulator: the default host loopback URL works; for a physical device, pass a reachable host with `--dart-define=NEXA_HTTP_EXAMPLE_BASE_URL=...`
 
 The benchmark page exposes a small set of parameters:
 
@@ -168,6 +195,9 @@ dart pub get
 fvm dart run scripts/workspace_tools.dart bootstrap
 fvm dart run scripts/workspace_tools.dart analyze
 fvm dart run scripts/workspace_tools.dart test
+fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
+fvm dart run scripts/workspace_tools.dart verify-release-consumer
+fvm dart run scripts/workspace_tools.dart verify-development-path
 ```
 
 Focused package commands:

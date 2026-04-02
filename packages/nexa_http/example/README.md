@@ -32,11 +32,29 @@ fvm flutter pub get
 fvm flutter run -d macos
 ```
 
+Other supported targets use the same project without source edits:
+
+```bash
+cd packages/nexa_http/example
+fvm flutter pub get
+fvm flutter run -d windows
+fvm flutter run -d android
+fvm flutter run -d ios
+```
+
 Common local base URLs:
 
 - macOS / Windows host: `http://127.0.0.1:8080`
 - Android emulator: `http://10.0.2.2:8080`
 - Android device with `adb reverse tcp:8080 tcp:8080`: `http://127.0.0.1:8080`
+- iOS simulator on the same host: `http://127.0.0.1:8080`
+
+Platform notes:
+
+- macOS / Windows: run the fixture server on the same machine before `flutter run`
+- Android emulator: keep the default `10.0.2.2` base URL
+- Android device: use `adb reverse tcp:8080 tcp:8080` if the fixture server is on your host machine
+- iOS simulator: the default host loopback URL works; for a physical device, pass a reachable host with `--dart-define=NEXA_HTTP_EXAMPLE_BASE_URL=...`
 
 ## Benchmark Defaults
 

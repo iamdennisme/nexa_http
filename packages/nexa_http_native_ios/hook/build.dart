@@ -25,6 +25,19 @@ Future<void> main(List<String> args) async {
     final file = await resolveNexaHttpNativeArtifactFile(
       packageRoot: input.packageRoot,
       cacheRoot: input.outputDirectoryShared,
+      mode: resolveNexaHttpNativeArtifactResolutionMode(
+        environment: Platform.environment,
+        defaultMode: defaultNexaHttpNativeArtifactResolutionMode(
+          packageRoot: input.packageRoot,
+          defaultSourceDir: p.normalize(
+            p.join(
+              Directory.fromUri(input.packageRoot).path,
+              'native',
+              'nexa_http_native_ios_ffi',
+            ),
+          ),
+        ),
+      ),
       packageVersion: packageVersionForRoot(input.packageRoot),
       targetOS: target.targetOS,
       targetArchitecture: target.targetArchitecture,
@@ -33,6 +46,13 @@ Future<void> main(List<String> args) async {
       environment: Platform.environment,
       libPathEnvironmentVariable: 'NEXA_HTTP_NATIVE_IOS_LIB_PATH',
       sourceDirEnvironmentVariable: 'NEXA_HTTP_NATIVE_IOS_SOURCE_DIR',
+      defaultSourceDir: p.normalize(
+        p.join(
+          Directory.fromUri(input.packageRoot).path,
+          'native',
+          'nexa_http_native_ios_ffi',
+        ),
+      ),
       sourceDirCandidates: target.sourceDirCandidates,
     );
 

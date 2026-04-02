@@ -30,10 +30,8 @@ Normal app code should not deal with:
 - native-library loading
 - manual startup or shutdown APIs
 
-Carrier packages handle runtime registration through
-`package:nexa_http_runtime/nexa_http_runtime.dart`.
-Build hooks resolve packaged or downloaded native assets through
-`package:nexa_http_distribution/nexa_http_distribution.dart`.
+Platform carrier packages handle runtime registration internally. Apps should
+not import runtime or distribution helper packages directly.
 
 ## Versioning
 
@@ -84,19 +82,28 @@ Supported builder verbs:
 `NexaHttpClient` is lightweight and synchronous. Transport startup is internal
 and lazy on the first `call.execute()`.
 
-## Platform Packages
+## Platform Integration
 
-This package is only the public Dart API. Apps also need the matching carrier
-package for the platforms they ship.
+`nexa_http` is the only package apps should declare. Platform implementations
+are resolved through the federated plugin wiring behind this package.
 
-Example workspace setup:
+Repository-local path setup:
 
 ```yaml
 dependencies:
   nexa_http:
     path: ../nexa_http/packages/nexa_http
-  nexa_http_native_macos:
-    path: ../nexa_http/packages/nexa_http_native_macos
+```
+
+External git setup:
+
+```yaml
+dependencies:
+  nexa_http:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: v1.0.1
+      path: packages/nexa_http
 ```
 
 ## Example App
@@ -115,4 +122,12 @@ fvm dart test
 cd packages/nexa_http/example
 fvm flutter test
 fvm flutter analyze
+```
+
+Repository-level verification:
+
+```bash
+fvm dart run ../../scripts/workspace_tools.dart verify-artifact-consistency
+fvm dart run ../../scripts/workspace_tools.dart verify-release-consumer
+fvm dart run ../../scripts/workspace_tools.dart verify-development-path
 ```

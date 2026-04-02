@@ -1,7 +1,7 @@
 use crate::api::error::{NativeError, NativeHttpError};
 use crate::api::ffi::{
     NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback, NexaHttpHeaderEntry,
-    NexaHttpRequestArgs,
+    NexaHttpRequestArgs, clear_last_error_json, store_bootstrap_error,
 };
 use crate::api::request::{
     NativeHttpClientConfig, NativeHttpHeader, NativeHttpOwnedRequestBody, NativeHttpRequest,
@@ -88,16 +88,23 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
     }
 
     pub fn create_client(&self, config_args: *const NexaHttpClientConfigArgs) -> u64 {
+        clear_last_error_json();
         let config = match read_client_config(config_args) {
             Ok(config) => config,
-            Err(_) => return 0,
+            Err(error) => {
+                store_bootstrap_error("client_config_decode", error);
+                return 0;
+            }
         };
 
         self.inner.capabilities.refresh_for_client_construction();
         let current_state = self.inner.capabilities.current_platform_state();
         let client = match build_client(&config, &current_state.platform_features) {
             Ok(client) => client,
-            Err(_) => return 0,
+            Err(error) => {
+                store_bootstrap_error("client_create", error);
+                return 0;
+            }
         };
 
         let client_id = self.inner.next_client_id.fetch_add(1, Ordering::Relaxed);

@@ -54,6 +54,8 @@ typedef struct NexaHttpBinaryResult {
 typedef void (*NexaHttpExecuteCallback)(uint64_t request_id, NexaHttpBinaryResult* result);
 
 uint64_t nexa_http_client_create(const NexaHttpClientConfigArgs* config_args);
+char* nexa_http_take_last_error_json(void);
+void nexa_http_string_free(char* value);
 uint8_t* nexa_http_request_body_alloc(uintptr_t body_len);
 void nexa_http_request_body_free(uint8_t* body_ptr, uintptr_t body_len);
 uint8_t nexa_http_client_execute_async(

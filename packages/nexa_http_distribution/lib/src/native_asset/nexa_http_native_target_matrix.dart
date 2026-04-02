@@ -159,11 +159,11 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     targetArchitecture: 'x64',
     releaseAssetFileName: 'nexa_http-native-windows-x64.dll',
     packagedRelativePath: 'windows/Libraries/nexa_http_native.dll',
-    rustTargetTriple: 'x86_64-pc-windows-gnu',
+    rustTargetTriple: 'x86_64-pc-windows-msvc',
     sourceArtifactFileName: 'nexa_http_native_windows_ffi.dll',
     legacyWorkspaceRelativePaths: <String>[
-      'packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/target/x86_64-pc-windows-gnu/debug/nexa_http_native.dll',
-      'packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/target/x86_64-pc-windows-gnu/release/nexa_http_native.dll',
+      'packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/target/x86_64-pc-windows-msvc/debug/nexa_http_native.dll',
+      'packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/target/x86_64-pc-windows-msvc/release/nexa_http_native.dll',
     ],
   ),
 ];

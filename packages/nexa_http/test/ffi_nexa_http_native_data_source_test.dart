@@ -1,5 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
@@ -7,6 +8,7 @@ import 'package:ffi/ffi.dart';
 import 'package:nexa_http/nexa_http_bindings_generated.dart';
 import 'package:nexa_http/src/api/api.dart';
 import 'package:nexa_http/src/data/mappers/native_http_client_config_mapper.dart';
+import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/ffi_nexa_http_native_data_source.dart';
 import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
@@ -509,14 +511,65 @@ void main() {
     expect(capturedConfig.timeoutMs, 2000);
     expect(capturedConfig.userAgent, 'nexa-test');
   });
+
+  test('createClient surfaces structured native bootstrap errors', () {
+    final dataSource = FfiNexaHttpNativeDataSource(
+      library: ffi.DynamicLibrary.process(),
+      bindings: _FakeNexaHttpBindings(
+        onCreateClient: (_) => 0,
+        onTakeLastErrorJson: () => jsonEncode(<String, Object?>{
+          'code': 'native_bootstrap_failed',
+          'message': 'native client bootstrap failed',
+          'details': <String, Object?>{
+            'stage': 'client_create',
+            'native_code': 'invalid_proxy',
+          },
+        }).toNativeUtf8().cast(),
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              throw UnimplementedError();
+            },
+      ),
+      binaryResultFinalizer: ffi.nullptr,
+    );
+
+    expect(
+      () => dataSource.createClient(
+        NativeHttpClientConfigDto(),
+      ),
+      throwsA(
+        isA<NexaHttpException>()
+            .having((error) => error.code, 'code', 'native_bootstrap_failed')
+            .having(
+              (error) => error.details?['stage'],
+              'details.stage',
+              'client_create',
+            )
+            .having(
+              (error) => error.details?['native_code'],
+              'details.native_code',
+              'invalid_proxy',
+            ),
+      ),
+    );
+  });
 }
 
 class _FakeNexaHttpBindings extends NexaHttpBindings {
-  _FakeNexaHttpBindings({this.onCreateClient, required this.onExecuteAsync})
-    : super.fromLookup(_unimplementedLookup);
+  _FakeNexaHttpBindings({
+    this.onCreateClient,
+    this.onTakeLastErrorJson,
+    required this.onExecuteAsync,
+  }) : super.fromLookup(_unimplementedLookup);
 
   final int Function(ffi.Pointer<NexaHttpClientConfigArgs> configArgs)?
   onCreateClient;
+  final ffi.Pointer<ffi.Char> Function()? onTakeLastErrorJson;
   final int Function({
     required int clientId,
     required int requestId,
@@ -540,6 +593,14 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
       return 1;
     }
     return onCreateClient(config_args);
+  }
+
+  ffi.Pointer<ffi.Char> nexa_http_take_last_error_json() {
+    final onTakeLastErrorJson = this.onTakeLastErrorJson;
+    if (onTakeLastErrorJson == null) {
+      return ffi.nullptr;
+    }
+    return onTakeLastErrorJson();
   }
 
   @override

@@ -26,6 +26,7 @@ void main() {
     final resolved = await resolveNexaHttpNativeArtifactFile(
       packageRoot: tempDir.uri,
       cacheRoot: tempDir.uri,
+      mode: NexaHttpNativeArtifactResolutionMode.releaseConsumer,
       packageVersion: '1.0.1',
       targetOS: 'macos',
       targetArchitecture: 'arm64',
@@ -55,6 +56,7 @@ void main() {
     final resolved = await resolveNexaHttpNativeArtifactFile(
       packageRoot: tempDir.uri,
       cacheRoot: tempDir.uri,
+      mode: NexaHttpNativeArtifactResolutionMode.workspaceDev,
       packageVersion: '1.0.1',
       targetOS: 'macos',
       targetArchitecture: 'arm64',
@@ -103,6 +105,7 @@ void main() {
     final resolved = await resolveNexaHttpNativeArtifactFile(
       packageRoot: tempDir.uri,
       cacheRoot: tempDir.uri,
+      mode: NexaHttpNativeArtifactResolutionMode.releaseConsumer,
       packageVersion: '1.0.1',
       targetOS: 'macos',
       targetArchitecture: 'arm64',
@@ -154,6 +157,7 @@ void main() {
     final resolved = await resolveNexaHttpNativeArtifactFile(
       packageRoot: tempDir.uri,
       cacheRoot: tempDir.uri,
+      mode: NexaHttpNativeArtifactResolutionMode.releaseConsumer,
       packageVersion: '1.0.1',
       targetOS: 'macos',
       targetArchitecture: 'arm64',
@@ -170,7 +174,14 @@ void main() {
     expect(await resolved.readAsString(), 'packaged-first');
   });
 
-  test('prefers default source builds over manifest download', () async {
+  test('workspace-dev prefers local source preparation over packaged assets',
+      () async {
+    final packagedArtifact = File(
+      '${tempDir.path}/macos/Libraries/libnexa_http_native.dylib',
+    );
+    await packagedArtifact.parent.create(recursive: true);
+    await packagedArtifact.writeAsString('packaged-copy');
+
     final distDir = Directory('${tempDir.path}/dist')
       ..createSync(recursive: true);
     final sourceArtifact =
@@ -205,6 +216,7 @@ void main() {
     final resolved = await resolveNexaHttpNativeArtifactFile(
       packageRoot: tempDir.uri,
       cacheRoot: tempDir.uri,
+      mode: NexaHttpNativeArtifactResolutionMode.workspaceDev,
       packageVersion: '1.0.1',
       targetOS: 'macos',
       targetArchitecture: 'arm64',
@@ -230,6 +242,62 @@ void main() {
     expect(sourceBuildTriggered, isTrue);
   });
 
+  test('release-consumer forbids implicit local source preparation', () async {
+    final distDir = Directory('${tempDir.path}/dist')
+      ..createSync(recursive: true);
+    final sourceArtifact =
+        File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
+    await sourceArtifact.writeAsString('manifest-first');
+    final digest = sha256OfString('manifest-first');
+
+    final manifest =
+        File('${tempDir.path}/nexa_http_native_assets_manifest.json');
+    await manifest.writeAsString(
+      jsonEncode(<String, Object?>{
+        'package': 'nexa_http',
+        'package_version': '1.0.1',
+        'assets': <Map<String, Object?>>[
+          <String, Object?>{
+            'target_os': 'macos',
+            'target_architecture': 'arm64',
+            'file_name': 'nexa_http-native-macos-arm64.dylib',
+            'source_url': sourceArtifact.uri.toString(),
+            'sha256': digest,
+          },
+        ],
+      }),
+    );
+
+    final defaultSourceDir = Directory('${tempDir.path}/default-source-dir')
+      ..createSync(recursive: true);
+    var sourceBuildTriggered = false;
+    final resolved = await resolveNexaHttpNativeArtifactFile(
+      packageRoot: tempDir.uri,
+      cacheRoot: tempDir.uri,
+      mode: NexaHttpNativeArtifactResolutionMode.releaseConsumer,
+      packageVersion: '1.0.1',
+      targetOS: 'macos',
+      targetArchitecture: 'arm64',
+      targetSdk: null,
+      packagedRelativePath: 'macos/Libraries/libnexa_http_native.dylib',
+      environment: <String, String>{
+        'NEXA_HTTP_NATIVE_MANIFEST_PATH': manifest.path,
+      },
+      libPathEnvironmentVariable: 'NEXA_HTTP_NATIVE_MACOS_LIB_PATH',
+      sourceDirEnvironmentVariable: 'NEXA_HTTP_NATIVE_MACOS_SOURCE_DIR',
+      defaultSourceDir: defaultSourceDir.path,
+      buildDefaultSourceDir: (_) async {
+        sourceBuildTriggered = true;
+      },
+      sourceDirCandidates: (path) => <String>[
+        '$path/target/debug/libnexa_http_native_macos_ffi.dylib',
+      ],
+    );
+
+    expect(await resolved.readAsString(), 'manifest-first');
+    expect(sourceBuildTriggered, isFalse);
+  });
+
   test('default release manifest uri points at the nexa_http GitHub release',
       () {
     final manifestUri = resolveNexaHttpNativeManifestUri(
@@ -242,5 +310,34 @@ void main() {
       'https://github.com/iamdennisme/nexa_http/releases/download/v1.0.1/'
       'nexa_http_native_assets_manifest.json',
     );
+  });
+
+  test('defaults to workspace-dev for repo checkouts with local native sources',
+      () async {
+    final packageRoot = Directory('${tempDir.path}/packages/nexa_http_native_macos')
+      ..createSync(recursive: true);
+    final sourceDir = Directory('${packageRoot.path}/native/nexa_http_native_macos_ffi')
+      ..createSync(recursive: true);
+
+    final mode = defaultNexaHttpNativeArtifactResolutionMode(
+      packageRoot: packageRoot.uri,
+      defaultSourceDir: sourceDir.path,
+    );
+
+    expect(mode, NexaHttpNativeArtifactResolutionMode.workspaceDev);
+  });
+
+  test('defaults to release-consumer for pub cache checkouts', () async {
+    final packageRoot = Directory('${tempDir.path}/.pub-cache/git/repo/packages/nexa_http_native_macos')
+      ..createSync(recursive: true);
+    final sourceDir = Directory('${packageRoot.path}/native/nexa_http_native_macos_ffi')
+      ..createSync(recursive: true);
+
+    final mode = defaultNexaHttpNativeArtifactResolutionMode(
+      packageRoot: packageRoot.uri,
+      defaultSourceDir: sourceDir.path,
+    );
+
+    expect(mode, NexaHttpNativeArtifactResolutionMode.releaseConsumer);
   });
 }

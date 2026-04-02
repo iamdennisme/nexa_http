@@ -25,6 +25,19 @@ Future<void> main(List<String> args) async {
     final file = await resolveNexaHttpNativeArtifactFile(
       packageRoot: input.packageRoot,
       cacheRoot: input.outputDirectoryShared,
+      mode: resolveNexaHttpNativeArtifactResolutionMode(
+        environment: Platform.environment,
+        defaultMode: defaultNexaHttpNativeArtifactResolutionMode(
+          packageRoot: input.packageRoot,
+          defaultSourceDir: p.normalize(
+            p.join(
+              Directory.fromUri(input.packageRoot).path,
+              'native',
+              'nexa_http_native_macos_ffi',
+            ),
+          ),
+        ),
+      ),
       packageVersion: packageVersionForRoot(input.packageRoot),
       targetOS: target.targetOS,
       targetArchitecture: target.targetArchitecture,

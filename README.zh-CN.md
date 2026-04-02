@@ -113,12 +113,20 @@ native asset 的 GitHub workflow 只有在版本校验通过后才会按仓库 t
 dependencies:
   nexa_http:
     path: ../nexa_http/packages/nexa_http
-  nexa_http_native_macos:
-    path: ../nexa_http/packages/nexa_http_native_macos
 ```
 
-如果从 Git 消费，而不是用 `path`，要保证 `nexa_http` 和对应 carrier
-package 固定到同一个 ref。
+如果从 Git 消费，而不是用 `path`，只需要把 `nexa_http` 固定到同一个 ref。
+
+Git / SSH 依赖示例：
+
+```yaml
+dependencies:
+  nexa_http:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: v1.0.1
+      path: packages/nexa_http
+```
 
 ## Example App
 
@@ -145,10 +153,29 @@ fvm flutter pub get
 fvm flutter run -d macos
 ```
 
+其他支持的平台也使用同一个 example 工程，不需要改源码：
+
+```bash
+cd packages/nexa_http/example
+fvm flutter pub get
+fvm flutter run -d windows
+fvm flutter run -d android
+fvm flutter run -d ios
+```
+
 本地常用 base URL：
 
 - macOS / Windows 主机：`http://127.0.0.1:8080`
 - Android 模拟器：`http://10.0.2.2:8080`
+- Android 真机配合 `adb reverse tcp:8080 tcp:8080`：`http://127.0.0.1:8080`
+- iOS 模拟器同主机：`http://127.0.0.1:8080`
+
+平台说明：
+
+- macOS / Windows：先在同一台机器上启动 fixture server，再执行 `flutter run`
+- Android 模拟器：保持默认 `10.0.2.2`
+- Android 真机：如果 fixture server 跑在宿主机上，先执行 `adb reverse tcp:8080 tcp:8080`
+- iOS 模拟器：默认回环地址可直接使用；真机需要通过 `--dart-define=NEXA_HTTP_EXAMPLE_BASE_URL=...` 传入可访问的宿主地址
 
 Benchmark 页面保留了少量可调参数：
 
@@ -169,6 +196,9 @@ dart pub get
 fvm dart run scripts/workspace_tools.dart bootstrap
 fvm dart run scripts/workspace_tools.dart analyze
 fvm dart run scripts/workspace_tools.dart test
+fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
+fvm dart run scripts/workspace_tools.dart verify-release-consumer
+fvm dart run scripts/workspace_tools.dart verify-development-path
 ```
 
 聚焦包级命令：
