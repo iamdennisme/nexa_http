@@ -42,6 +42,49 @@ void main() {
 
     encoded.dispose();
   });
+
+  test('releases owned request buffers exactly once when dispatch keeps ownership',
+      () {
+    var releaseCount = 0;
+    final encoded = FfiNexaHttpRequestEncoder.encode(
+      const NativeHttpRequestDto(
+        method: 'POST',
+        url: 'https://example.com/upload',
+        bodyBytes: <int>[1, 2, 3, 4],
+      ),
+      allocateBody: (bodyLength) => calloc<ffi.Uint8>(bodyLength),
+      releaseBody: (bodyPointer, _) {
+        releaseCount += 1;
+        calloc.free(bodyPointer);
+      },
+    );
+
+    encoded.dispose();
+
+    expect(releaseCount, 1);
+  });
+
+  test('does not release request buffers after body ownership transfer', () {
+    var releaseCount = 0;
+    final encoded = FfiNexaHttpRequestEncoder.encode(
+      const NativeHttpRequestDto(
+        method: 'POST',
+        url: 'https://example.com/upload',
+        bodyBytes: <int>[1, 2, 3, 4],
+      ),
+      allocateBody: (bodyLength) => calloc<ffi.Uint8>(bodyLength),
+      releaseBody: (bodyPointer, _) {
+        releaseCount += 1;
+        calloc.free(bodyPointer);
+      },
+    );
+
+    encoded.transferBodyOwnership();
+    encoded.dispose();
+
+    expect(releaseCount, 0);
+    calloc.free(encoded.bodyPointer);
+  });
 }
 
 class _StructuredRequestWire {

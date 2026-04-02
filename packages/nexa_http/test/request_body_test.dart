@@ -27,6 +27,30 @@ void main() {
       expect(identical(bytes, encoding.lastEncodedBytes), isTrue);
     },
   );
+
+  test(
+    'fromString reuses freshly encoded bytes for ffi transfer',
+    () async {
+      final encoding = _TrackingEncoding(<int>[65, 66, 67]);
+
+      final body = RequestBody.fromString('abc', encoding: encoding);
+
+      expect(identical(body.ffiTransferBytes, encoding.lastEncodedBytes), isTrue);
+    },
+  );
+
+  test(
+    'bytes creates an owned transfer buffer without exposing caller mutations',
+    () async {
+      final source = <int>[1, 2, 3];
+      final body = RequestBody.bytes(source);
+      source[0] = 9;
+
+      expect(await body.bytes(), const <int>[1, 2, 3]);
+      expect(body.ffiTransferBytes, const <int>[1, 2, 3]);
+      expect(identical(body.ffiTransferBytes, await body.bytes()), isFalse);
+    },
+  );
 }
 
 final class _TrackingEncoding extends Encoding {

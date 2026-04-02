@@ -14,25 +14,10 @@ final class NativeHttpRequestMapper {
     final requestHeaders = request.headers.toMultimap();
     final headers = <MapEntry<String, String>>[];
 
-    for (final header in clientConfig.defaultHeaderEntries) {
-      if (requestHeaders.containsKey(header.key)) {
-        continue;
-      }
-      headers.add(header);
-    }
-
     for (final header in requestHeaders.entries) {
       for (final value in header.value) {
         headers.add(MapEntry<String, String>(header.key, value));
       }
-    }
-
-    final userAgent = clientConfig.userAgent;
-    if (userAgent != null &&
-        userAgent.isNotEmpty &&
-        !requestHeaders.containsKey('user-agent') &&
-        !clientConfig.defaultHeaders.containsKey('user-agent')) {
-      headers.add(MapEntry<String, String>('user-agent', userAgent));
     }
     final contentType = request.body?.contentType;
     if (contentType != null &&
@@ -47,10 +32,8 @@ final class NativeHttpRequestMapper {
       method: request.method,
       url: resolvedUri.toString(),
       headers: headers,
-      bodyBytes: request.body?.bytesValue,
-      timeoutMs:
-          request.timeout?.inMilliseconds ??
-          clientConfig.timeout?.inMilliseconds,
+      bodyBytes: request.body?.ffiTransferBytes,
+      timeoutMs: request.timeout?.inMilliseconds,
     );
   }
 

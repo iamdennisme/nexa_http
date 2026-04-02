@@ -4,7 +4,7 @@ import 'package:nexa_http/src/internal/config/client_options.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('encodes structured native request fields as a typed dto', () {
+  test('omits lease-level defaults from request dto fields', () {
     final request = NativeHttpRequestMapper.toDto(
       clientConfig: const ClientOptions(
         timeout: Duration(seconds: 2),
@@ -21,16 +21,13 @@ void main() {
     expect(request.url, 'https://example.com/upload');
     expect(
       request.headers.map((header) => (header.key, header.value)).toList(),
-      equals(const <(String, String)>[
-        ('x-client', 'nexa'),
-        ('x-request', 'abc'),
-      ]),
+      equals(const <(String, String)>[('x-request', 'abc')]),
     );
-    expect(request.timeoutMs, 2000);
+    expect(request.timeoutMs, isNull);
     expect(request.bodyBytes, const <int>[1, 2, 3, 4]);
   });
 
-  test('preserves repeated request headers without projecting through a map',
+  test('preserves repeated request overrides without projecting through a map',
       () {
     final request = NativeHttpRequestMapper.toDto(
       clientConfig: const ClientOptions(
@@ -57,12 +54,24 @@ void main() {
     expect(
       request.headers.map((header) => (header.key, header.value)).toList(),
       equals(const <(String, String)>[
-        ('x-client', 'nexa'),
         ('accept', 'application/json'),
         ('accept', 'application/problem+json'),
         ('user-agent', 'request-agent'),
         ('content-type', 'application/octet-stream'),
       ]),
     );
+  });
+
+  test('keeps request timeout override explicit when present', () {
+    final request = NativeHttpRequestMapper.toDto(
+      clientConfig: const ClientOptions(timeout: Duration(seconds: 2)),
+      request: RequestBuilder()
+          .url(Uri.parse('https://example.com/upload'))
+          .timeout(const Duration(milliseconds: 250))
+          .post(RequestBody.bytes(const <int>[1]))
+          .build(),
+    );
+
+    expect(request.timeoutMs, 250);
   });
 }
