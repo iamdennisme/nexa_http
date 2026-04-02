@@ -1,6 +1,4 @@
-use nexa_http_native_core::platform::{
-    ProxyConfigSource, ProxySettings, RefreshMode,
-};
+use nexa_http_native_core::platform::{ProxyConfigSource, ProxySettings, RefreshMode};
 use nexa_http_native_core::runtime::ManagedProxyState;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -90,4 +88,42 @@ fn managed_proxy_state_does_not_advance_generation_when_snapshot_is_unchanged() 
     let state = ManagedProxyState::new(source);
     assert!(!state.refresh_now());
     assert_eq!(state.proxy_generation(), 0);
+}
+
+#[test]
+fn construction_boundary_refresh_updates_snapshot_without_background_polling() {
+    let loads = Arc::new(AtomicUsize::new(0));
+    let source = TestSource {
+        loads: Arc::clone(&loads),
+        snapshots: Arc::new(vec![
+            ProxySettings::default(),
+            ProxySettings {
+                http: Some("http://127.0.0.1:9999".to_string()),
+                ..ProxySettings::default()
+            },
+        ]),
+        refresh_mode: RefreshMode::ConstructionBoundary,
+    };
+
+    let state = ManagedProxyState::new(source);
+    assert_eq!(loads.load(Ordering::Relaxed), 1);
+
+    assert!(state.refresh_for_client_construction());
+    assert_eq!(loads.load(Ordering::Relaxed), 2);
+    assert_eq!(
+        state
+            .current_platform_state()
+            .platform_features
+            .proxy
+            .http
+            .as_deref(),
+        Some("http://127.0.0.1:9999"),
+    );
+
+    state.spawn_refresh_worker("should-not-start".to_string());
+    assert_eq!(
+        loads.load(Ordering::Relaxed),
+        2,
+        "construction-boundary sources must not start a polling worker",
+    );
 }

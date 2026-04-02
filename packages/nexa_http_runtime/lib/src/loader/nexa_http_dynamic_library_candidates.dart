@@ -28,21 +28,21 @@ List<String> resolveNexaHttpDynamicLibraryCandidates({
 
   return switch (platform) {
     NexaHttpHostPlatform.ios => resolveNexaHttpIosDynamicLibraryCandidates(
-      executableDirectory: executableDirectory,
-      seeds: seeds,
-      fileExists: exists,
-    ),
+        executableDirectory: executableDirectory,
+        seeds: seeds,
+        fileExists: exists,
+      ),
     NexaHttpHostPlatform.macos => resolveNexaHttpMacosDynamicLibraryCandidates(
-      executableDirectory: executableDirectory,
-      seeds: seeds,
-      fileExists: exists,
-    ),
+        executableDirectory: executableDirectory,
+        seeds: seeds,
+        fileExists: exists,
+      ),
     NexaHttpHostPlatform.windows =>
       resolveNexaHttpWindowsDynamicLibraryCandidates(
-      executableDirectory: executableDirectory,
-      seeds: seeds,
-      fileExists: exists,
-    ),
+        executableDirectory: executableDirectory,
+        seeds: seeds,
+        fileExists: exists,
+      ),
     NexaHttpHostPlatform.android => const <String>[],
   };
 }

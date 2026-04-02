@@ -42,9 +42,10 @@ void main() {
     expect(resolved.path, explicitFile.path);
   });
 
-  test('uses a prebuilt file under the source dir override when present', () async {
-    final sourceDir =
-        Directory('${tempDir.path}/source')..createSync(recursive: true);
+  test('uses a prebuilt file under the source dir override when present',
+      () async {
+    final sourceDir = Directory('${tempDir.path}/source')
+      ..createSync(recursive: true);
     final sourceOutput = File(
       '${sourceDir.path}/target/debug/libnexa_http_native_macos_ffi.dylib',
     );
@@ -72,9 +73,10 @@ void main() {
     expect(resolved.path, sourceOutput.path);
   });
 
-  test('downloads and validates an artifact from a local manifest override', () async {
-    final distDir =
-        Directory('${tempDir.path}/dist')..createSync(recursive: true);
+  test('downloads and validates an artifact from a local manifest override',
+      () async {
+    final distDir = Directory('${tempDir.path}/dist')
+      ..createSync(recursive: true);
     final sourceArtifact =
         File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
     await sourceArtifact.writeAsString('download-me');
@@ -124,8 +126,8 @@ void main() {
     await packagedArtifact.parent.create(recursive: true);
     await packagedArtifact.writeAsString('packaged-first');
 
-    final distDir =
-        Directory('${tempDir.path}/dist')..createSync(recursive: true);
+    final distDir = Directory('${tempDir.path}/dist')
+      ..createSync(recursive: true);
     final sourceArtifact =
         File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
     await sourceArtifact.writeAsString('manifest-second');
@@ -169,8 +171,8 @@ void main() {
   });
 
   test('prefers default source builds over manifest download', () async {
-    final distDir =
-        Directory('${tempDir.path}/dist')..createSync(recursive: true);
+    final distDir = Directory('${tempDir.path}/dist')
+      ..createSync(recursive: true);
     final sourceArtifact =
         File('${distDir.path}/nexa_http-native-macos-arm64.dylib');
     await sourceArtifact.writeAsString('manifest-second');
@@ -228,7 +230,8 @@ void main() {
     expect(sourceBuildTriggered, isTrue);
   });
 
-  test('default release manifest uri points at the nexa_http GitHub release', () {
+  test('default release manifest uri points at the nexa_http GitHub release',
+      () {
     final manifestUri = resolveNexaHttpNativeManifestUri(
       packageVersion: '1.0.1',
       environment: const <String, String>{},

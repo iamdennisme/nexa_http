@@ -22,7 +22,8 @@ Future<void> copyUriToFile(Uri sourceUri, File destination) async {
     case 'https':
       final client = newHttpClient();
       try {
-        final request = await client.getUrl(sourceUri).timeout(httpRequestTimeout);
+        final request =
+            await client.getUrl(sourceUri).timeout(httpRequestTimeout);
         final response = await request.close().timeout(httpRequestTimeout);
         if (response.statusCode != HttpStatus.ok) {
           throw HttpException(

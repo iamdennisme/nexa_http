@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'nexa_http_native_digest.dart';
+import 'nexa_http_native_target_matrix.dart';
 
 const nexaHttpNativeAssetsManifestFileName =
     'nexa_http_native_assets_manifest.json';
@@ -32,56 +33,16 @@ final class NexaHttpNativeReleaseManifestBundle {
   final List<String> sha256Lines;
 }
 
-const nexaHttpNativeReleaseAssetDescriptors = <NexaHttpNativeReleaseAssetDescriptor>[
-  NexaHttpNativeReleaseAssetDescriptor(
-    targetOS: 'android',
-    targetArchitecture: 'arm64',
-    fileName: 'nexa_http-native-android-arm64-v8a.so',
-  ),
-  NexaHttpNativeReleaseAssetDescriptor(
-    targetOS: 'android',
-    targetArchitecture: 'arm',
-    fileName: 'nexa_http-native-android-armeabi-v7a.so',
-  ),
-  NexaHttpNativeReleaseAssetDescriptor(
-    targetOS: 'android',
-    targetArchitecture: 'x64',
-    fileName: 'nexa_http-native-android-x86_64.so',
-  ),
-  NexaHttpNativeReleaseAssetDescriptor(
-    targetOS: 'ios',
-    targetArchitecture: 'arm64',
-    targetSdk: 'iphoneos',
-    fileName: 'nexa_http-native-ios-arm64.dylib',
-  ),
-  NexaHttpNativeReleaseAssetDescriptor(
-    targetOS: 'ios',
-    targetArchitecture: 'arm64',
-    targetSdk: 'iphonesimulator',
-    fileName: 'nexa_http-native-ios-sim-arm64.dylib',
-  ),
-  NexaHttpNativeReleaseAssetDescriptor(
-    targetOS: 'ios',
-    targetArchitecture: 'x64',
-    targetSdk: 'iphonesimulator',
-    fileName: 'nexa_http-native-ios-sim-x64.dylib',
-  ),
-  NexaHttpNativeReleaseAssetDescriptor(
-    targetOS: 'macos',
-    targetArchitecture: 'arm64',
-    fileName: 'nexa_http-native-macos-arm64.dylib',
-  ),
-  NexaHttpNativeReleaseAssetDescriptor(
-    targetOS: 'macos',
-    targetArchitecture: 'x64',
-    fileName: 'nexa_http-native-macos-x64.dylib',
-  ),
-  NexaHttpNativeReleaseAssetDescriptor(
-    targetOS: 'windows',
-    targetArchitecture: 'x64',
-    fileName: 'nexa_http-native-windows-x64.dll',
-  ),
-];
+final nexaHttpNativeReleaseAssetDescriptors = nexaHttpSupportedNativeTargets
+    .map(
+      (target) => NexaHttpNativeReleaseAssetDescriptor(
+        targetOS: target.targetOS,
+        targetArchitecture: target.targetArchitecture,
+        targetSdk: target.targetSdk,
+        fileName: target.releaseAssetFileName,
+      ),
+    )
+    .toList(growable: false);
 
 Future<NexaHttpNativeReleaseManifestBundle> buildNexaHttpNativeReleaseManifest({
   required String version,

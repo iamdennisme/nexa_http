@@ -1,4 +1,5 @@
-use nexa_http_native_windows_ffi::current_proxy_settings_for_test;
+use nexa_http_native_core::platform::{ProxyConfigSource, RefreshMode};
+use nexa_http_native_windows_ffi::{WindowsProxySource, current_proxy_settings_for_test};
 
 #[test]
 fn windows_parses_split_proxy_server_entries() {
@@ -19,4 +20,10 @@ fn windows_empty_proxy_server_produces_empty_settings() {
     assert_eq!(settings.http, None);
     assert_eq!(settings.https, None);
     assert_eq!(settings.all, None);
+}
+
+#[test]
+fn windows_proxy_source_uses_construction_boundary_refresh() {
+    let source = WindowsProxySource::new();
+    assert_eq!(source.refresh_mode(), RefreshMode::ConstructionBoundary);
 }

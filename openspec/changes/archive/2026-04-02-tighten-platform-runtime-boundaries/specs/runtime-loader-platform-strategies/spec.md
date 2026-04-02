@@ -1,3 +1,5 @@
+## MODIFIED Requirements
+
 ### Requirement: Runtime loader delegates candidate discovery by platform
 The system SHALL separate runtime candidate discovery into explicit host-platform strategy modules instead of concentrating all candidate rules in one aggregated cross-platform file, and each strategy SHALL derive its supported target coverage and artifact identity rules from the authoritative platform target matrix used by carrier packaging and distribution.
 

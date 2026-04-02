@@ -1,20 +1,15 @@
 mod proxy_source;
 
 use nexa_http_native_core::api::ffi::{
-    NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback,
-    NexaHttpRequestArgs,
+    NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback, NexaHttpRequestArgs,
 };
 use nexa_http_native_core::runtime::{ManagedProxyState, NexaHttpRuntime};
 use once_cell::sync::Lazy;
 
 pub use proxy_source::{WindowsProxySource, current_proxy_settings_for_test};
 
-static RUNTIME: Lazy<NexaHttpRuntime<ManagedProxyState<WindowsProxySource>>> = Lazy::new(|| {
-    NexaHttpRuntime::new(ManagedProxyState::with_background_refresh(
-        WindowsProxySource::new(),
-        "nexa-http-windows-proxy".to_string(),
-    ))
-});
+static RUNTIME: Lazy<NexaHttpRuntime<ManagedProxyState<WindowsProxySource>>> =
+    Lazy::new(|| NexaHttpRuntime::new(ManagedProxyState::new(WindowsProxySource::new())));
 
 #[unsafe(no_mangle)]
 pub extern "C" fn nexa_http_client_create(config_args: *const NexaHttpClientConfigArgs) -> u64 {

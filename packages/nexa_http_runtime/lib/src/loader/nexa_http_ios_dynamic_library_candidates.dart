@@ -1,3 +1,4 @@
+import 'package:nexa_http_distribution/nexa_http_distribution.dart';
 import 'package:path/path.dart' as p;
 
 import 'nexa_http_dynamic_library_candidates_shared.dart';
@@ -83,75 +84,21 @@ Iterable<String> _iosAppBundleCandidates(String executableDirectory) sync* {
 }
 
 Iterable<String> _discoverPackagedIos(Set<String> seeds) sync* {
+  final relativePaths = nexaHttpSupportedNativeTargets
+      .where((target) => target.targetOS == 'ios')
+      .map((target) => target.packagedRelativePath)
+      .toList(growable: false);
   for (final seed in seeds) {
-    yield* walkUpDynamicLibraryCandidates(seed, <String>[
-      p.join('ios', 'Frameworks', 'libnexa_http_native-ios-arm64.dylib'),
-      p.join('ios', 'Frameworks', 'libnexa_http_native-ios-sim-arm64.dylib'),
-      p.join('ios', 'Frameworks', 'libnexa_http_native-ios-sim-x64.dylib'),
-    ]);
+    yield* walkUpDynamicLibraryCandidates(seed, relativePaths);
   }
 }
 
 Iterable<String> _discoverWorkspaceIos(Set<String> seeds) sync* {
+  final relativePaths = nexaHttpSupportedNativeTargets
+      .where((target) => target.targetOS == 'ios')
+      .expand((target) => target.runtimeWorkspaceRelativePaths())
+      .toList(growable: false);
   for (final seed in seeds) {
-    yield* walkUpDynamicLibraryCandidates(seed, <String>[
-      p.join(
-        'target',
-        'aarch64-apple-ios',
-        'debug',
-        'libnexa_http_native_ios_ffi.dylib',
-      ),
-      p.join(
-        'target',
-        'aarch64-apple-ios',
-        'release',
-        'libnexa_http_native_ios_ffi.dylib',
-      ),
-      p.join(
-        'target',
-        'aarch64-apple-ios-sim',
-        'debug',
-        'libnexa_http_native_ios_ffi.dylib',
-      ),
-      p.join(
-        'target',
-        'aarch64-apple-ios-sim',
-        'release',
-        'libnexa_http_native_ios_ffi.dylib',
-      ),
-      p.join(
-        'target',
-        'x86_64-apple-ios',
-        'debug',
-        'libnexa_http_native_ios_ffi.dylib',
-      ),
-      p.join(
-        'target',
-        'x86_64-apple-ios',
-        'release',
-        'libnexa_http_native_ios_ffi.dylib',
-      ),
-      p.join(
-        'packages',
-        'nexa_http_native_ios',
-        'ios',
-        'Frameworks',
-        'libnexa_http_native-ios-arm64.dylib',
-      ),
-      p.join(
-        'packages',
-        'nexa_http_native_ios',
-        'ios',
-        'Frameworks',
-        'libnexa_http_native-ios-sim-arm64.dylib',
-      ),
-      p.join(
-        'packages',
-        'nexa_http_native_ios',
-        'ios',
-        'Frameworks',
-        'libnexa_http_native-ios-sim-x64.dylib',
-      ),
-    ]);
+    yield* walkUpDynamicLibraryCandidates(seed, relativePaths);
   }
 }

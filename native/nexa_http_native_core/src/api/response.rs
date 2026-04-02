@@ -1,6 +1,6 @@
+use crate::api::request::NativeHttpHeader;
 use bytes::Bytes;
 use std::ffi::c_void;
-use crate::api::request::NativeHttpHeader;
 use std::ptr::null_mut;
 
 #[derive(Debug)]

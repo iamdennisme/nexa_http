@@ -1,3 +1,4 @@
+import 'package:nexa_http_distribution/nexa_http_distribution.dart';
 import 'package:path/path.dart' as p;
 
 import 'nexa_http_dynamic_library_candidates_shared.dart';
@@ -48,44 +49,11 @@ Iterable<String> _discoverPackagedWindows(Set<String> seeds) sync* {
 }
 
 Iterable<String> _discoverWorkspaceWindows(Set<String> seeds) sync* {
+  final relativePaths = nexaHttpSupportedNativeTargets
+      .where((target) => target.targetOS == 'windows')
+      .expand((target) => target.runtimeWorkspaceRelativePaths())
+      .toList(growable: false);
   for (final seed in seeds) {
-    yield* walkUpDynamicLibraryCandidates(seed, <String>[
-      p.join(
-        'target',
-        'x86_64-pc-windows-gnu',
-        'debug',
-        'nexa_http_native_windows_ffi.dll',
-      ),
-      p.join(
-        'target',
-        'x86_64-pc-windows-gnu',
-        'release',
-        'nexa_http_native_windows_ffi.dll',
-      ),
-      p.join(
-        'target',
-        'x86_64-pc-windows-msvc',
-        'debug',
-        'nexa_http_native_windows_ffi.dll',
-      ),
-      p.join(
-        'target',
-        'x86_64-pc-windows-msvc',
-        'release',
-        'nexa_http_native_windows_ffi.dll',
-      ),
-      p.join(
-        'target',
-        'aarch64-pc-windows-msvc',
-        'debug',
-        'nexa_http_native_windows_ffi.dll',
-      ),
-      p.join(
-        'target',
-        'aarch64-pc-windows-msvc',
-        'release',
-        'nexa_http_native_windows_ffi.dll',
-      ),
-    ]);
+    yield* walkUpDynamicLibraryCandidates(seed, relativePaths);
   }
 }

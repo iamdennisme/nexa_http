@@ -1,8 +1,9 @@
-use nexa_http_native_core::platform::{PlatformRuntimeState, PlatformRuntimeView, ProxySettings};
-use nexa_http_native_core::runtime::NexaHttpRuntime;
 use nexa_http_native_core::api::ffi::{
     NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpHeaderEntry, NexaHttpRequestArgs,
 };
+use nexa_http_native_core::platform::{PlatformRuntimeState, PlatformRuntimeView, ProxySettings};
+use nexa_http_native_core::runtime::NexaHttpRuntime;
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -12,7 +13,6 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
-use std::collections::HashMap;
 use std::time::Duration;
 
 #[derive(Clone, Default)]
@@ -234,7 +234,9 @@ impl TestClientConfigArgs {
         let user_agent_ptr = user_agent
             .as_ref()
             .map_or(std::ptr::null(), |value| value.as_ptr());
-        let user_agent_len = user_agent.as_ref().map_or(0, |value| value.as_bytes().len());
+        let user_agent_len = user_agent
+            .as_ref()
+            .map_or(0, |value| value.as_bytes().len());
         Self {
             _header_names: header_names,
             _header_values: header_values,
@@ -277,7 +279,11 @@ unsafe extern "C" fn capture_execute_async_result(
     _request_id: u64,
     result: *mut NexaHttpBinaryResult,
 ) {
-    if let Some(sender) = EXECUTE_ASYNC_RESULT_SENDERS.lock().unwrap().remove(&_request_id) {
+    if let Some(sender) = EXECUTE_ASYNC_RESULT_SENDERS
+        .lock()
+        .unwrap()
+        .remove(&_request_id)
+    {
         let _ = sender.send(result as usize);
     }
 }
@@ -358,15 +364,16 @@ fn client_default_headers_apply_when_request_omits_them() {
         let (mut stream, _) = listener.accept().expect("accept request");
         let request = read_http_request(&mut stream);
         sender.send(request).expect("capture request");
-        write_http_response(&mut stream, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+        write_http_response(
+            &mut stream,
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
     });
 
     let runtime = NexaHttpRuntime::new(TestCapabilities);
     let config = TestClientConfigArgs::with_defaults(&[("x-client", "nexa")], None, None);
-    let request = TestRequestArgs::without_timeout(
-        "GET",
-        &format!("http://{server_addr}/default-header"),
-    );
+    let request =
+        TestRequestArgs::without_timeout("GET", &format!("http://{server_addr}/default-header"));
 
     let client_id = runtime.create_client(config.as_args());
     assert_ne!(client_id, 0, "client creation should succeed");
@@ -397,7 +404,10 @@ fn request_headers_override_client_defaults() {
         let (mut stream, _) = listener.accept().expect("accept request");
         let request = read_http_request(&mut stream);
         sender.send(request).expect("capture request");
-        write_http_response(&mut stream, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+        write_http_response(
+            &mut stream,
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
     });
 
     let runtime = NexaHttpRuntime::new(TestCapabilities);
@@ -440,7 +450,10 @@ fn request_timeout_override_wins_over_client_default_timeout() {
         let (mut stream, _) = slow_server.accept().expect("accept request");
         let _request = read_http_request(&mut stream);
         std::thread::sleep(Duration::from_millis(60));
-        write_http_response(&mut stream, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+        write_http_response(
+            &mut stream,
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
     });
 
     let timeout_runtime = NexaHttpRuntime::new(TestCapabilities);
@@ -451,10 +464,17 @@ fn request_timeout_override_wins_over_client_default_timeout() {
     let timeout_client_id = timeout_runtime.create_client(timeout_config.as_args());
     assert_ne!(timeout_client_id, 0, "client creation should succeed");
 
-    let timeout_result =
-        execute_for_test(&timeout_runtime, timeout_client_id, timeout_request.as_args());
+    let timeout_result = execute_for_test(
+        &timeout_runtime,
+        timeout_client_id,
+        timeout_request.as_args(),
+    );
     let timeout_error = unsafe {
-        assert_eq!((*timeout_result).is_success, 0, "client default timeout should fire");
+        assert_eq!(
+            (*timeout_result).is_success,
+            0,
+            "client default timeout should fire"
+        );
         CStr::from_ptr((*timeout_result).error_json)
             .to_string_lossy()
             .into_owned()
@@ -471,7 +491,10 @@ fn request_timeout_override_wins_over_client_default_timeout() {
         let (mut stream, _) = override_server.accept().expect("accept request");
         let _request = read_http_request(&mut stream);
         std::thread::sleep(Duration::from_millis(60));
-        write_http_response(&mut stream, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+        write_http_response(
+            &mut stream,
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
     });
 
     let override_runtime = NexaHttpRuntime::new(TestCapabilities);
@@ -486,8 +509,11 @@ fn request_timeout_override_wins_over_client_default_timeout() {
     let override_client_id = override_runtime.create_client(override_config.as_args());
     assert_ne!(override_client_id, 0, "client creation should succeed");
 
-    let override_result =
-        execute_for_test(&override_runtime, override_client_id, override_request.as_args());
+    let override_result = execute_for_test(
+        &override_runtime,
+        override_client_id,
+        override_request.as_args(),
+    );
     unsafe {
         assert_eq!(
             (*override_result).is_success,

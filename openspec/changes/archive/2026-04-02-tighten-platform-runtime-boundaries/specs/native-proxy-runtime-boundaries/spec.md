@@ -1,3 +1,5 @@
+## MODIFIED Requirements
+
 ### Requirement: Shared runtime SHALL own proxy refresh coordination
 The Rust native transport implementation SHALL maintain proxy snapshot caching, generation tracking, and refresh coordination in shared runtime code rather than duplicating those responsibilities in each platform FFI crate.
 

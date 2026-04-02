@@ -63,6 +63,13 @@ impl<S: ProxyConfigSource> ManagedProxyState<S> {
         true
     }
 
+    pub fn refresh_for_client_construction(&self) -> bool {
+        match self.refresh_mode() {
+            RefreshMode::ConstructionBoundary => self.refresh_now(),
+            RefreshMode::Static | RefreshMode::Polling { .. } => false,
+        }
+    }
+
     pub fn current_platform_state(&self) -> PlatformRuntimeView {
         PlatformRuntimeView::with_proxy_settings(
             self.proxy_generation(),
@@ -79,11 +86,7 @@ impl<S: ProxyConfigSource> ManagedProxyState<S> {
             return;
         };
 
-        if self
-            .inner
-            .refresh_started
-            .swap(true, Ordering::SeqCst)
-        {
+        if self.inner.refresh_started.swap(true, Ordering::SeqCst) {
             return;
         }
 
@@ -108,6 +111,10 @@ impl<S: ProxyConfigSource> Clone for ManagedProxyState<S> {
 }
 
 impl<S: ProxyConfigSource> PlatformRuntimeState for ManagedProxyState<S> {
+    fn refresh_for_client_construction(&self) -> bool {
+        ManagedProxyState::refresh_for_client_construction(self)
+    }
+
     fn proxy_generation(&self) -> u64 {
         ManagedProxyState::proxy_generation(self)
     }

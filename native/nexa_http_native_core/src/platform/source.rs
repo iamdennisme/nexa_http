@@ -4,6 +4,7 @@ use std::time::Duration;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RefreshMode {
     Static,
+    ConstructionBoundary,
     Polling { interval: Duration },
 }
 

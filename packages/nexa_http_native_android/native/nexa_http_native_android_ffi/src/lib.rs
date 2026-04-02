@@ -1,8 +1,7 @@
 mod proxy_source;
 
 use nexa_http_native_core::api::ffi::{
-    NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback,
-    NexaHttpRequestArgs,
+    NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback, NexaHttpRequestArgs,
 };
 use nexa_http_native_core::runtime::{ManagedProxyState, NexaHttpRuntime};
 use once_cell::sync::Lazy;

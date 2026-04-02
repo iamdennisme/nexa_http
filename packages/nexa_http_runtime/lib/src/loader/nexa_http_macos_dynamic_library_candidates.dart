@@ -1,3 +1,4 @@
+import 'package:nexa_http_distribution/nexa_http_distribution.dart';
 import 'package:path/path.dart' as p;
 
 import 'nexa_http_dynamic_library_candidates_shared.dart';
@@ -144,36 +145,21 @@ Iterable<String> _macosAppBundleCandidates(String executableDirectory) sync* {
 }
 
 Iterable<String> _discoverPackagedMacos(Set<String> seeds) sync* {
+  final relativePaths = nexaHttpSupportedNativeTargets
+      .where((target) => target.targetOS == 'macos')
+      .map((target) => target.packagedRelativePath)
+      .toList(growable: false);
   for (final seed in seeds) {
-    yield* walkUpDynamicLibraryCandidates(seed, <String>[
-      p.join('macos', 'Libraries', 'libnexa_http_native.dylib'),
-    ]);
+    yield* walkUpDynamicLibraryCandidates(seed, relativePaths);
   }
 }
 
 Iterable<String> _discoverWorkspaceMacos(Set<String> seeds) sync* {
+  final relativePaths = nexaHttpSupportedNativeTargets
+      .where((target) => target.targetOS == 'macos')
+      .expand((target) => target.runtimeWorkspaceRelativePaths())
+      .toList(growable: false);
   for (final seed in seeds) {
-    yield* walkUpDynamicLibraryCandidates(seed, <String>[
-      p.join('target', 'debug', 'libnexa_http_native_macos_ffi.dylib'),
-      p.join('target', 'release', 'libnexa_http_native_macos_ffi.dylib'),
-      p.join(
-        'packages',
-        'nexa_http_native_macos',
-        'native',
-        'nexa_http_native_macos_ffi',
-        'target',
-        'debug',
-        'libnexa_http_native.dylib',
-      ),
-      p.join(
-        'packages',
-        'nexa_http_native_macos',
-        'native',
-        'nexa_http_native_macos_ffi',
-        'target',
-        'release',
-        'libnexa_http_native.dylib',
-      ),
-    ]);
+    yield* walkUpDynamicLibraryCandidates(seed, relativePaths);
   }
 }

@@ -177,6 +177,13 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.0.0"
+  nexa_http_distribution:
+    dependency: "direct main"
+    description:
+      path: "../nexa_http_distribution"
+      relative: true
+    source: path
+    version: "1.0.1"
   node_preamble:
     dependency: transitive
     description:

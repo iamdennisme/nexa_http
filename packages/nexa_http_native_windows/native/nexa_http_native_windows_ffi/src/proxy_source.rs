@@ -1,12 +1,8 @@
 use nexa_http_native_core::platform::{ProxyConfigSource, ProxySettings, RefreshMode};
 use reqwest::Url;
 use std::collections::BTreeSet;
-use std::time::Duration;
-
 #[cfg(target_os = "windows")]
 use winreg::{RegKey, enums};
-
-const WINDOWS_PROXY_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, Default)]
 pub struct WindowsProxySource;
@@ -23,9 +19,7 @@ impl ProxyConfigSource for WindowsProxySource {
     }
 
     fn refresh_mode(&self) -> RefreshMode {
-        RefreshMode::Polling {
-            interval: WINDOWS_PROXY_REFRESH_INTERVAL,
-        }
+        RefreshMode::ConstructionBoundary
     }
 }
 

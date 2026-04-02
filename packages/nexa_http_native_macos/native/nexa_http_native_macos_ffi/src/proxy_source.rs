@@ -1,10 +1,6 @@
 use nexa_http_native_core::platform::{ProxyConfigSource, ProxySettings, RefreshMode};
 use reqwest::Url;
 use std::collections::BTreeSet;
-use std::time::Duration;
-
-const MACOS_PROXY_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
-
 #[derive(Clone, Debug, Default)]
 pub struct MacosProxySource;
 
@@ -20,9 +16,7 @@ impl ProxyConfigSource for MacosProxySource {
     }
 
     fn refresh_mode(&self) -> RefreshMode {
-        RefreshMode::Polling {
-            interval: MACOS_PROXY_REFRESH_INTERVAL,
-        }
+        RefreshMode::ConstructionBoundary
     }
 }
 

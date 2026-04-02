@@ -1,3 +1,5 @@
+## MODIFIED Requirements
+
 ### Requirement: Distribution package owns manifest generation rules
 The system SHALL define native asset manifest descriptor fields, digest generation rules, manifest serialization behavior, artifact identity, and the authoritative supported target matrix from `nexa_http_distribution` so release-time generation, carrier build-hook consumption, runtime loading, and verification share one authoritative implementation.
 

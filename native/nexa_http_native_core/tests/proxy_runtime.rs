@@ -1,12 +1,12 @@
 use nexa_http_native_core::platform::{PlatformRuntimeState, PlatformRuntimeView, ProxySettings};
 use nexa_http_native_core::runtime::NexaHttpRuntime;
-use std::os::raw::c_char;
 use std::collections::HashMap;
+use std::os::raw::c_char;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
-use std::sync::Mutex;
 use std::time::Duration;
 
 #[test]
@@ -23,6 +23,10 @@ struct SwitchingProxyCapabilities {
 }
 
 impl PlatformRuntimeState for SwitchingProxyCapabilities {
+    fn refresh_for_client_construction(&self) -> bool {
+        false
+    }
+
     fn proxy_generation(&self) -> u64 {
         self.generation.load(Ordering::Relaxed)
     }
@@ -41,6 +45,38 @@ impl PlatformRuntimeState for SwitchingProxyCapabilities {
     }
 }
 
+#[derive(Clone)]
+struct ConstructionBoundaryCapabilities {
+    generation: Arc<AtomicU64>,
+    use_proxy: Arc<AtomicBool>,
+    refresh_calls: Arc<AtomicUsize>,
+}
+
+impl PlatformRuntimeState for ConstructionBoundaryCapabilities {
+    fn refresh_for_client_construction(&self) -> bool {
+        self.refresh_calls.fetch_add(1, Ordering::Relaxed);
+        self.generation.fetch_add(1, Ordering::Relaxed);
+        self.use_proxy.store(true, Ordering::Relaxed);
+        true
+    }
+
+    fn proxy_generation(&self) -> u64 {
+        self.generation.load(Ordering::Relaxed)
+    }
+
+    fn current_platform_state(&self) -> PlatformRuntimeView {
+        let proxy = if self.use_proxy.load(Ordering::Relaxed) {
+            ProxySettings {
+                http: Some("http://127.0.0.1:7777".to_string()),
+                ..ProxySettings::default()
+            }
+        } else {
+            ProxySettings::default()
+        };
+        PlatformRuntimeView::with_proxy_settings(self.generation.load(Ordering::Relaxed), proxy)
+    }
+}
+
 static NEXT_EXECUTE_ASYNC_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 static EXECUTE_ASYNC_RESULT_SENDERS: LazyLock<Mutex<HashMap<u64, Sender<usize>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -49,7 +85,11 @@ unsafe extern "C" fn capture_execute_async_result(
     _request_id: u64,
     result: *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult,
 ) {
-    if let Some(sender) = EXECUTE_ASYNC_RESULT_SENDERS.lock().unwrap().remove(&_request_id) {
+    if let Some(sender) = EXECUTE_ASYNC_RESULT_SENDERS
+        .lock()
+        .unwrap()
+        .remove(&_request_id)
+    {
         let _ = sender.send(result as usize);
     }
 }
@@ -138,6 +178,24 @@ fn changed_generation_is_observable_through_runtime_state() {
         refreshed.platform_features.proxy.http.as_deref(),
         Some("http://127.0.0.1:8888"),
     );
+}
+
+#[test]
+fn client_creation_refreshes_construction_boundary_platform_state() {
+    let generation = Arc::new(AtomicU64::new(0));
+    let use_proxy = Arc::new(AtomicBool::new(false));
+    let refresh_calls = Arc::new(AtomicUsize::new(0));
+    let runtime = NexaHttpRuntime::new(ConstructionBoundaryCapabilities {
+        generation: Arc::clone(&generation),
+        use_proxy: Arc::clone(&use_proxy),
+        refresh_calls: Arc::clone(&refresh_calls),
+    });
+
+    let client_id = runtime.create_client(TestClientConfigArgs::new().as_args());
+    assert_ne!(client_id, 0);
+    assert_eq!(refresh_calls.load(Ordering::Relaxed), 1);
+    assert_eq!(generation.load(Ordering::Relaxed), 1);
+    assert!(use_proxy.load(Ordering::Relaxed));
 }
 
 struct TestRequestArgs {

@@ -1,7 +1,7 @@
 use crate::api::error::{NativeError, NativeHttpError};
 use crate::api::ffi::{
-    NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback,
-    NexaHttpHeaderEntry, NexaHttpRequestArgs,
+    NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback, NexaHttpHeaderEntry,
+    NexaHttpRequestArgs,
 };
 use crate::api::request::{
     NativeHttpClientConfig, NativeHttpHeader, NativeHttpOwnedRequestBody, NativeHttpRequest,
@@ -61,7 +61,11 @@ impl<P: PlatformRuntimeState> InflightRequestGuard<P> {
 
 impl<P: PlatformRuntimeState> Drop for InflightRequestGuard<P> {
     fn drop(&mut self) {
-        self.inner.inflight_requests.lock().unwrap().remove(&self.key);
+        self.inner
+            .inflight_requests
+            .lock()
+            .unwrap()
+            .remove(&self.key);
     }
 }
 
@@ -89,6 +93,7 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
             Err(_) => return 0,
         };
 
+        self.inner.capabilities.refresh_for_client_construction();
         let current_state = self.inner.capabilities.current_platform_state();
         let client = match build_client(&config, &current_state.platform_features) {
             Ok(client) => client,
@@ -253,8 +258,10 @@ fn read_client_config(
         )
     })?;
 
-    let default_headers =
-        read_config_headers(config_args.default_headers_ptr, config_args.default_headers_len)?;
+    let default_headers = read_config_headers(
+        config_args.default_headers_ptr,
+        config_args.default_headers_len,
+    )?;
     let user_agent = read_optional_string_parts(
         config_args.user_agent_ptr,
         config_args.user_agent_len,
@@ -290,7 +297,9 @@ fn read_request(
             "Expected a non-null body pointer when body_len > 0.",
         ));
     } else if request_args.body_owned != 0 {
-        unsafe { NativeHttpOwnedRequestBody::into_vec(request_args.body_ptr, request_args.body_len) }
+        unsafe {
+            NativeHttpOwnedRequestBody::into_vec(request_args.body_ptr, request_args.body_len)
+        }
     } else {
         unsafe { from_raw_parts(request_args.body_ptr, request_args.body_len) }.to_vec()
     };
@@ -750,10 +759,7 @@ mod tests {
             } else {
                 ProxySettings::default()
             };
-            PlatformRuntimeView::with_proxy_settings(
-                self.generation.load(Ordering::Relaxed),
-                proxy,
-            )
+            PlatformRuntimeView::with_proxy_settings(self.generation.load(Ordering::Relaxed), proxy)
         }
     }
 
@@ -779,10 +785,7 @@ mod tests {
             } else {
                 ProxySettings::default()
             };
-            PlatformRuntimeView::with_proxy_settings(
-                self.generation.load(Ordering::Relaxed),
-                proxy,
-            )
+            PlatformRuntimeView::with_proxy_settings(self.generation.load(Ordering::Relaxed), proxy)
         }
     }
 
@@ -1165,13 +1168,15 @@ mod tests {
             .insert(request_key, InflightRequestState::Active(abort_handle));
 
         assert_eq!(runtime.cancel_request(7, 12), 1);
-        assert!(runtime
-            .inner
-            .inflight_requests
-            .lock()
-            .unwrap()
-            .get(&request_key)
-            .is_none());
+        assert!(
+            runtime
+                .inner
+                .inflight_requests
+                .lock()
+                .unwrap()
+                .get(&request_key)
+                .is_none()
+        );
         runtime.inner.tokio.block_on(async {
             assert!(handle.await.is_err());
         });

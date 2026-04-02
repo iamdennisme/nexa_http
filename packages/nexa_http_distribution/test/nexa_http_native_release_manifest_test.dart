@@ -20,7 +20,8 @@ void main() {
     }
   });
 
-  test('builds the current native release manifest shape and checksum lines', () async {
+  test('builds the current native release manifest shape and checksum lines',
+      () async {
     for (final descriptor in nexaHttpNativeReleaseAssetDescriptors) {
       final file = File(p.join(tempDir.path, descriptor.fileName));
       await file.parent.create(recursive: true);
@@ -63,7 +64,8 @@ void main() {
     );
   });
 
-  test('writes manifest json and checksum output with current filenames', () async {
+  test('writes manifest json and checksum output with current filenames',
+      () async {
     for (final descriptor in nexaHttpNativeReleaseAssetDescriptors) {
       final file = File(p.join(tempDir.path, descriptor.fileName));
       await file.parent.create(recursive: true);
@@ -74,7 +76,8 @@ void main() {
     await writeNexaHttpNativeReleaseManifestBundle(
       version: '1.2.3',
       distDirectory: tempDir.path,
-      outputPath: p.join(outputDir.path, 'nexa_http_native_assets_manifest.json'),
+      outputPath:
+          p.join(outputDir.path, 'nexa_http_native_assets_manifest.json'),
       shaOutputPath: p.join(outputDir.path, 'SHA256SUMS'),
       baseUrl: 'https://example.com/download/v1.2.3',
       generatedAt: DateTime.utc(2026, 4, 1, 12, 0, 0),
@@ -99,6 +102,35 @@ void main() {
       shaLines.last,
       matches(
         RegExp(r'^[a-f0-9]{64}  nexa_http-native-windows-x64\.dll$'),
+      ),
+    );
+  });
+
+  test(
+      'release manifest descriptors match the authoritative native target matrix',
+      () {
+    expect(
+      nexaHttpNativeReleaseAssetDescriptors
+          .map(
+            (descriptor) => (
+              descriptor.targetOS,
+              descriptor.targetArchitecture,
+              descriptor.targetSdk,
+              descriptor.fileName,
+            ),
+          )
+          .toList(),
+      orderedEquals(
+        nexaHttpSupportedNativeTargets
+            .where((target) => target.releaseAssetFileName != null)
+            .map(
+              (target) => (
+                target.targetOS,
+                target.targetArchitecture,
+                target.targetSdk,
+                target.releaseAssetFileName,
+              ),
+            ),
       ),
     );
   });

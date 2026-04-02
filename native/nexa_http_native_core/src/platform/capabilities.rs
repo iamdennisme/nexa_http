@@ -16,6 +16,10 @@ impl PlatformRuntimeView {
 }
 
 pub trait PlatformRuntimeState: Send + Sync + 'static {
+    fn refresh_for_client_construction(&self) -> bool {
+        false
+    }
+
     fn proxy_generation(&self) -> u64;
     fn current_platform_state(&self) -> PlatformRuntimeView;
 }

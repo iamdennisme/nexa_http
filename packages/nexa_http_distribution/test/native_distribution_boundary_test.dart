@@ -4,7 +4,8 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
-  test('carrier build hooks import the dedicated native distribution package', () async {
+  test('carrier build hooks import the dedicated native distribution package',
+      () async {
     final packageRoot = Directory.current.parent.path;
     final hookFiles = <String>[
       p.join(packageRoot, 'nexa_http_native_android', 'hook', 'build.dart'),

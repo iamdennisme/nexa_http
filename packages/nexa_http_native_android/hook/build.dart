@@ -13,23 +13,12 @@ Future<void> main(List<String> args) async {
       return;
     }
 
-    final abi = switch (input.config.code.targetArchitecture) {
-      Architecture.arm64 => 'arm64-v8a',
-      Architecture.arm => 'armeabi-v7a',
-      Architecture.x64 => 'x86_64',
-      _ => null,
-    };
-    if (abi == null) {
-      return;
-    }
-
-    final triple = switch (input.config.code.targetArchitecture) {
-      Architecture.arm64 => 'aarch64-linux-android',
-      Architecture.arm => 'armv7-linux-androideabi',
-      Architecture.x64 => 'x86_64-linux-android',
-      _ => null,
-    };
-    if (triple == null) {
+    final target = findNexaHttpNativeTarget(
+      targetOS: input.config.code.targetOS.toString(),
+      targetArchitecture: input.config.code.targetArchitecture.toString(),
+      targetSdk: null,
+    );
+    if (target == null) {
       return;
     }
 
@@ -37,23 +26,14 @@ Future<void> main(List<String> args) async {
       packageRoot: input.packageRoot,
       cacheRoot: input.outputDirectoryShared,
       packageVersion: packageVersionForRoot(input.packageRoot),
-      targetOS: input.config.code.targetOS.toString(),
-      targetArchitecture: input.config.code.targetArchitecture.toString(),
+      targetOS: target.targetOS,
+      targetArchitecture: target.targetArchitecture,
       targetSdk: null,
-      packagedRelativePath: 'android/src/main/jniLibs/$abi/libnexa_http_native.so',
+      packagedRelativePath: target.packagedRelativePath,
       environment: Platform.environment,
       libPathEnvironmentVariable: 'NEXA_HTTP_NATIVE_ANDROID_LIB_PATH',
       sourceDirEnvironmentVariable: 'NEXA_HTTP_NATIVE_ANDROID_SOURCE_DIR',
-      sourceDirCandidates: (sourceDir) => <String>[
-        p.join(sourceDir, 'target', triple, 'debug', 'libnexa_http_native_android_ffi.so'),
-        p.join(sourceDir, 'target', triple, 'release', 'libnexa_http_native_android_ffi.so'),
-        p.normalize(
-          p.join(sourceDir, '..', '..', '..', '..', 'target', triple, 'debug', 'libnexa_http_native_android_ffi.so'),
-        ),
-        p.normalize(
-          p.join(sourceDir, '..', '..', '..', '..', 'target', triple, 'release', 'libnexa_http_native_android_ffi.so'),
-        ),
-      ],
+      sourceDirCandidates: target.sourceDirCandidates,
     );
 
     output.assets.code.add(
