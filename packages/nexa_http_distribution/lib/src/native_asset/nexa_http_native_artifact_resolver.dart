@@ -15,14 +15,10 @@ const _manifestFileName = 'nexa_http_native_assets_manifest.json';
 const _artifactResolutionModeEnvironmentVariable =
     'NEXA_HTTP_NATIVE_ARTIFACT_MODE';
 
-enum NexaHttpNativeArtifactResolutionMode {
-  workspaceDev,
-  releaseConsumer,
-}
+enum NexaHttpNativeArtifactResolutionMode { workspaceDev, releaseConsumer }
 
-typedef SourceDirCandidatesBuilder = Iterable<String> Function(
-  String sourceDir,
-);
+typedef SourceDirCandidatesBuilder =
+    Iterable<String> Function(String sourceDir);
 typedef SourceDirBuilder = Future<void> Function(String sourceDir);
 
 Future<File> resolveNexaHttpNativeArtifactFile({
@@ -72,9 +68,13 @@ Future<File> resolveNexaHttpNativeArtifactFile({
     }
   }
 
-  final packagedFile = File.fromUri(packageRoot.resolve(packagedRelativePath));
-  if (await packagedFile.exists()) {
-    return packagedFile;
+  if (mode == NexaHttpNativeArtifactResolutionMode.workspaceDev) {
+    final packagedFile = File.fromUri(
+      packageRoot.resolve(packagedRelativePath),
+    );
+    if (await packagedFile.exists()) {
+      return packagedFile;
+    }
   }
 
   return _downloadFromManifest(
@@ -96,8 +96,8 @@ Uri resolveNexaHttpNativeManifestUri({
     return File(manifestPath).absolute.uri;
   }
 
-  final releaseBaseUrl =
-      environment[_releaseBaseUrlEnvironmentVariable]?.trim();
+  final releaseBaseUrl = environment[_releaseBaseUrlEnvironmentVariable]
+      ?.trim();
   final base = releaseBaseUrl != null && releaseBaseUrl.isNotEmpty
       ? releaseBaseUrl
       : '$_defaultReleaseBaseUrl/v$packageVersion';
@@ -105,30 +105,29 @@ Uri resolveNexaHttpNativeManifestUri({
 }
 
 NexaHttpNativeArtifactResolutionMode
-    resolveNexaHttpNativeArtifactResolutionMode({
+resolveNexaHttpNativeArtifactResolutionMode({
   required Map<String, String> environment,
   NexaHttpNativeArtifactResolutionMode defaultMode =
       NexaHttpNativeArtifactResolutionMode.releaseConsumer,
 }) {
-  final configured =
-      environment[_artifactResolutionModeEnvironmentVariable]?.trim();
+  final configured = environment[_artifactResolutionModeEnvironmentVariable]
+      ?.trim();
   if (configured == null || configured.isEmpty) {
     return defaultMode;
   }
 
   return switch (configured) {
     'workspace-dev' => NexaHttpNativeArtifactResolutionMode.workspaceDev,
-    'release-consumer' =>
-      NexaHttpNativeArtifactResolutionMode.releaseConsumer,
+    'release-consumer' => NexaHttpNativeArtifactResolutionMode.releaseConsumer,
     _ => throw StateError(
-        'Unsupported $_artifactResolutionModeEnvironmentVariable value '
-        '"$configured". Expected "workspace-dev" or "release-consumer".',
-      ),
+      'Unsupported $_artifactResolutionModeEnvironmentVariable value '
+      '"$configured". Expected "workspace-dev" or "release-consumer".',
+    ),
   };
 }
 
 NexaHttpNativeArtifactResolutionMode
-    defaultNexaHttpNativeArtifactResolutionMode({
+defaultNexaHttpNativeArtifactResolutionMode({
   required Uri packageRoot,
   String? defaultSourceDir,
 }) {
@@ -199,19 +198,17 @@ Future<File?> _resolveDefaultSourceDir({
   required SourceDirCandidatesBuilder sourceDirCandidates,
   required SourceDirBuilder? buildDefaultSourceDir,
 }) async {
-  final discovered = await _resolveFromSourceDir(
-    defaultSourceDir,
-    sourceDirCandidates,
-  );
-  if (discovered != null) {
-    return discovered;
+  if (buildDefaultSourceDir != null) {
+    await buildDefaultSourceDir(defaultSourceDir);
+    final rebuilt = await _resolveFromSourceDir(
+      defaultSourceDir,
+      sourceDirCandidates,
+    );
+    if (rebuilt != null) {
+      return rebuilt;
+    }
   }
 
-  if (buildDefaultSourceDir == null) {
-    return null;
-  }
-
-  await buildDefaultSourceDir(defaultSourceDir);
   return _resolveFromSourceDir(defaultSourceDir, sourceDirCandidates);
 }
 

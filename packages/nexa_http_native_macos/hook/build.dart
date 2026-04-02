@@ -2,9 +2,10 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
-import 'package:nexa_http_native_macos/src/nexa_http_native_macos_asset_bundle.dart';
 import 'package:nexa_http_distribution/nexa_http_distribution.dart';
 import 'package:path/path.dart' as p;
+
+import '../lib/src/nexa_http_native_macos_asset_bundle.dart';
 
 Future<void> main(List<String> args) async {
   await build(args, (input, output) async {
@@ -54,21 +55,18 @@ Future<void> main(List<String> args) async {
         ),
       ),
       buildDefaultSourceDir: (sourceDir) async {
-        final result = await Process.run(
-          'cargo',
-          <String>[
-            'build',
-            '--manifest-path',
-            p.join(sourceDir, 'Cargo.toml'),
-          ],
-        );
+        final result = await Process.run('cargo', <String>[
+          'build',
+          '--manifest-path',
+          p.join(sourceDir, 'Cargo.toml'),
+        ]);
         if (result.exitCode != 0) {
           throw ProcessException(
             'cargo',
             <String>[
               'build',
               '--manifest-path',
-              p.join(sourceDir, 'Cargo.toml')
+              p.join(sourceDir, 'Cargo.toml'),
             ],
             '${result.stdout}${result.stderr}',
             result.exitCode,

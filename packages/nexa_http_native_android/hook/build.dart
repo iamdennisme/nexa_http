@@ -2,9 +2,10 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
-import 'package:nexa_http_native_android/src/nexa_http_native_android_asset_bundle.dart';
 import 'package:nexa_http_distribution/nexa_http_distribution.dart';
 import 'package:path/path.dart' as p;
+
+import '../lib/src/nexa_http_native_android_asset_bundle.dart';
 
 Future<void> main(List<String> args) async {
   await build(args, (input, output) async {
@@ -53,6 +54,35 @@ Future<void> main(List<String> args) async {
           'nexa_http_native_android_ffi',
         ),
       ),
+      buildDefaultSourceDir: (sourceDir) async {
+        final rustTargetTriple = target.rustTargetTriple;
+        if (rustTargetTriple == null || rustTargetTriple.isEmpty) {
+          throw StateError(
+            'Android native target is missing rustTargetTriple for ${target.targetArchitecture}.',
+          );
+        }
+
+        final workspaceRoot = p.normalize(
+          p.join(sourceDir, '..', '..', '..', '..'),
+        );
+        final buildScript = p.join(
+          workspaceRoot,
+          'scripts',
+          'build_native_android.sh',
+        );
+        final result = await Process.run('bash', <String>[
+          buildScript,
+          'debug',
+        ]);
+        if (result.exitCode != 0) {
+          throw ProcessException(
+            'bash',
+            <String>[buildScript, 'debug'],
+            '${result.stdout}${result.stderr}',
+            result.exitCode,
+          );
+        }
+      },
       sourceDirCandidates: target.sourceDirCandidates,
     );
 

@@ -2,9 +2,10 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
-import 'package:nexa_http_native_ios/src/nexa_http_native_ios_asset_bundle.dart';
 import 'package:nexa_http_distribution/nexa_http_distribution.dart';
 import 'package:path/path.dart' as p;
+
+import '../lib/src/nexa_http_native_ios_asset_bundle.dart';
 
 Future<void> main(List<String> args) async {
   await build(args, (input, output) async {
@@ -53,6 +54,36 @@ Future<void> main(List<String> args) async {
           'nexa_http_native_ios_ffi',
         ),
       ),
+      buildDefaultSourceDir: (sourceDir) async {
+        final rustTargetTriple = target.rustTargetTriple;
+        if (rustTargetTriple == null || rustTargetTriple.isEmpty) {
+          throw StateError(
+            'iOS native target is missing rustTargetTriple for ${target.targetArchitecture}/${target.targetSdk}.',
+          );
+        }
+
+        final result = await Process.run('cargo', <String>[
+          'build',
+          '--manifest-path',
+          p.join(sourceDir, 'Cargo.toml'),
+          '--target',
+          rustTargetTriple,
+        ]);
+        if (result.exitCode != 0) {
+          throw ProcessException(
+            'cargo',
+            <String>[
+              'build',
+              '--manifest-path',
+              p.join(sourceDir, 'Cargo.toml'),
+              '--target',
+              rustTargetTriple,
+            ],
+            '${result.stdout}${result.stderr}',
+            result.exitCode,
+          );
+        }
+      },
       sourceDirCandidates: target.sourceDirCandidates,
     );
 
