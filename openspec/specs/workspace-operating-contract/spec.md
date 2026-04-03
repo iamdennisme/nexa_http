@@ -15,11 +15,12 @@ Changes to governed workflow behavior SHALL be proposed and reviewed through Ope
 - **THEN** the change SHALL include an OpenSpec proposal that updates the relevant governance requirements before or alongside implementation
 
 ### Requirement: Official Operating Entrypoints
-The repository SHALL provide stable official entrypoints for governed workflows so maintainers and future sessions do not need to rediscover or reinvent the process.
+The repository SHALL provide stable official entrypoints for governed workflows so maintainers and future sessions do not need to rediscover or reinvent the process, and repository-level documentation MUST point readers to the current verification, release-tag, and maintainer entrypoints in a way that matches the current workflow surface.
 
 #### Scenario: Maintainer needs the official verification entrypoints
-- **WHEN** a maintainer consults the operating contract
-- **THEN** the contract SHALL point to the repository-owned commands or procedures that verify development-path, release-consumer-path, artifact-consistency, release-version alignment, and test-tag validation
+- **WHEN** a maintainer consults the operating contract or top-level repository documentation
+- **THEN** the documentation SHALL point to the repository-owned commands or procedures that verify development-path, release-consumer-path, artifact-consistency, release-version alignment, and test-tag validation
+- **AND** those entrypoints MUST match the current repository workflow surface
 
 ### Requirement: Reusable Workflow Model
 The operating contract SHALL define the repository model in a way that can be adopted by future repositories without renegotiating its core lifecycle.

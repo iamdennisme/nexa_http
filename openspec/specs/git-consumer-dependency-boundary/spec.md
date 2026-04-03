@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: External consumers SHALL declare only `nexa_http`
-The supported external integration contract SHALL require app consumers to declare only `nexa_http` as a dependency input, including the governed tag-validation consumer check that resolves `packages/nexa_http` from a git+ssh tag reference.
+The supported external integration contract SHALL require app consumers to declare only `nexa_http` as a dependency input, and repository/package documentation MUST present that public integration path clearly and accurately, including the current git+ssh tag-based consumption shape.
 
 #### Scenario: External app integrates the SDK through git
 - **WHEN** a Flutter app outside the repository consumes the SDK through git/ssh
@@ -9,11 +9,10 @@ The supported external integration contract SHALL require app consumers to decla
 - **AND** it MUST NOT be necessary to declare platform carrier packages manually
 - **AND** it MUST NOT be necessary to declare `nexa_http_runtime` or `nexa_http_distribution`
 
-#### Scenario: Maintainer validates tag-based external consumption
-- **WHEN** the governed test-tag validation workflow creates a temporary external Flutter app
-- **THEN** the app MUST declare only `nexa_http` in `pubspec.yaml`
-- **AND** it MUST resolve that dependency from the repository's git+ssh URL using `ref` set to the governed tag name
-- **AND** the dependency path MUST target `packages/nexa_http`
+#### Scenario: Documentation explains external tag consumption
+- **WHEN** repository or package documentation shows how to consume the SDK from git/ssh
+- **THEN** it MUST use the public `nexa_http` package surface
+- **AND** it MUST describe the current tag-based `ref` and `path: packages/nexa_http` contract accurately
 
 ### Requirement: Platform implementations SHALL remain internal to the public contract
 Platform carrier packages SHALL be selected through the plugin/federation wiring owned by `nexa_http`, not through public setup instructions.
