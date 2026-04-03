@@ -104,8 +104,18 @@ release-train 版本对齐。
 `dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z` 会在
 发布前校验仓库 tag 与七个 release-train 包的版本完全一致。
 
+`dart run scripts/workspace_tools.dart verify-tag-consumer --tag vX.Y.Z` 会在
+仓库外创建一个临时 Flutter consumer，用 git+ssh tag 解析 `packages/nexa_http`，
+执行最小宿主构建校验，并在成功后删除该临时工程。
+
 native asset 的 GitHub workflow 只有在版本校验通过后才会按仓库 tag 发布产物，
 所以每次工作区发布都应使用一个统一 tag。
+
+如果要执行受治理的整体验证流程，可以先用
+[`scripts/tag_release_validation.sh`](./scripts/tag_release_validation.sh)
+发布分支和 tag、等待 tag 触发的 workflow 完成，再执行
+`dart run scripts/workspace_tools.dart verify-tag-consumer --tag vX.Y.Z`
+验证外部 git+ssh tag 消费路径。
 
 工作区内的依赖示例：
 

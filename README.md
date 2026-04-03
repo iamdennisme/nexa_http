@@ -100,11 +100,20 @@ The workspace should be treated as one release train.
 - `dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z`
   verifies that the repository tag matches the aligned package version before
   release publication.
+- `dart run scripts/workspace_tools.dart verify-tag-consumer --tag vX.Y.Z`
+  creates a temporary external Flutter consumer outside the repository, resolves
+  `packages/nexa_http` from the git+ssh tag, runs the minimum host build check,
+  and deletes the temporary app on success.
 
 The native-assets workflow in
 [`release-native-assets.yml`](./.github/workflows/release-native-assets.yml)
 publishes assets by repository tag only after the release-train version check
 passes. Use one tag per workspace release.
+
+For an end-to-end governed tag validation run, publish the branch and tag with
+[`scripts/tag_release_validation.sh`](./scripts/tag_release_validation.sh), wait
+for the tag-triggered workflow to finish, then verify external tag consumption
+with `dart run scripts/workspace_tools.dart verify-tag-consumer --tag vX.Y.Z`.
 
 Example workspace dependency setup:
 

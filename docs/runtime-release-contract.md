@@ -22,6 +22,7 @@ The following workflows are governed:
 - `release-consumer-path`: external `git/ssh` consumer workflow
 - `artifact-consistency`: native asset naming, completeness, and manifest checks
 - `release-publication`: tag-driven GitHub Actions asset publication
+- `test-tag-validation`: governed publication, retry, workflow observation, and external tag-consumer proof for a release tag
 
 ## Official Entrypoints
 
@@ -30,6 +31,7 @@ Repository verification commands:
 ```bash
 fvm dart run scripts/workspace_tools.dart verify-development-path
 fvm dart run scripts/workspace_tools.dart verify-release-consumer
+fvm dart run scripts/workspace_tools.dart verify-tag-consumer --tag vX.Y.Z
 fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
 fvm dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z
 ```
@@ -43,9 +45,10 @@ Native artifact preparation entrypoints:
 ./scripts/build_native_windows.sh debug
 ```
 
-Release publication entrypoint:
+Release publication entrypoints:
 
 - [`.github/workflows/release-native-assets.yml`](../.github/workflows/release-native-assets.yml)
+- [`scripts/tag_release_validation.sh`](../scripts/tag_release_validation.sh)
 
 ## Stable Rules
 
@@ -75,7 +78,15 @@ Release publication entrypoint:
 - Supported release assets are published by GitHub Actions, not by ad hoc local
   copying.
 
-### 5. Change Governance Contract
+### 5. Test Tag Validation Contract
+
+- Test-tag validation starts from `develop` and uses a governed release tag such as `vX.Y.Z`.
+- The flow must distinguish local-only work from shared-state mutations such as pushing `develop`, deleting remote tags, and republishing the same tag name.
+- Tag validation succeeds only after the required tag-triggered GitHub Actions complete successfully.
+- External tag-consumer verification uses a temporary Flutter app outside the repository with git+ssh `ref: vX.Y.Z` and `path: packages/nexa_http`.
+- The temporary external consumer must be cleaned up after verification unless explicitly preserved for debugging.
+
+### 6. Change Governance Contract
 
 The following changes require a new OpenSpec change:
 

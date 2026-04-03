@@ -10,9 +10,8 @@ typedef PackageCommandRunner = Future<void> Function(
   Directory packageDir,
   String executable,
   List<String> arguments, {
-    Map<String, String>? environment,
-  }
-);
+  Map<String, String>? environment,
+});
 
 enum WorkspaceHostPlatform { macos, windows, linux, other }
 
@@ -34,6 +33,7 @@ const List<String> workspaceVerificationCommands = <String>[
   'verify-artifact-consistency',
   'verify-development-path',
   'verify-release-consumer',
+  'verify-tag-consumer',
   'check-release-train',
 ];
 
@@ -71,6 +71,9 @@ Future<void> main(List<String> args) async {
     case 'verify-release-consumer':
     case 'verify-external-consumer':
       await verifyReleaseConsumer(workspaceRoot);
+      return;
+    case 'verify-tag-consumer':
+      await verifyTagConsumer(workspaceRoot, args.skip(1).toList());
       return;
     case 'check-release-train':
       await checkReleaseTrainVersions(workspaceRoot, args.skip(1).toList());
@@ -308,8 +311,7 @@ Future<void> verifyReleaseConsumer(
   WorkspaceHostPlatform? hostPlatform,
   PackageCommandRunner runPackageCommand = _runPackageCommand,
 }) async {
-  final resolvedHostPlatform =
-      hostPlatform ?? currentWorkspaceHostPlatform();
+  final resolvedHostPlatform = hostPlatform ?? currentWorkspaceHostPlatform();
   final tempRoot = await Directory.systemTemp.createTemp(
     'nexa_http_external_consumer_',
   );
@@ -337,8 +339,9 @@ Future<void> verifyReleaseConsumer(
     );
 
     final repoUri = snapshotDir.absolute.uri.toString();
+    final packageVersion = verifyAlignedReleaseTrainVersions(workspaceRoot);
     await File(p.join(consumerDir.path, 'pubspec.yaml')).writeAsString(
-      _buildExternalConsumerPubspec(repoUri),
+      _buildExternalConsumerPubspec(repoUri, ref: 'v$packageVersion'),
     );
     final libDir = Directory(p.join(consumerDir.path, 'lib'));
     await libDir.create(recursive: true);
@@ -424,7 +427,8 @@ Future<Map<String, String>> _releaseConsumerEnvironment({
     });
   }
 
-  final packageVersion = readReleaseTrainPackageVersions(workspaceRoot)['nexa_http']!;
+  final packageVersion =
+      readReleaseTrainPackageVersions(workspaceRoot)['nexa_http']!;
   final manifestFile = File(
     p.join(tempRoot.path, nexaHttpNativeAssetsManifestFileName),
   );
@@ -537,9 +541,8 @@ Future<void> _runPackageCommand(
   Directory packageDir,
   String executable,
   List<String> arguments, {
-    Map<String, String>? environment,
-  }
-) async {
+  Map<String, String>? environment,
+}) async {
   final result = await Process.run(
     executable,
     arguments,
@@ -750,7 +753,7 @@ String _currentMacOsArchitecture() {
   };
 }
 
-String _buildExternalConsumerPubspec(String repoUrl) {
+String _buildExternalConsumerPubspec(String repoUrl, {required String ref}) {
   return '''
 name: nexa_http_external_consumer_fixture
 publish_to: none
@@ -765,7 +768,7 @@ dependencies:
     git:
       url: $repoUrl
       path: packages/nexa_http
-      ref: master
+      ref: $ref
 
 flutter:
   uses-material-design: true
@@ -801,10 +804,157 @@ Future<void> checkReleaseTrainVersions(
   );
 }
 
+Future<void> verifyTagConsumer(
+  String workspaceRoot,
+  List<String> arguments,
+) async {
+  String? tagName;
+  String? repoUrl;
+  String? tempRoot;
+  var keepTemp = false;
+
+  for (var index = 0; index < arguments.length; index++) {
+    final argument = arguments[index];
+    switch (argument) {
+      case '--tag':
+        if (index + 1 >= arguments.length) {
+          throw ArgumentError('Missing value for --tag.');
+        }
+        tagName = arguments[index + 1];
+        index++;
+        continue;
+      case '--repo-url':
+        if (index + 1 >= arguments.length) {
+          throw ArgumentError('Missing value for --repo-url.');
+        }
+        repoUrl = arguments[index + 1];
+        index++;
+        continue;
+      case '--temp-root':
+        if (index + 1 >= arguments.length) {
+          throw ArgumentError('Missing value for --temp-root.');
+        }
+        tempRoot = arguments[index + 1];
+        index++;
+        continue;
+      case '--keep-temp':
+        keepTemp = true;
+        continue;
+      default:
+        throw ArgumentError('Unknown verify-tag-consumer option: $argument');
+    }
+  }
+
+  if (tagName == null || tagName.trim().isEmpty) {
+    throw ArgumentError('verify-tag-consumer requires --tag <tag>.');
+  }
+
+  final normalizedTag = tagName.trim();
+  final effectiveRepoUrl = (repoUrl == null || repoUrl.trim().isEmpty)
+      ? _readOriginPushUrl(workspaceRoot)
+      : repoUrl.trim();
+  final hostPlatform = currentWorkspaceHostPlatform();
+  if (hostPlatform == WorkspaceHostPlatform.other) {
+    throw StateError('Unsupported host platform for verify-tag-consumer.');
+  }
+
+  final root = tempRoot == null || tempRoot.trim().isEmpty
+      ? await Directory.systemTemp.createTemp('nexa_http_tag_consumer_')
+      : await Directory(tempRoot.trim()).create(recursive: true);
+
+  try {
+    final consumerDir = Directory(p.join(root.path, 'consumer'));
+    await consumerDir.create(recursive: true);
+
+    final result = await Process.run(
+      'flutter',
+      consumerCreateArgumentsForHost(hostPlatform),
+      workingDirectory: consumerDir.path,
+      runInShell: true,
+    );
+    if (result.exitCode != 0) {
+      throw ProcessException(
+        'flutter',
+        consumerCreateArgumentsForHost(hostPlatform),
+        '${result.stdout}${result.stderr}',
+        result.exitCode,
+      );
+    }
+
+    await File(p.join(consumerDir.path, 'pubspec.yaml')).writeAsString(
+      _buildExternalConsumerPubspec(effectiveRepoUrl, ref: normalizedTag),
+    );
+
+    final environment = <String, String>{
+      ...Platform.environment,
+      _artifactModeEnvironmentVariable: 'release-consumer',
+    };
+
+    Future<void> runFlutter(List<String> command) async {
+      final runResult = await Process.run(
+        'flutter',
+        command,
+        workingDirectory: consumerDir.path,
+        runInShell: true,
+        environment: environment,
+      );
+      if (runResult.exitCode != 0) {
+        throw ProcessException(
+          'flutter',
+          command,
+          '${runResult.stdout}${runResult.stderr}',
+          runResult.exitCode,
+        );
+      }
+    }
+
+    await runFlutter(const <String>['pub', 'get']);
+    for (final buildArguments in consumerBuildCommandsForHost(
+      consumerDir,
+      hostPlatform,
+    )) {
+      await runFlutter(buildArguments);
+    }
+
+    stdout.writeln(
+      'Verified tag consumer for $normalizedTag using $effectiveRepoUrl at ${consumerDir.path}.',
+    );
+    if (keepTemp) {
+      stdout.writeln('Preserved temporary consumer at ${root.path}.');
+    }
+  } finally {
+    if (!keepTemp && root.existsSync()) {
+      await root.delete(recursive: true);
+    }
+  }
+}
+
+String _readOriginPushUrl(String workspaceRoot) {
+  final result = Process.runSync(
+    'git',
+    const <String>['remote', 'get-url', '--push', 'origin'],
+    workingDirectory: workspaceRoot,
+    runInShell: true,
+  );
+  if (result.exitCode != 0) {
+    throw ProcessException(
+      'git',
+      const <String>['remote', 'get-url', '--push', 'origin'],
+      '${result.stdout}${result.stderr}',
+      result.exitCode,
+    );
+  }
+  final value = '${result.stdout}'.trim();
+  if (value.isEmpty) {
+    throw StateError('Missing origin push URL.');
+  }
+  return value;
+}
+
 Never _printUsageAndExit({int exitCode = 64}) {
   stderr.writeln(
     'Usage: dart run scripts/workspace_tools.dart '
-    '<bootstrap|analyze|test|verify|verify-artifact-consistency|verify-development-path|verify-release-consumer|check-release-train [--tag <tag>]>',
+    '<bootstrap|analyze|test|verify|verify-artifact-consistency|verify-development-path|verify-release-consumer|verify-tag-consumer [--tag <tag>] [--repo-url <url>] [--temp-root <dir>] [--keep-temp]|check-release-train [--tag <tag>]>',
   );
   exit(exitCode);
 }
