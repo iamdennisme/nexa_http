@@ -2,46 +2,41 @@
 
 [中文](./README.zh-CN.md)
 
-`nexa_http` is a Flutter HTTP workspace with an OkHttp-style Dart API on top of
-a Rust transport runtime.
+`nexa_http` is a Flutter HTTP SDK with an OkHttp-style Dart API backed by a Rust transport runtime.
 
-## Workspace
+If you're integrating it into an app, the mental model is intentionally small:
 
-The repository is split into a small number of responsibilities:
+- depend on `nexa_http`
+- import `package:nexa_http/nexa_http.dart`
+- build requests with the public HTTP API
+- let the workspace handle native runtime registration, artifact resolution, and platform wiring internally
 
-- `packages/nexa_http`: public Dart package used by Flutter apps
-- `packages/nexa_http_native_android|ios|macos|windows`: platform carrier
-  packages that register and package the native runtime
-- `packages/nexa_http/native/rust_net_native`: Rust transport implementation
-- `fixture_server/`: local HTTP fixture server used by the example app and tests
-- `scripts/`: workspace build and verification helpers
+Most of this repository exists so application code does **not** need to think about native loading and release plumbing.
 
-The public mental model is intentionally narrow:
+## Use It In An App
 
-- apps use HTTP concepts only
-- carrier packages hide runtime registration
-- transport startup stays lazy and internal
+For normal app code, `nexa_http` is the only package you should declare.
 
-## Public API
+### Git / SSH dependency
 
-The root library is [`package:nexa_http/nexa_http.dart`](./packages/nexa_http/lib/nexa_http.dart).
+```yaml
+dependencies:
+  nexa_http:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: v1.0.1
+      path: packages/nexa_http
+```
 
-It exports:
+### Local path dependency
 
-- `NexaHttpClient`
-- `NexaHttpClientBuilder`
-- `Request`
-- `RequestBuilder`
-- `RequestBody`
-- `Response`
-- `ResponseBody`
-- `Headers`
-- `MediaType`
-- `Call`
-- `Callback`
-- `NexaHttpException`
+```yaml
+dependencies:
+  nexa_http:
+    path: ../nexa_http/packages/nexa_http
+```
 
-Typical usage:
+The public entrypoint is [`package:nexa_http/nexa_http.dart`](./packages/nexa_http/lib/nexa_http.dart).
 
 ```dart
 import 'package:nexa_http/nexa_http.dart';
@@ -61,99 +56,38 @@ final response = await client.newCall(request).execute();
 final body = await response.body?.string();
 ```
 
-`NexaHttpClient` is lightweight and synchronous. Native loading, worker startup,
-and pooled transport acquisition happen lazily on the first real
-`call.execute()`.
+### What app code does **not** need to handle
 
-## Platform Packages
+You should not need to care about:
 
-End-user application code should stay on `package:nexa_http/nexa_http.dart`.
+- platform carrier packages
+- runtime registration
+- native library loading
+- release manifest lookup
+- release asset download rules
 
-Carrier packages use `package:nexa_http_runtime/nexa_http_runtime.dart`
-internally to register the native runtime. Build hooks use
-`package:nexa_http_distribution/nexa_http_distribution.dart`. Neither package
-is for normal app code.
+Those concerns live behind the package boundary.
 
-## Package Boundaries
-
-The workspace now has three distinct Dart roles:
-
-- `nexa_http`: app-facing HTTP API and transport bridge
-- `nexa_http_runtime`: runtime SPI, loader, and host-platform discovery
-- `nexa_http_distribution`: native artifact resolution for build hooks and
-  release tooling
-
-This split is intentional. `nexa_http` no longer re-exports runtime or
-distribution entrypoints.
-
-## Versioning And Releases
-
-The workspace should be treated as one release train.
-
-- Keep `nexa_http`, `nexa_http_runtime`, `nexa_http_distribution`, and the
-  carrier packages on the same semantic version.
-- Ship native asset releases against that same version tag.
-- If a change affects runtime loading, manifest format, or carrier-package
-  integration, bump the package set together rather than drifting versions.
-- `dart run scripts/workspace_tools.dart verify` now checks package analysis,
-  package tests, and release-train version alignment together.
-- `dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z`
-  verifies that the repository tag matches the aligned package version before
-  release publication.
-- `dart run scripts/workspace_tools.dart verify-tag-consumer --tag vX.Y.Z`
-  creates a temporary external Flutter consumer outside the repository, resolves
-  `packages/nexa_http` from the git+ssh tag, runs the minimum host build check,
-  and deletes the temporary app on success.
-
-The native-assets workflow in
-[`release-native-assets.yml`](./.github/workflows/release-native-assets.yml)
-publishes assets by repository tag only after the release-train version check
-passes. Use one tag per workspace release.
-
-For an end-to-end governed tag validation run, publish the branch and tag with
-[`scripts/tag_release_validation.sh`](./scripts/tag_release_validation.sh), wait
-for the tag-triggered workflow to finish, then verify external tag consumption
-with `dart run scripts/workspace_tools.dart verify-tag-consumer --tag vX.Y.Z`.
-
-Example workspace dependency setup:
-
-```yaml
-dependencies:
-  nexa_http:
-    path: ../nexa_http/packages/nexa_http
-```
-
-When consuming from Git instead of `path`, pin `nexa_http` to the desired ref.
-
-Example git dependency setup:
-
-```yaml
-dependencies:
-  nexa_http:
-    git:
-      url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http
-```
-
-## Example App
+## Run The Demo
 
 The demo app lives in [`packages/nexa_http/example`](./packages/nexa_http/example).
 
 It has two pages:
 
-- `HTTP Playground`: build a request with the public API and inspect the real
-  response
-- `Benchmark`: compare `nexa_http` against Dart `HttpClient` with concurrent
-  `bytes` and `image` scenarios
+- **HTTP Playground** — build a real request with the public API and inspect the response
+- **Benchmark** — compare `nexa_http` and Dart `HttpClient` under the same concurrent workload
 
-Run the fixture server:
+### 1. Start the local fixture server
+
+From the repository root:
 
 ```bash
-dart run fixture_server/http_fixture_server.dart --port 8080
+fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-Run the example:
+If your local Dart toolchain already matches the repo requirement, `dart run` also works. `fvm` is the safer default for this repository.
+
+### 2. Run the example app
 
 ```bash
 cd packages/nexa_http/example
@@ -161,7 +95,7 @@ fvm flutter pub get
 fvm flutter run -d macos
 ```
 
-Other supported targets use the same app without source edits:
+Other supported targets use the same project without source edits:
 
 ```bash
 cd packages/nexa_http/example
@@ -171,50 +105,142 @@ fvm flutter run -d android
 fvm flutter run -d ios
 ```
 
-Default local base URLs:
+### Common local base URLs
 
 - macOS / Windows host: `http://127.0.0.1:8080`
 - Android emulator: `http://10.0.2.2:8080`
 - Android device with `adb reverse tcp:8080 tcp:8080`: `http://127.0.0.1:8080`
 - iOS simulator on the same host: `http://127.0.0.1:8080`
 
-Platform notes:
+### Platform notes
 
 - macOS / Windows: run the fixture server on the same machine before `flutter run`
 - Android emulator: keep the default `10.0.2.2` base URL
-- Android device: use `adb reverse tcp:8080 tcp:8080` if the fixture server is on your host machine
-- iOS simulator: the default host loopback URL works; for a physical device, pass a reachable host with `--dart-define=NEXA_HTTP_EXAMPLE_BASE_URL=...`
+- Android device: use `adb reverse tcp:8080 tcp:8080` if the fixture server runs on your host machine
+- iOS simulator: the default host loopback URL works
+- Physical devices: pass a reachable host with `--dart-define=NEXA_HTTP_EXAMPLE_BASE_URL=...`
 
-The benchmark page exposes a small set of parameters:
+## Benchmark
+
+The benchmark page compares `nexa_http` and Dart `HttpClient` sequentially, so one run does not steal bandwidth or sockets from the other.
+
+### Scenarios
+
+- `bytes` — hits `/bytes?size=...&seed=...`
+- `image` — hits `/image?id=...`
+
+### Configurable inputs
 
 - `baseUrl`
-- `scenario`: `bytes` or `image`
+- `scenario`
 - `concurrency`
 - `totalRequests`
 - `payloadSize`
 - `warmupRequests`
 - `timeout`
 
-## Verification
+### Reported metrics
 
-The repository's debugging, packaging, release, and external-consumer flows are
-treated as governed operating contracts. Before changing those workflows, review
-[`docs/runtime-release-contract.md`](./docs/runtime-release-contract.md) and
-update the corresponding OpenSpec specs through a new change.
+Each transport reports:
 
-Workspace commands:
+- total duration
+- throughput (`MiB/s`)
+- requests per second
+- first-request latency
+- post-warmup average latency
+- P50 latency
+- P95 latency
+- P99 latency
+- max latency
+- success count
+- failure count
+- failure breakdown
+- bytes received
+
+The example also supports benchmark defaults through `--dart-define` values such as:
+
+- `NEXA_HTTP_EXAMPLE_BASE_URL`
+- `NEXA_HTTP_EXAMPLE_BENCHMARK_SCENARIO`
+- `NEXA_HTTP_EXAMPLE_BENCHMARK_CONCURRENCY`
+- `NEXA_HTTP_EXAMPLE_BENCHMARK_TOTAL_REQUESTS`
+- `NEXA_HTTP_EXAMPLE_BENCHMARK_PAYLOAD_SIZE`
+- `NEXA_HTTP_EXAMPLE_BENCHMARK_WARMUP_REQUESTS`
+- `NEXA_HTTP_EXAMPLE_BENCHMARK_TIMEOUT_MS`
+- `NEXA_HTTP_EXAMPLE_AUTO_RUN_BENCHMARK`
+- `NEXA_HTTP_EXAMPLE_EXIT_AFTER_BENCHMARK`
+- `NEXA_HTTP_EXAMPLE_BENCHMARK_OUTPUT_PATH`
+
+See [`packages/nexa_http/example/README.md`](./packages/nexa_http/example/README.md) for example launch commands.
+
+## Consume From A Release Tag
+
+This repository treats the workspace as a single release train.
+
+That means:
+
+- `nexa_http`
+- `nexa_http_runtime`
+- `nexa_http_distribution`
+- all platform carrier packages
+
+move together on the same semantic version.
+
+Release assets are published by GitHub Actions against the same repository tag.
+
+### Tag rules
+
+- keep release-train package versions aligned
+- publish one workspace tag per release
+- use the same tag for git consumption and release asset publication
+
+Before publishing, the repository checks tag/version parity with:
 
 ```bash
-dart pub get
+fvm dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z
+```
+
+To prove a tag is externally consumable, the repository also supports:
+
+```bash
+fvm dart run scripts/workspace_tools.dart verify-tag-consumer --tag vX.Y.Z
+```
+
+That command creates a temporary Flutter app outside the repository, resolves `packages/nexa_http` from the git+ssh tag, runs the minimum host build check, and deletes the temporary app on success.
+
+For the full governed flow, use:
+
+```bash
+./scripts/tag_release_validation.sh run --tag vX.Y.Z --remote origin --branch develop
+```
+
+That script is the repository-owned entrypoint for:
+
+- pushing the branch
+- recreating a governed tag if needed
+- publishing the tag
+- waiting for the tag-triggered release workflow
+
+## Maintainer Workflows
+
+This repository treats debugging, packaging, release, and external-consumer flows as governed operating contracts.
+
+If you change those workflows, update the corresponding OpenSpec specs first.
+
+### Workspace-level commands
+
+```bash
+fvm dart pub get
 fvm dart run scripts/workspace_tools.dart bootstrap
 fvm dart run scripts/workspace_tools.dart analyze
 fvm dart run scripts/workspace_tools.dart test
 fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
 fvm dart run scripts/workspace_tools.dart verify-release-consumer
+fvm dart run scripts/workspace_tools.dart verify-tag-consumer --tag vX.Y.Z
 fvm dart run scripts/workspace_tools.dart verify-development-path
+fvm dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z
 ```
 
-Focused package commands:
+### Focused package checks
 
 ```bash
 cd packages/nexa_http
@@ -224,3 +250,54 @@ cd packages/nexa_http/example
 fvm flutter test
 fvm flutter analyze
 ```
+
+### Release publication workflow
+
+The tag-triggered release workflow lives at:
+
+- [`.github/workflows/release-native-assets.yml`](./.github/workflows/release-native-assets.yml)
+
+The broader workflow contract is documented here:
+
+- [`docs/runtime-release-contract.md`](./docs/runtime-release-contract.md)
+
+## Workspace Layout
+
+If you're just consuming the SDK, you can stop reading here. The rest of this section is mainly for repository maintainers.
+
+### Dart packages
+
+- `packages/nexa_http` — public app-facing HTTP API
+- `packages/nexa_http_runtime` — runtime SPI, loader behavior, and host-platform discovery
+- `packages/nexa_http_distribution` — native artifact resolution and release-manifest logic
+- `packages/nexa_http_native_android|ios|macos|windows` — platform carrier packages that register and package the runtime
+
+### Rust code
+
+The shared Rust core lives in:
+
+- `native/nexa_http_native_core`
+
+Platform-specific native crates live under the carrier packages, for example:
+
+- `packages/nexa_http_native_macos/native/...`
+- `packages/nexa_http_native_ios/native/...`
+- `packages/nexa_http_native_android/native/...`
+- `packages/nexa_http_native_windows/native/...`
+
+### Local fixtures and scripts
+
+- `fixture_server/` — local HTTP fixture server used by the example app and tests
+- `scripts/` — workspace build, verification, release, and tag-validation helpers
+
+## Design Intent
+
+The repository is intentionally split so app-facing usage stays narrow:
+
+- apps use HTTP concepts
+- platform packages hide runtime registration
+- transport startup stays lazy and internal
+- release-consumer behavior stays explicit
+- release assets are governed by repository-owned workflows, not ad hoc local steps
+
+That separation is what lets the public SDK stay small even though the workspace itself has a fair amount of native and release machinery behind it.

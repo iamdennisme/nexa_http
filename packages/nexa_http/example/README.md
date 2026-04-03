@@ -6,10 +6,8 @@ Consumer-style demo app for `nexa_http`.
 
 The app has two pages:
 
-- `HTTP Playground`: build a real request with the public API and inspect the
-  response
-- `Benchmark`: run the same concurrent request plan through `nexa_http` and
-  Dart `HttpClient`
+- `HTTP Playground`: build a real request with the public API and inspect the response
+- `Benchmark`: run the same concurrent request plan through `nexa_http` and Dart `HttpClient`
 
 The benchmark supports two scenarios:
 
@@ -21,8 +19,10 @@ The benchmark supports two scenarios:
 From the repository root, start the fixture server:
 
 ```bash
-dart run fixture_server/http_fixture_server.dart --port 8080
+fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
+
+If your local Dart SDK already matches the repository requirement, `dart run` also works. `fvm` is the safer default for this repository.
 
 Then run the example app:
 
@@ -58,8 +58,7 @@ Platform notes:
 
 ## Benchmark Defaults
 
-The benchmark page is configurable in the UI, and these environment variables
-set the initial values:
+The benchmark page is configurable in the UI, and these environment variables set the initial values:
 
 - `NEXA_HTTP_EXAMPLE_BASE_URL`
 - `NEXA_HTTP_EXAMPLE_BENCHMARK_SCENARIO`
@@ -68,6 +67,9 @@ set the initial values:
 - `NEXA_HTTP_EXAMPLE_BENCHMARK_PAYLOAD_SIZE`
 - `NEXA_HTTP_EXAMPLE_BENCHMARK_WARMUP_REQUESTS`
 - `NEXA_HTTP_EXAMPLE_BENCHMARK_TIMEOUT_MS`
+- `NEXA_HTTP_EXAMPLE_AUTO_RUN_BENCHMARK`
+- `NEXA_HTTP_EXAMPLE_EXIT_AFTER_BENCHMARK`
+- `NEXA_HTTP_EXAMPLE_BENCHMARK_OUTPUT_PATH`
 
 Example launch:
 
@@ -89,12 +91,15 @@ Each benchmark run shows:
 - total duration
 - throughput in `MiB/s`
 - requests per second
-- average latency
+- first-request latency
+- post-warmup average latency
 - P50 latency
 - P95 latency
+- P99 latency
+- max latency
 - success count
 - failure count
+- failure breakdown
 - bytes received
 
-The two transports run sequentially on purpose, so one run does not steal
-bandwidth or sockets from the other.
+The two transports run sequentially on purpose, so one run does not steal bandwidth or sockets from the other.
