@@ -310,6 +310,7 @@ Future<void> verifyReleaseConsumer(
   String workspaceRoot, {
   WorkspaceHostPlatform? hostPlatform,
   PackageCommandRunner runPackageCommand = _runPackageCommand,
+  bool initializeGitRepository = true,
 }) async {
   final resolvedHostPlatform = hostPlatform ?? currentWorkspaceHostPlatform();
   final tempRoot = await Directory.systemTemp.createTemp(
@@ -321,7 +322,13 @@ Future<void> verifyReleaseConsumer(
       Directory(workspaceRoot),
       snapshotDir,
     );
-    await _initializeTemporaryGitRepository(snapshotDir);
+    final packageVersion = verifyAlignedReleaseTrainVersions(workspaceRoot);
+    if (initializeGitRepository) {
+      await _initializeTemporaryGitRepository(
+        snapshotDir,
+        tagName: 'v$packageVersion',
+      );
+    }
 
     final consumerDir = Directory(p.join(tempRoot.path, 'consumer'));
     await consumerDir.create(recursive: true);
@@ -339,7 +346,6 @@ Future<void> verifyReleaseConsumer(
     );
 
     final repoUri = snapshotDir.absolute.uri.toString();
-    final packageVersion = verifyAlignedReleaseTrainVersions(workspaceRoot);
     await File(p.join(consumerDir.path, 'pubspec.yaml')).writeAsString(
       _buildExternalConsumerPubspec(repoUri, ref: 'v$packageVersion'),
     );
@@ -377,11 +383,13 @@ Future<void> verifyExternalConsumer(
   String workspaceRoot, {
   WorkspaceHostPlatform? hostPlatform,
   PackageCommandRunner runPackageCommand = _runPackageCommand,
+  bool initializeGitRepository = true,
 }) {
   return verifyReleaseConsumer(
     workspaceRoot,
     hostPlatform: hostPlatform,
     runPackageCommand: runPackageCommand,
+    initializeGitRepository: initializeGitRepository,
   );
 }
 
@@ -601,14 +609,20 @@ Future<void> _copyDirectory(Directory source, Directory destination) async {
   }
 }
 
-Future<void> _initializeTemporaryGitRepository(Directory repository) async {
-  for (final command in <List<String>>[
+Future<void> _initializeTemporaryGitRepository(
+  Directory repository, {
+  String? tagName,
+}) async {
+  final commands = <List<String>>[
     <String>['init'],
     <String>['config', 'user.email', 'ci@example.invalid'],
     <String>['config', 'user.name', 'CI Fixture'],
     <String>['add', '-f', '.'],
     <String>['commit', '-m', 'snapshot'],
-  ]) {
+    if (tagName != null && tagName.isNotEmpty)
+      <String>['tag', '-a', tagName, '-m', 'snapshot $tagName'],
+  ];
+  for (final command in commands) {
     final result = await Process.run(
       'git',
       command,

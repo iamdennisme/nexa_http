@@ -51,24 +51,24 @@ void main() {
 
     await verifyArtifacts(
       workspace.path,
-      runPackageCommand:
-          (packageDir, executable, arguments, {environment}) async {
+      runPackageCommand: (packageDir, executable, arguments,
+          {environment}) async {
         commands.add(
             '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
       },
     );
     await verifyDemo(
       workspace.path,
-      runPackageCommand:
-          (packageDir, executable, arguments, {environment}) async {
+      runPackageCommand: (packageDir, executable, arguments,
+          {environment}) async {
         commands.add(
             '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
       },
     );
     await verifyExternalConsumer(
       workspace.path,
-      runPackageCommand:
-          (packageDir, executable, arguments, {environment}) async {
+      runPackageCommand: (packageDir, executable, arguments,
+          {environment}) async {
         commands.add(
             '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
       },
@@ -107,8 +107,8 @@ void main() {
     await verifyDemo(
       workspace.path,
       hostPlatform: WorkspaceHostPlatform.macos,
-      runPackageCommand:
-          (packageDir, executable, arguments, {environment}) async {
+      runPackageCommand: (packageDir, executable, arguments,
+          {environment}) async {
         commands.add(
             '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
       },
@@ -305,8 +305,8 @@ void main() {
 
     await bootstrapWorkspacePackages(
       workspace.path,
-      runPackageCommand:
-          (packageDir, executable, arguments, {environment}) async {
+      runPackageCommand: (packageDir, executable, arguments,
+          {environment}) async {
         commands.add(
             '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
       },
@@ -379,8 +379,8 @@ void main() {
 
     await verifyWorkspacePackages(
       workspace.path,
-      runPackageCommand:
-          (packageDir, executable, arguments, {environment}) async {
+      runPackageCommand: (packageDir, executable, arguments,
+          {environment}) async {
         commands.add(
             '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
       },
