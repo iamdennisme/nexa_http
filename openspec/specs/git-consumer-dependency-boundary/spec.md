@@ -23,13 +23,19 @@ Platform carrier packages SHALL be selected through the plugin/federation wiring
 - **AND** it MUST NOT instruct users to add platform carrier packages as public dependencies
 
 ### Requirement: External consumers SHALL use release-consumer artifact resolution
-The supported external integration path SHALL use release-oriented native artifact resolution and SHALL NOT implicitly compile Rust from local source, including during the temporary tag-validation consumer proof.
+The supported external integration path SHALL use release-consumer native artifact resolution, and it SHALL NOT implicitly depend on workspace-local paths, repository checkout layout, or Rust source compilation behavior.
 
 #### Scenario: Consumer resolves native assets from a pinned git ref
 - **WHEN** an external app runs dependency resolution and platform build steps from a supported git/ssh setup
 - **THEN** native artifact resolution MUST execute in `release-consumer`
 - **AND** it MUST use packaged or release-published assets
 - **AND** it MUST fail with a structured setup/bootstrap error if required assets are unavailable instead of attempting hidden local Rust compilation
+
+#### Scenario: External consumer runs near a workspace checkout
+- **WHEN** an external consumer resolves runtime assets while repository-local native build outputs or source trees happen to exist on disk
+- **THEN** the supported external path MUST ignore workspace-dev assumptions and workspace-local probing
+- **AND** it MUST remain in `release-consumer` mode
+- **AND** it MUST NOT switch to workspace-local or native-source behavior implicitly
 
 ### Requirement: External Consumer Contract Is Governed
 The supported external integration model SHALL remain a governed repository contract.

@@ -14,11 +14,12 @@ The workspace SHALL treat `packages/nexa_http/example` as the single official de
 - **AND** it MUST include the enriched latency and failure-surface information the demo now reports
 
 ### Requirement: Demo SHALL use workspace-dev artifact preparation
-The official demo SHALL execute the local-development native artifact path instead of the release-consumer path, and that `workspace-dev` path SHALL prepare or validate native artifacts from current repository source rather than trusting pre-existing local binaries as authoritative input.
+The official demo SHALL execute the local-development native artifact path instead of the release-consumer path, and that `workspace-dev` path SHALL prepare or validate native artifacts from current repository source and provide explicit runtime inputs to startup instead of relying on shared runtime workspace probing.
 
 #### Scenario: Contributor runs the demo from a repository checkout
 - **WHEN** a user clones the repository and follows the documented demo steps
 - **THEN** the demo startup flow MUST prepare or resolve native artifacts through `workspace-dev`
+- **AND** it MUST provide explicit runtime library or runtime registration input to native startup
 - **AND** it MAY require documented local development prerequisites
 - **AND** it MUST NOT require editing demo source files or demo dependency declarations
 
@@ -26,6 +27,11 @@ The official demo SHALL execute the local-development native artifact path inste
 - **WHEN** repository-local demo startup runs in `workspace-dev` and stale local native binaries are present from an older source state
 - **THEN** the demo MUST NOT trust those binaries solely because they already exist
 - **AND** it MUST use current repository source as the authoritative development input
+
+#### Scenario: Shared runtime startup occurs during demo bootstrap
+- **WHEN** the demo launches after `workspace-dev` has prepared native artifacts
+- **THEN** the shared runtime loader MUST consume the explicit runtime input prepared by `workspace-dev`
+- **AND** it MUST NOT probe workspace directories generically to discover a library
 
 ### Requirement: Demo bootstrap failures SHALL be diagnosable
 The official demo SHALL surface structured bootstrap errors when native startup fails, and its benchmark output SHALL surface enough structured transport metrics to distinguish startup cost, steady-state behavior, tail latency, and failure modes.

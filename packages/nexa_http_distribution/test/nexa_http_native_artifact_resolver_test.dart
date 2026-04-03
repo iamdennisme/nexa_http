@@ -389,19 +389,46 @@ void main() {
     },
   );
 
-  test('defaults to release-consumer for pub cache checkouts', () async {
-    final packageRoot = Directory(
-      '${tempDir.path}/.pub-cache/git/repo/packages/nexa_http_native_macos',
-    )..createSync(recursive: true);
-    final sourceDir = Directory(
-      '${packageRoot.path}/native/nexa_http_native_macos_ffi',
-    )..createSync(recursive: true);
+  test(
+    'release-consumer honors explicit source overrides without triggering implicit source builds',
+    () async {
+      final sourceDir = Directory('${tempDir.path}/source')
+        ..createSync(recursive: true);
+      final sourceOutput = File(
+        '${sourceDir.path}/target/debug/libnexa_http_native_macos_ffi.dylib',
+      );
+      await sourceOutput.parent.create(recursive: true);
+      await sourceOutput.writeAsString('workspace-source-copy');
 
-    final mode = defaultNexaHttpNativeArtifactResolutionMode(
-      packageRoot: packageRoot.uri,
-      defaultSourceDir: sourceDir.path,
-    );
+      final defaultSourceDir = Directory('${tempDir.path}/default-source-dir')
+        ..createSync(recursive: true);
+      var sourceBuildTriggered = false;
 
-    expect(mode, NexaHttpNativeArtifactResolutionMode.releaseConsumer);
-  });
+      final resolved = await resolveNexaHttpNativeArtifactFile(
+        packageRoot: tempDir.uri,
+        cacheRoot: tempDir.uri,
+        mode: NexaHttpNativeArtifactResolutionMode.releaseConsumer,
+        packageVersion: '1.0.1',
+        targetOS: 'macos',
+        targetArchitecture: 'arm64',
+        targetSdk: null,
+        packagedRelativePath: 'macos/Libraries/libnexa_http_native.dylib',
+        environment: <String, String>{
+          'NEXA_HTTP_NATIVE_MACOS_SOURCE_DIR': sourceDir.path,
+        },
+        libPathEnvironmentVariable: 'NEXA_HTTP_NATIVE_MACOS_LIB_PATH',
+        sourceDirEnvironmentVariable: 'NEXA_HTTP_NATIVE_MACOS_SOURCE_DIR',
+        defaultSourceDir: defaultSourceDir.path,
+        buildDefaultSourceDir: (_) async {
+          sourceBuildTriggered = true;
+        },
+        sourceDirCandidates: (path) => <String>[
+          '$path/target/debug/libnexa_http_native_macos_ffi.dylib',
+        ],
+      );
+
+      expect(resolved.path, sourceOutput.path);
+      expect(sourceBuildTriggered, isFalse);
+    },
+  );
 }

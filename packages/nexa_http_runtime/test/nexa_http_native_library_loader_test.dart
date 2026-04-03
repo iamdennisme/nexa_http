@@ -1,10 +1,8 @@
 import 'dart:ffi';
 
-import 'package:nexa_http_runtime/nexa_http_runtime.dart';
-import 'package:nexa_http_runtime/src/loader/nexa_http_native_library_loader.dart';
-import 'package:nexa_http_runtime/src/loader/nexa_http_native_library_resolver.dart';
-import 'package:nexa_http_runtime/src/loader/nexa_http_platform_registry.dart';
-import 'package:path/path.dart' as p;
+import '../lib/nexa_http_dynamic_library_loader.dart';
+import '../lib/nexa_http_runtime.dart';
+import '../lib/src/loader/nexa_http_platform_registry.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -12,151 +10,13 @@ void main() {
     NexaHttpPlatformRegistry.reset();
   });
 
-  test('resolves the Flutter macOS framework path from the app bundle', () {
-    final executable = p.join(
-      '/Applications',
-      'Demo.app',
-      'Contents',
-      'MacOS',
-      'Demo',
-    );
-    final expected = p.normalize(
-      p.join(
-        '/Applications',
-        'Demo.app',
-        'Contents',
-        'Frameworks',
-        'nexa_http.framework',
-        'nexa_http',
-      ),
-    );
-
-    final candidates = resolveNexaHttpDynamicLibraryCandidates(
-      platform: NexaHttpHostPlatform.macos,
-      resolvedExecutable: executable,
-      currentDirectory: '/tmp',
-      fileExists: (path) => p.normalize(path) == expected,
-    );
-
-    expect(candidates, contains(expected));
-  });
-
-  test('prefers the macOS ffi framework over the wrapper framework', () {
-    final executable = p.join(
-      '/Applications',
-      'Demo.app',
-      'Contents',
-      'MacOS',
-      'Demo',
-    );
-    final wrapper = p.normalize(
-      p.join(
-        '/Applications',
-        'Demo.app',
-        'Contents',
-        'Frameworks',
-        'nexa_http_native_macos.framework',
-        'nexa_http_native_macos',
-      ),
-    );
-    final ffi = p.normalize(
-      p.join(
-        '/Applications',
-        'Demo.app',
-        'Contents',
-        'Frameworks',
-        'nexa_http_native_macos_ffi.framework',
-        'nexa_http_native_macos_ffi',
-      ),
-    );
-
-    final candidates = resolveNexaHttpDynamicLibraryCandidates(
-      platform: NexaHttpHostPlatform.macos,
-      resolvedExecutable: executable,
-      currentDirectory: '/tmp',
-      fileExists: (path) {
-        final normalized = p.normalize(path);
-        return normalized == wrapper || normalized == ffi;
-      },
-    );
-
-    expect(candidates, isNotEmpty);
-    expect(candidates.first, ffi);
-  });
-
-  test('resolves the Flutter iOS framework path inside the app bundle', () {
-    final executable = p.join('/Applications', 'Demo.app', 'Demo');
-    final expected = p.normalize(
-      p.join(
-        '/Applications',
-        'Demo.app',
-        'Frameworks',
-        'nexa_http.framework',
-        'nexa_http',
-      ),
-    );
-
-    final candidates = resolveNexaHttpDynamicLibraryCandidates(
-      platform: NexaHttpHostPlatform.ios,
-      resolvedExecutable: executable,
-      currentDirectory: '/tmp',
-      fileExists: (path) => p.normalize(path) == expected,
-    );
-
-    expect(candidates, contains(expected));
-  });
-
-  test('resolves the Flutter Windows dll name from the executable folder', () {
-    final executable = p.join(r'C:\demo', 'demo.exe');
-    final expected = p.normalize(p.join(r'C:\demo', 'nexa_http.dll'));
-
-    final candidates = resolveNexaHttpDynamicLibraryCandidates(
-      platform: NexaHttpHostPlatform.windows,
-      resolvedExecutable: executable,
-      currentDirectory: r'C:\workspace',
-      fileExists: (path) => p.normalize(path) == expected,
-    );
-
-    expect(candidates, contains(expected));
-  });
-
-  test('returns the Android fixed candidate set', () {
-    final candidates = resolveNexaHttpDynamicLibraryCandidates(
-      platform: NexaHttpHostPlatform.android,
-      resolvedExecutable: '/tmp/ignored',
-      currentDirectory: '/tmp',
-      fileExists: (_) => false,
-    );
-
-    expect(candidates, const <String>[
-      'libnexa_http_native.so',
-      'libnexa_http.so',
-      'libnexa_http_native_android_ffi.so',
-      'libnexa_http-native-android-arm64.so',
-      'libnexa_http-native-android-arm.so',
-      'libnexa_http-native-android-x64.so',
-    ]);
-  });
-
-  test('uses SDK resolved candidates before falling back to the runtime', () {
-    final expected = p.normalize(
-      p.join(
-        '/Applications',
-        'Demo.app',
-        'Frameworks',
-        'nexa_http.framework',
-        'nexa_http',
-      ),
-    );
+  test('opens the explicit path before consulting the registered runtime', () {
     final opened = <String>[];
     var runtimeOpenCount = 0;
 
     final library = loadNexaHttpDynamicLibraryForTesting(
-      platform: NexaHttpHostPlatform.ios,
-      resolvedExecutable: p.join('/Applications', 'Demo.app', 'Demo'),
-      currentDirectory: '/tmp',
-      environment: const <String, String>{},
-      fileExists: (path) => p.normalize(path) == expected,
+      platform: NexaHttpHostPlatform.macos,
+      explicitPath: '/tmp/libnexa_http_native.dylib',
       openDynamicLibrary: (path) {
         opened.add(path);
         return DynamicLibrary.process();
@@ -168,32 +28,42 @@ void main() {
     );
 
     expect(library, isA<DynamicLibrary>());
-    expect(opened, contains(expected));
+    expect(opened, ['/tmp/libnexa_http_native.dylib']);
     expect(runtimeOpenCount, 0);
   });
 
-  test(
-    'falls back to the registered runtime when SDK candidates are absent',
-    () {
-      var runtimeOpenCount = 0;
+  test('delegates to the registered runtime when no explicit path is provided', () {
+    var runtimeOpenCount = 0;
 
-      final library = loadNexaHttpDynamicLibraryForTesting(
-        platform: NexaHttpHostPlatform.windows,
-        resolvedExecutable: p.join(r'C:\demo', 'demo.exe'),
-        currentDirectory: r'C:\workspace',
-        environment: const <String, String>{},
-        fileExists: (_) => false,
-        openDynamicLibrary: (_) => throw ArgumentError('missing'),
-        registeredRuntime: _FakeRuntime(() {
-          runtimeOpenCount += 1;
-          return DynamicLibrary.process();
-        }),
-      );
+    final library = loadNexaHttpDynamicLibraryForTesting(
+      platform: NexaHttpHostPlatform.windows,
+      openDynamicLibrary: (_) =>
+          throw StateError('shared loader should not probe candidate paths'),
+      registeredRuntime: _FakeRuntime(() {
+        runtimeOpenCount += 1;
+        return DynamicLibrary.process();
+      }),
+    );
 
-      expect(library, isA<DynamicLibrary>());
-      expect(runtimeOpenCount, 1);
-    },
-  );
+    expect(library, isA<DynamicLibrary>());
+    expect(runtimeOpenCount, 1);
+  });
+
+  test('fails with a platform-specific error when no runtime is registered', () {
+    expect(
+      () => loadNexaHttpDynamicLibraryForTesting(
+        platform: NexaHttpHostPlatform.macos,
+        openDynamicLibrary: (_) => throw StateError('should not open a path'),
+      ),
+      throwsA(
+        predicate<Object>(
+          (error) =>
+              error is StateError &&
+              error.toString().contains('nexa_http_native_macos'),
+        ),
+      ),
+    );
+  });
 
   test('uses the registered runtime to open the native library', () {
     registerNexaHttpNativeRuntime(_FakeRuntime(DynamicLibrary.process));

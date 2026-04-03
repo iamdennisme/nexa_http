@@ -1,34 +1,32 @@
-### Requirement: Runtime loader delegates candidate discovery by platform
-The system SHALL separate runtime candidate discovery into explicit host-platform strategy modules instead of concentrating all candidate rules in one aggregated cross-platform file, and each strategy SHALL derive its supported target coverage and artifact identity rules from the authoritative platform target matrix used by carrier packaging and distribution.
+### Requirement: Shared runtime loader SHALL rely on explicit runtime inputs
+The shared runtime loader SHALL accept an explicit native library path from higher-level tooling and SHALL delegate to a registered host runtime when no explicit path is supplied, and it SHALL NOT implement generic packaged, workspace, or environment-driven candidate probing on its own.
 
-#### Scenario: macOS candidate discovery runs
-- **WHEN** the runtime loader needs macOS dynamic-library candidates
-- **THEN** it SHALL obtain them from the macOS-specific strategy implementation
-- **AND** that strategy SHALL only enumerate candidates for targets declared as supported by the authoritative platform target matrix
+#### Scenario: explicit runtime path is provided
+- **WHEN** platform tooling, demo bootstrap, or another supported caller provides an explicit native library path to the shared loader
+- **THEN** the loader SHALL attempt to load that exact path
+- **AND** it SHALL NOT broaden the request into generic candidate discovery
 
-#### Scenario: Windows candidate discovery runs
-- **WHEN** the runtime loader needs Windows dynamic-library candidates
-- **THEN** it SHALL obtain them from the Windows-specific strategy implementation
-- **AND** that strategy SHALL NOT imply support for toolchains or architectures that the authoritative platform target matrix does not declare
+#### Scenario: no explicit path is provided but a registered runtime exists
+- **WHEN** no explicit native library path is provided
+- **AND** a host runtime has been registered for the current platform
+- **THEN** the shared loader SHALL delegate runtime acquisition to that registered runtime boundary
+- **AND** it SHALL NOT walk packaged or workspace directories on its own
 
-#### Scenario: Android candidate discovery runs
-- **WHEN** the runtime loader needs Android dynamic-library candidates
-- **THEN** it SHALL obtain them from the Android-specific strategy implementation
-- **AND** the fixed candidate set SHALL remain aligned with the authoritative platform target matrix used by carrier packaging
+#### Scenario: no explicit path or registered runtime is available
+- **WHEN** the shared loader receives no explicit native library path
+- **AND** no host runtime has been registered for the current platform
+- **THEN** it SHALL fail with a structured bootstrap error
+- **AND** the failure SHALL identify the missing explicit runtime input or runtime registration
 
-### Requirement: Loader orchestration remains stable
-The system SHALL preserve a single top-level runtime loader entrypoint that applies explicit-path override, environment override, candidate probing, and registered-runtime fallback in the documented order, and carrier runtimes SHALL NOT maintain overlapping broad candidate-walking logic that can drift from this orchestration.
+### Requirement: Platform integrations SHALL own platform-specific runtime sourcing
+Carrier packages and other platform integrations SHALL own host-specific runtime preparation and registration behavior while consuming the shared loader boundary, and they SHALL NOT rely on shared generic probing behavior in `nexa_http_runtime`.
 
-#### Scenario: no explicit or discovered library exists
-- **WHEN** no explicit path, environment override, or candidate path can be opened
-- **THEN** the loader SHALL fall back to the registered runtime before throwing an error
-
-#### Scenario: carrier runtime integrates with the host loader boundary
+#### Scenario: carrier runtime integrates with the shared loader boundary
 - **WHEN** a carrier package registers a host runtime implementation
-- **THEN** that implementation SHALL use only clearly-scoped host integration behavior
-- **AND** it SHALL NOT duplicate the runtime loader's broad packaged/workspace candidate search policy
+- **THEN** that implementation SHALL provide only clearly-scoped host integration behavior such as explicit runtime preparation, runtime registration, or direct loading hooks
+- **AND** it SHALL NOT reintroduce generic packaged/workspace candidate-walking logic through the shared loader contract
 
-#### Scenario: runtime loader owns generic discovery
-- **WHEN** the system needs packaged or workspace candidate walking for a supported host platform
-- **THEN** that behavior SHALL be implemented in `nexa_http_runtime`
-- **AND** carrier packages SHALL consume that boundary instead of redefining equivalent generic search logic
+#### Scenario: supported platform startup is implemented
+- **WHEN** a supported platform needs to start the native runtime
+- **THEN** platform-specific tooling SHALL provide the explicit path or registered runtime behavior required for that platform
+- **AND** the shared loader SHALL remain unaware of workspace layout or packaged artifact search policy

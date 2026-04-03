@@ -578,7 +578,10 @@ Future<void> _copyWorkspaceForConsumerSnapshot(
   await for (final entity
       in source.list(recursive: false, followLinks: false)) {
     final name = p.basename(entity.path);
-    if (name == '.git' || name == 'build' || name == '.dart_tool') {
+    if (name == '.git' ||
+        name == 'build' ||
+        name == '.dart_tool' ||
+        name == 'target') {
       continue;
     }
     final targetPath = p.join(destination.path, name);
@@ -596,7 +599,7 @@ Future<void> _copyDirectory(Directory source, Directory destination) async {
   await for (final entity
       in source.list(recursive: false, followLinks: false)) {
     final name = p.basename(entity.path);
-    if (name == '.dart_tool' || name == 'build') {
+    if (name == '.dart_tool' || name == 'build' || name == 'target') {
       continue;
     }
     final targetPath = p.join(destination.path, name);

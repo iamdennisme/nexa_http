@@ -5,15 +5,11 @@ import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
 import 'package:nexa_http/src/internal/transport/transport_response.dart';
 import 'package:nexa_http/src/native_bridge/nexa_http_native_data_source_factory.dart';
+import 'package:nexa_http_runtime/nexa_http_dynamic_library_loader.dart';
 import 'package:nexa_http_runtime/nexa_http_runtime.dart';
-import 'package:nexa_http_runtime/src/loader/nexa_http_platform_registry.dart';
 import 'package:test/test.dart';
 
 void main() {
-  tearDown(() {
-    NexaHttpPlatformRegistry.reset();
-  });
-
   test('passes the explicit library path to the dynamic library loader', () {
     late final DynamicLibrary loadedLibrary;
     String? resolvedExplicitPath;
@@ -38,27 +34,57 @@ void main() {
     );
   });
 
-  test('creates a shared ffi data source from the loaded library', () {
-    registerNexaHttpNativeRuntime(_FakeRuntime());
-    var loadCallCount = 0;
-    late final DynamicLibrary loadedLibrary;
+  test('delegates to the registered runtime when no explicit path is provided', () {
+    var runtimeOpenCount = 0;
+    final runtimeLibrary = DynamicLibrary.process();
     final factory = NexaHttpNativeDataSourceFactory(
       loadDynamicLibrary: ({String? explicitPath}) {
-        loadCallCount += 1;
         expect(explicitPath, isNull);
-        loadedLibrary = DynamicLibrary.process();
-        return loadedLibrary;
+        return loadNexaHttpDynamicLibraryForTesting(
+          platform: NexaHttpHostPlatform.windows,
+          openDynamicLibrary: (_) => throw StateError(
+            'shared loader should not probe candidate paths',
+          ),
+          registeredRuntime: _FakeRuntime(() {
+            runtimeOpenCount += 1;
+            return runtimeLibrary;
+          }),
+        );
       },
       createDataSource: _FakeNexaHttpNativeDataSource.new,
     );
 
     final dataSource = factory.create();
 
-    expect(loadCallCount, 1);
-    expect(dataSource, isA<NexaHttpNativeDataSource>());
+    expect(runtimeOpenCount, 1);
     expect(
       (dataSource as _FakeNexaHttpNativeDataSource).library,
-      same(loadedLibrary),
+      same(runtimeLibrary),
+    );
+  });
+
+  test('surfaces a clear missing-runtime error when no runtime is registered', () {
+    final factory = NexaHttpNativeDataSourceFactory(
+      loadDynamicLibrary: ({String? explicitPath}) {
+        expect(explicitPath, isNull);
+        return loadNexaHttpDynamicLibraryForTesting(
+          platform: NexaHttpHostPlatform.macos,
+          openDynamicLibrary: (_) =>
+              throw StateError('should not open a native library path'),
+        );
+      },
+      createDataSource: _FakeNexaHttpNativeDataSource.new,
+    );
+
+    expect(
+      () => factory.create(),
+      throwsA(
+        predicate<Object>(
+          (error) =>
+              error is StateError &&
+              error.toString().contains('nexa_http_native_macos'),
+        ),
+      ),
     );
   });
 }
@@ -85,6 +111,10 @@ final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
 }
 
 final class _FakeRuntime implements NexaHttpNativeRuntime {
+  _FakeRuntime(this._open);
+
+  final DynamicLibrary Function() _open;
+
   @override
-  DynamicLibrary open() => DynamicLibrary.process();
+  DynamicLibrary open() => _open();
 }

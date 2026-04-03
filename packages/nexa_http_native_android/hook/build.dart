@@ -23,22 +23,25 @@ Future<void> main(List<String> args) async {
       return;
     }
 
+    final defaultSourceDir = p.normalize(
+      p.join(
+        Directory.fromUri(input.packageRoot).path,
+        'native',
+        'nexa_http_native_android_ffi',
+      ),
+    );
+    final mode = resolveNexaHttpNativeArtifactResolutionMode(
+      environment: Platform.environment,
+      defaultMode: defaultNexaHttpNativeArtifactResolutionMode(
+        packageRoot: input.packageRoot,
+        defaultSourceDir: defaultSourceDir,
+      ),
+    );
+
     final file = await resolveNexaHttpNativeArtifactFile(
       packageRoot: input.packageRoot,
       cacheRoot: input.outputDirectoryShared,
-      mode: resolveNexaHttpNativeArtifactResolutionMode(
-        environment: Platform.environment,
-        defaultMode: defaultNexaHttpNativeArtifactResolutionMode(
-          packageRoot: input.packageRoot,
-          defaultSourceDir: p.normalize(
-            p.join(
-              Directory.fromUri(input.packageRoot).path,
-              'native',
-              'nexa_http_native_android_ffi',
-            ),
-          ),
-        ),
-      ),
+      mode: mode,
       packageVersion: packageVersionForRoot(input.packageRoot),
       targetOS: target.targetOS,
       targetArchitecture: target.targetArchitecture,

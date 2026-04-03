@@ -322,9 +322,10 @@ void main() {
     );
   });
 
-  test('runs analyze and test for each discovered package', () async {
+  test('verify-external-consumer ignores copied target outputs and keeps release-consumer env',
+      () async {
     final workspace = await Directory.systemTemp.createTemp(
-      'nexa_http_workspace_verify_',
+      'nexa_http_workspace_verify_external_consumer_',
     );
     addTearDown(() async {
       if (workspace.existsSync()) {
@@ -332,80 +333,91 @@ void main() {
       }
     });
 
-    for (final packageName in releaseTrainPackageNames) {
-      final usesFlutter = packageName.startsWith('nexa_http_native_');
-      await _writeFile(
-        workspace,
-        'packages/$packageName/pubspec.yaml',
-        usesFlutter
-            ? 'name: $packageName\nversion: 1.2.3\nflutter:\n  plugin:\n    platforms:\n      ${packageName.replaceFirst('nexa_http_native_', '')}:\n        dartPluginClass: PlaceholderPlugin\n'
-            : 'name: $packageName\nversion: 1.2.3\nenvironment:\n  sdk: ^3.11.0\n',
-      );
-    }
-    await _seedReleaseConsumerFixture(workspace, includePubspecs: false);
+    await _seedReleaseConsumerFixture(workspace);
     await _writeFile(
       workspace,
-      '.github/workflows/release-native-assets.yml',
-      'dist/native-assets/nexa_http-native-android-arm64-v8a.so\n'
-          'dist/native-assets/nexa_http-native-android-armeabi-v7a.so\n'
-          'dist/native-assets/nexa_http-native-android-x86_64.so\n'
-          'dist/native-assets/nexa_http-native-ios-arm64.dylib\n'
-          'dist/native-assets/nexa_http-native-ios-sim-arm64.dylib\n'
-          'dist/native-assets/nexa_http-native-ios-sim-x64.dylib\n'
-          'dist/native-assets/nexa_http-native-macos-arm64.dylib\n'
-          'dist/native-assets/nexa_http-native-macos-x64.dylib\n'
-          'dist/native-assets/nexa_http-native-windows-x64.dll\n'
-          'x86_64-pc-windows-msvc\n',
-    );
-    await _writeFile(
-      workspace,
-      'packages/nexa_http_distribution/test/nexa_http_native_release_manifest_test.dart',
-      'void main() {}\n',
-    );
-    await _writeFile(workspace, 'packages/nexa_http/test/sample_test.dart',
-        'void main() {}\n');
-    await _writeFile(
-      workspace,
-      'packages/nexa_http/example/pubspec.yaml',
-      'name: nexa_http_example\ndependencies:\n  flutter:\n    sdk: flutter\n',
-    );
-    await _writeFile(
-      workspace,
-      'packages/nexa_http/example/test/widget_test.dart',
-      'void main() {}\n',
+      'packages/nexa_http_native_macos/target/release/libnexa_http_native.dylib',
+      'workspace-target-output-that-must-not-be-copied',
     );
 
     final commands = <String>[];
+    final environments = <Map<String, String>?>[];
+    var checkedSnapshot = false;
 
-    await verifyWorkspacePackages(
+    await verifyExternalConsumer(
       workspace.path,
-      runPackageCommand: (packageDir, executable, arguments,
-          {environment}) async {
+      hostPlatform: WorkspaceHostPlatform.macos,
+      initializeGitRepository: false,
+      runPackageCommand: (packageDir, executable, arguments, {environment}) async {
         commands.add(
-            '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
+          '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}',
+        );
+        environments.add(
+          environment == null ? null : Map<String, String>.from(environment),
+        );
+
+        if (p.basename(packageDir.path) == 'consumer' &&
+            executable == 'flutter' &&
+            arguments.isNotEmpty &&
+            arguments.first == 'create') {
+          await Directory(p.join(packageDir.path, 'macos')).create(
+            recursive: true,
+          );
+        }
+
+        if (p.basename(packageDir.path) == 'consumer' &&
+            executable == 'flutter' &&
+            arguments.length == 2 &&
+            arguments[0] == 'pub' &&
+            arguments[1] == 'get') {
+          final pubspec = File(p.join(packageDir.path, 'pubspec.yaml'));
+          final contents = await pubspec.readAsString();
+          final match = RegExp(r'url: (file:\S+)').firstMatch(contents);
+          expect(match, isNotNull);
+
+          final snapshotUri = Uri.parse(match!.group(1)!);
+          final snapshotTarget = File.fromUri(
+            snapshotUri.resolve(
+              'packages/nexa_http_native_macos/target/release/libnexa_http_native.dylib',
+            ),
+          );
+          expect(snapshotTarget.existsSync(), isFalse);
+          checkedSnapshot = true;
+        }
       },
     );
 
+    expect(checkedSnapshot, isTrue);
+    expect(commands, contains('consumer:flutter build macos --debug'));
     expect(
-      commands,
-      containsAll(<Object>[
-        'nexa_http_distribution:dart test test/nexa_http_native_release_manifest_test.dart',
-        'example:flutter pub get',
-        'example:flutter test',
-        contains('consumer:flutter create'),
-        'consumer:flutter pub get',
-        'nexa_http:dart analyze',
-        'nexa_http:dart test',
-        'example:flutter analyze',
-        'example:flutter test',
-        'nexa_http_distribution:dart analyze',
-        'nexa_http_distribution:dart test',
-        'nexa_http_native_android:flutter analyze',
-        'nexa_http_native_ios:flutter analyze',
-        'nexa_http_native_macos:flutter analyze',
-        'nexa_http_native_windows:flutter analyze',
-        'nexa_http_runtime:dart analyze',
-      ]),
+      environments.whereType<Map<String, String>>(),
+      contains(
+        containsPair('NEXA_HTTP_NATIVE_ARTIFACT_MODE', 'release-consumer'),
+      ),
+    );
+    expect(
+      environments.whereType<Map<String, String>>(),
+      contains(
+        predicate<Map<String, String>>(
+          (environment) =>
+              environment.containsKey('NEXA_HTTP_NATIVE_MANIFEST_PATH'),
+        ),
+      ),
+    );
+
+    expect(
+      File(
+        p.join(
+          workspace.path,
+          'packages',
+          'nexa_http_native_macos',
+          'target',
+          'release',
+          'libnexa_http_native.dylib',
+        ),
+      ).existsSync(),
+      isTrue,
+      reason: 'Fixture should keep the original workspace target output.',
     );
   });
 }

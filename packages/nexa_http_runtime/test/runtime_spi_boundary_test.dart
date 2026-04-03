@@ -80,4 +80,42 @@ void main() {
       expect(contents, isNot(contains(r'"target"')));
     }
   });
+
+  test('carrier build hooks resolve artifact mode explicitly', () async {
+    final packageRoot = Directory.current.parent.path;
+    final hookFiles = <String>[
+      p.join(packageRoot, 'nexa_http_native_android', 'hook', 'build.dart'),
+      p.join(packageRoot, 'nexa_http_native_ios', 'hook', 'build.dart'),
+      p.join(packageRoot, 'nexa_http_native_macos', 'hook', 'build.dart'),
+      p.join(packageRoot, 'nexa_http_native_windows', 'hook', 'build.dart'),
+    ];
+
+    for (final filePath in hookFiles) {
+      final contents = await File(filePath).readAsString();
+      expect(
+        contents,
+        contains('final mode = resolveNexaHttpNativeArtifactResolutionMode('),
+      );
+      expect(
+        contents,
+        contains('defaultMode: defaultNexaHttpNativeArtifactResolutionMode('),
+      );
+      expect(contents, contains('mode: mode'));
+    }
+  });
+
+  test('macOS hook avoids universal-binary assembly from workspace outputs',
+      () async {
+    final packageRoot = Directory.current.parent.path;
+    final contents = await File(
+      p.join(packageRoot, 'nexa_http_native_macos', 'hook', 'build.dart'),
+    ).readAsString();
+
+    expect(
+      contents,
+      contains('packagedRelativePath: target.packagedRelativePath'),
+    );
+    expect(contents, isNot(contains('lipo')));
+    expect(contents, isNot(contains('universal')));
+  });
 }
