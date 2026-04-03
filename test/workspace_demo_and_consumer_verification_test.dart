@@ -41,6 +41,7 @@ void main() {
     expect(expectedAssets, containsAll(copiedAssets));
     expect(workflow, contains('verify-artifact-consistency'));
     expect(workflow, contains('check-release-train'));
+    expect(workflow, contains('Report release-train package metadata'));
   });
 
   test(

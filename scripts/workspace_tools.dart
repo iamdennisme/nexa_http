@@ -810,14 +810,40 @@ Future<void> checkReleaseTrainVersions(
     throw ArgumentError('Unknown check-release-train option: $argument');
   }
 
-  final alignedVersion = verifyAlignedReleaseTrainVersions(
-    workspaceRoot,
-    tagName: tagName,
-  );
+  final versions = readReleaseTrainPackageVersions(workspaceRoot);
+  final uniqueVersions = versions.values.toSet();
+  final details = versions.entries
+      .map((entry) => '${entry.key}=${entry.value}')
+      .join(', ');
+  final normalizedTag = tagName == null ? null : normalizeReleaseTagVersion(tagName);
+  final allAligned = uniqueVersions.length == 1;
+
+  if (normalizedTag == null) {
+    stdout.writeln(
+      allAligned
+          ? 'Release-train package versions are aligned: ${uniqueVersions.single}.'
+          : 'Release-train package versions are not aligned: $details',
+    );
+    return;
+  }
+
+  if (!allAligned) {
+    stdout.writeln(
+      'Release-train package versions differ ($details), but tag-driven release authority remains $tagName.',
+    );
+    return;
+  }
+
+  final alignedVersion = uniqueVersions.single;
+  if (normalizedTag != alignedVersion) {
+    stdout.writeln(
+      'Release tag $tagName remains authoritative even though aligned package metadata is $alignedVersion.',
+    );
+    return;
+  }
+
   stdout.writeln(
-    tagName == null
-        ? 'Verified aligned release-train package version $alignedVersion.'
-        : 'Verified aligned release-train package version $alignedVersion for tag $tagName.',
+    'Release tag $tagName matches aligned package metadata $alignedVersion.',
   );
 }
 

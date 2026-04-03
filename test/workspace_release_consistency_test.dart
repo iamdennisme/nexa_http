@@ -7,30 +7,26 @@ import 'package:yaml/yaml.dart';
 import '../scripts/workspace_tools.dart';
 
 void main() {
-  test('release-train packages stay on one aligned version and exclude example', () {
-    final versions = <String>{};
+  test('release-train package metadata can be inspected independently of example', () {
+    final versions = <String, String>{};
 
     for (final packageName in releaseTrainPackageNames) {
       final pubspec = File(
         p.join('packages', packageName, 'pubspec.yaml'),
       ).readAsStringSync();
       final yaml = loadYaml(pubspec) as YamlMap;
-      versions.add(yaml['version'] as String);
+      versions[packageName] = yaml['version'] as String;
     }
 
     final examplePubspec = loadYaml(
       File('packages/nexa_http/example/pubspec.yaml').readAsStringSync(),
     ) as YamlMap;
 
-    expect(versions.length, 1, reason: 'Release-train packages must stay aligned.');
-    expect(
-      examplePubspec['version'],
-      isNot(versions.single),
-      reason: 'packages/nexa_http/example is intentionally excluded from the release train.',
-    );
+    expect(versions.keys, orderedEquals(releaseTrainPackageNames));
+    expect(examplePubspec['version'], isNotNull);
   });
 
-  test('release workflow verifies aligned versions for version tags prefixed with v', () {
+  test('release workflow reports package metadata but derives publication from tags', () {
     final workflow = File(
       '.github/workflows/release-native-assets.yml',
     ).readAsStringSync();
@@ -41,6 +37,7 @@ void main() {
         r'dart run scripts/workspace_tools.dart check-release-train --tag "$TAG_NAME"',
       ),
     );
+    expect(workflow, contains('Report release-train package metadata'));
     expect(workflow, contains(r'VERSION="${TAG_NAME#v}"'));
   });
 

@@ -141,7 +141,7 @@ void main() {
   });
 
   test(
-      'reads aligned release-train versions and ignores packages/nexa_http/example',
+      'check-release-train reports aligned package metadata when versions match',
       () async {
     final workspace = await Directory.systemTemp.createTemp(
       'nexa_http_workspace_release_train_',
@@ -171,7 +171,8 @@ void main() {
     expect(versions.values.toSet(), <String>{'1.2.3'});
   });
 
-  test('fails when a release-train package version drifts', () async {
+  test('check-release-train no longer fails when release-train package versions drift',
+      () async {
     final workspace = await Directory.systemTemp.createTemp(
       'nexa_http_workspace_release_drift_',
     );
@@ -191,18 +192,12 @@ void main() {
     }
 
     expect(
-      () => verifyAlignedReleaseTrainVersions(workspace.path),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          contains('nexa_http_runtime=1.2.4'),
-        ),
-      ),
+      () => checkReleaseTrainVersions(workspace.path, const <String>[]),
+      returnsNormally,
     );
   });
 
-  test('fails when a release tag does not match aligned package versions',
+  test('check-release-train no longer fails when tag differs from aligned package metadata',
       () async {
     final workspace = await Directory.systemTemp.createTemp(
       'nexa_http_workspace_release_tag_',
@@ -222,16 +217,11 @@ void main() {
     }
 
     expect(
-      () =>
-          verifyAlignedReleaseTrainVersions(workspace.path, tagName: 'v1.2.4'),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          contains(
-              'Release tag v1.2.4 does not match aligned package version 1.2.3'),
-        ),
+      () => checkReleaseTrainVersions(
+        workspace.path,
+        const <String>['--tag', 'v1.2.4'],
       ),
+      returnsNormally,
     );
   });
 
