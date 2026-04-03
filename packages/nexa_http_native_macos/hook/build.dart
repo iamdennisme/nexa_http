@@ -55,19 +55,16 @@ Future<void> main(List<String> args) async {
         ),
       ),
       buildDefaultSourceDir: (sourceDir) async {
-        final result = await Process.run('cargo', <String>[
-          'build',
-          '--manifest-path',
-          p.join(sourceDir, 'Cargo.toml'),
-        ]);
+        final buildEnvironment = await _buildEnvironmentForTarget(target);
+        final result = await Process.run(
+          'cargo',
+          cargoBuildArgumentsForNexaHttpTarget(sourceDir, target),
+          environment: buildEnvironment.isEmpty ? null : buildEnvironment,
+        );
         if (result.exitCode != 0) {
           throw ProcessException(
             'cargo',
-            <String>[
-              'build',
-              '--manifest-path',
-              p.join(sourceDir, 'Cargo.toml'),
-            ],
+            cargoBuildArgumentsForNexaHttpTarget(sourceDir, target),
             '${result.stdout}${result.stderr}',
             result.exitCode,
           );
@@ -83,4 +80,71 @@ Future<void> main(List<String> args) async {
       ),
     );
   });
+}
+
+List<String> cargoBuildArgumentsForNexaHttpTarget(
+  String sourceDir,
+  NexaHttpNativeTarget target,
+) {
+  return <String>[
+    'build',
+    '--manifest-path',
+    p.join(sourceDir, 'Cargo.toml'),
+    if (target.rustTargetTriple != null) ...<String>[
+      '--target',
+      target.rustTargetTriple!,
+    ],
+  ];
+}
+
+Future<Map<String, String>> _buildEnvironmentForTarget(
+  NexaHttpNativeTarget target,
+) async {
+  if (target.targetOS != 'macos') {
+    return const <String, String>{};
+  }
+
+  final sdkRoot = await _resolveMacosSdkRoot();
+  if (sdkRoot == null || sdkRoot.isEmpty) {
+    return const <String, String>{};
+  }
+
+  return cargoBuildEnvironmentForNexaHttpTarget(
+    target: target,
+    sdkRoot: sdkRoot,
+  );
+}
+
+Map<String, String> cargoBuildEnvironmentForNexaHttpTarget({
+  required NexaHttpNativeTarget target,
+  required String sdkRoot,
+}) {
+  if (target.targetOS != 'macos' || sdkRoot.trim().isEmpty) {
+    return const <String, String>{};
+  }
+
+  return <String, String>{
+    'SDKROOT': sdkRoot,
+    'MACOSX_DEPLOYMENT_TARGET':
+        Platform.environment['MACOSX_DEPLOYMENT_TARGET'] ?? '10.15',
+  };
+}
+
+Future<String?> _resolveMacosSdkRoot() async {
+  final result = await Process.run('xcrun', <String>[
+    '--sdk',
+    'macosx',
+    '--show-sdk-path',
+  ]);
+  if (result.exitCode != 0) {
+    throw ProcessException(
+      'xcrun',
+      const <String>['--sdk', 'macosx', '--show-sdk-path'],
+      '${result.stdout}${result.stderr}',
+      result.exitCode,
+    );
+  }
+
+  final sdkRoot = '${result.stdout}'.trim();
+  return sdkRoot.isEmpty ? null : sdkRoot;
 }

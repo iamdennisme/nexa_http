@@ -13,6 +13,8 @@ typedef BenchmarkCompleteCallback =
       BenchmarkMetrics nexaMetrics,
     );
 typedef BenchmarkErrorCallback = void Function(Object error);
+typedef BenchmarkExecutionCallback =
+    Future<BenchmarkExecutionResult> Function(BenchmarkConfig config);
 
 class BenchmarkPage extends StatefulWidget {
   const BenchmarkPage({
@@ -20,6 +22,7 @@ class BenchmarkPage extends StatefulWidget {
     required this.initialConfig,
     this.createClient,
     this.autoRun = false,
+    this.executeBenchmark,
     this.onBenchmarkComplete,
     this.onBenchmarkError,
   });
@@ -27,6 +30,7 @@ class BenchmarkPage extends StatefulWidget {
   final BenchmarkConfig initialConfig;
   final NexaHttpClient Function()? createClient;
   final bool autoRun;
+  final BenchmarkExecutionCallback? executeBenchmark;
   final BenchmarkCompleteCallback? onBenchmarkComplete;
   final BenchmarkErrorCallback? onBenchmarkError;
 
@@ -103,22 +107,11 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
     });
 
     try {
-      final runner = const BenchmarkRunner();
-      final dartMetrics = await runner.run(
-        config: config,
-        transport: DartHttpClientBenchmarkTransport(),
-      );
-      final nexaMetrics = await runner.run(
-        config: config,
-        transport: NexaHttpBenchmarkTransport(
-          client:
-              widget.createClient?.call() ??
-              NexaHttpClientBuilder()
-                  .callTimeout(config.timeout)
-                  .userAgent('nexa_http_example/benchmark')
-                  .build(),
-        ),
-      );
+      final result = widget.executeBenchmark != null
+          ? await widget.executeBenchmark!(config)
+          : await _executeDefaultBenchmark(config);
+      final dartMetrics = result.dartMetrics;
+      final nexaMetrics = result.nexaMetrics;
 
       if (!mounted) {
         return;
@@ -144,6 +137,31 @@ class _BenchmarkPageState extends State<BenchmarkPage> {
         });
       }
     }
+  }
+
+  Future<BenchmarkExecutionResult> _executeDefaultBenchmark(
+    BenchmarkConfig config,
+  ) async {
+    final runner = const BenchmarkRunner();
+    final dartMetrics = (await runner.run(
+      config: config,
+      transport: DartHttpClientBenchmarkTransport(),
+    )).withRunOrderIndex(0);
+    final nexaMetrics = (await runner.run(
+      config: config,
+      transport: NexaHttpBenchmarkTransport(
+        client:
+            widget.createClient?.call() ??
+            NexaHttpClientBuilder()
+                .callTimeout(config.timeout)
+                .userAgent('nexa_http_example/benchmark')
+                .build(),
+      ),
+    )).withRunOrderIndex(1);
+    return BenchmarkExecutionResult(
+      dartMetrics: dartMetrics,
+      nexaMetrics: nexaMetrics,
+    );
   }
 
   BenchmarkConfig? _parseConfig() {
@@ -504,6 +522,14 @@ class _MetricsCard extends StatelessWidget {
             value: '${metrics.averageLatency.inMilliseconds} ms',
           ),
           _MetricRow(
+            label: 'First Request',
+            value: '${metrics.firstRequestLatency.inMilliseconds} ms',
+          ),
+          _MetricRow(
+            label: 'Post-warmup Avg',
+            value: '${metrics.postWarmupAverageLatency.inMilliseconds} ms',
+          ),
+          _MetricRow(
             label: 'P50 Latency',
             value: '${metrics.p50Latency.inMilliseconds} ms',
           ),
@@ -511,12 +537,31 @@ class _MetricsCard extends StatelessWidget {
             label: 'P95 Latency',
             value: '${metrics.p95Latency.inMilliseconds} ms',
           ),
+          _MetricRow(
+            label: 'P99 Latency',
+            value: '${metrics.p99Latency.inMilliseconds} ms',
+          ),
           _MetricRow(label: 'Success', value: '${metrics.successCount}'),
           _MetricRow(label: 'Failure', value: '${metrics.failureCount}'),
+          if (metrics.failureCount > 0)
+            ...metrics.failureBreakdown.entries.map(
+              (entry) => _MetricRow(
+                label: 'Failure / ${_labelForFailure(entry.key)}',
+                value: '${entry.value}',
+              ),
+            ),
           _MetricRow(label: 'Bytes Received', value: '${metrics.totalBytes}'),
         ],
       ),
     );
+  }
+
+  String _labelForFailure(String key) {
+    return switch (key) {
+      'http_error' => 'HTTP Error',
+      'timeout' => 'Timeout',
+      _ => 'Transport Error',
+    };
   }
 }
 

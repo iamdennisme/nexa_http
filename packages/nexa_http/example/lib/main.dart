@@ -70,14 +70,18 @@ class NexaHttpExampleApp extends StatelessWidget {
     super.key,
     this.createClient,
     this.initialSection = ExampleDemoSection.playground,
+    this.initialBenchmarkConfig,
     this.autoRunBenchmark = false,
+    this.executeBenchmark,
     this.onBenchmarkComplete,
     this.onBenchmarkError,
   });
 
   final NexaHttpExampleClientFactory? createClient;
   final ExampleDemoSection initialSection;
+  final BenchmarkConfig? initialBenchmarkConfig;
   final bool autoRunBenchmark;
+  final BenchmarkExecutionCallback? executeBenchmark;
   final BenchmarkCompleteCallback? onBenchmarkComplete;
   final BenchmarkErrorCallback? onBenchmarkError;
 
@@ -93,7 +97,9 @@ class NexaHttpExampleApp extends StatelessWidget {
       home: NexaHttpExamplePage(
         createClient: createClient,
         initialSection: initialSection,
+        initialBenchmarkConfig: initialBenchmarkConfig,
         autoRunBenchmark: autoRunBenchmark,
+        executeBenchmark: executeBenchmark,
         onBenchmarkComplete: onBenchmarkComplete,
         onBenchmarkError: onBenchmarkError,
       ),
@@ -106,14 +112,18 @@ class NexaHttpExamplePage extends StatefulWidget {
     super.key,
     this.createClient,
     this.initialSection = ExampleDemoSection.playground,
+    this.initialBenchmarkConfig,
     this.autoRunBenchmark = false,
+    this.executeBenchmark,
     this.onBenchmarkComplete,
     this.onBenchmarkError,
   });
 
   final NexaHttpExampleClientFactory? createClient;
   final ExampleDemoSection initialSection;
+  final BenchmarkConfig? initialBenchmarkConfig;
   final bool autoRunBenchmark;
+  final BenchmarkExecutionCallback? executeBenchmark;
   final BenchmarkCompleteCallback? onBenchmarkComplete;
   final BenchmarkErrorCallback? onBenchmarkError;
 
@@ -153,17 +163,19 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
 
   @override
   Widget build(BuildContext context) {
-    final benchmarkDefaults = BenchmarkConfig(
-      baseUrl: _exampleBaseUrl,
-      scenario: _benchmarkScenario == 'image'
-          ? BenchmarkScenario.image
-          : BenchmarkScenario.bytes,
-      concurrency: _benchmarkConcurrency,
-      totalRequests: _benchmarkTotalRequests,
-      payloadSize: _benchmarkPayloadSize,
-      warmupRequests: _benchmarkWarmupRequests,
-      timeoutMillis: _benchmarkTimeoutMillis,
-    );
+    final benchmarkDefaults =
+        widget.initialBenchmarkConfig ??
+        BenchmarkConfig(
+          baseUrl: _exampleBaseUrl,
+          scenario: _benchmarkScenario == 'image'
+              ? BenchmarkScenario.image
+              : BenchmarkScenario.bytes,
+          concurrency: _benchmarkConcurrency,
+          totalRequests: _benchmarkTotalRequests,
+          payloadSize: _benchmarkPayloadSize,
+          warmupRequests: _benchmarkWarmupRequests,
+          timeoutMillis: _benchmarkTimeoutMillis,
+        );
 
     return CupertinoPageScaffold(
       navigationBar: const CupertinoNavigationBar(
@@ -208,6 +220,7 @@ class _NexaHttpExamplePageState extends State<NexaHttpExamplePage> {
                 createClient: widget.createClient,
                 initialConfig: benchmarkDefaults,
                 autoRun: widget.autoRunBenchmark,
+                executeBenchmark: widget.executeBenchmark,
                 onBenchmarkComplete: widget.onBenchmarkComplete,
                 onBenchmarkError: widget.onBenchmarkError,
               ),
@@ -225,39 +238,13 @@ void _handleBenchmarkComplete(
   BenchmarkMetrics dartMetrics,
   BenchmarkMetrics nexaMetrics,
 ) {
-  final payload = jsonEncode(<String, Object?>{
-    'status': 'success',
-    'config': <String, Object?>{
-      'baseUrl': config.baseUrl,
-      'scenario': config.scenario.name,
-      'concurrency': config.concurrency,
-      'totalRequests': config.totalRequests,
-      'payloadSize': config.payloadSize,
-      'warmupRequests': config.warmupRequests,
-      'timeoutMillis': config.timeoutMillis,
-    },
-    'results': <Map<String, Object?>>[
-      _benchmarkMetricsToJson(dartMetrics),
-      _benchmarkMetricsToJson(nexaMetrics),
-    ],
-    'comparison': <String, double>{
-      'averageLatencyPercent': _percentDelta(
-        baseline: dartMetrics.averageLatency.inMicroseconds.toDouble(),
-        candidate: nexaMetrics.averageLatency.inMicroseconds.toDouble(),
-        lowerIsBetter: true,
-      ),
-      'throughputPercent': _percentDelta(
-        baseline: dartMetrics.megabytesPerSecond,
-        candidate: nexaMetrics.megabytesPerSecond,
-        lowerIsBetter: false,
-      ),
-      'requestsPerSecondPercent': _percentDelta(
-        baseline: dartMetrics.requestsPerSecond,
-        candidate: nexaMetrics.requestsPerSecond,
-        lowerIsBetter: false,
-      ),
-    },
-  });
+  final payload = jsonEncode(
+    buildBenchmarkSuccessPayload(
+      config: config,
+      dartMetrics: dartMetrics,
+      nexaMetrics: nexaMetrics,
+    ),
+  );
 
   _writeBenchmarkPayload(payload);
   stdout.writeln('NEXA_HTTP_BENCHMARK_RESULT=$payload');
@@ -291,16 +278,71 @@ void _writeBenchmarkPayload(String payload) {
   outputFile.writeAsStringSync(payload);
 }
 
+Map<String, Object?> buildBenchmarkSuccessPayload({
+  required BenchmarkConfig config,
+  required BenchmarkMetrics dartMetrics,
+  required BenchmarkMetrics nexaMetrics,
+}) {
+  final orderedResults = <BenchmarkMetrics>[dartMetrics, nexaMetrics]..sort(
+    (left, right) => (left.runOrderIndex ?? 999).compareTo(
+      right.runOrderIndex ?? 999,
+    ),
+  );
+
+  return <String, Object?>{
+    'status': 'success',
+    'config': <String, Object?>{
+      'baseUrl': config.baseUrl,
+      'scenario': config.scenario.name,
+      'concurrency': config.concurrency,
+      'totalRequests': config.totalRequests,
+      'payloadSize': config.payloadSize,
+      'warmupRequests': config.warmupRequests,
+      'timeoutMillis': config.timeoutMillis,
+    },
+    'runOrder': orderedResults
+        .map((metrics) => metrics.transportLabel)
+        .toList(growable: false),
+    'results': orderedResults
+        .map(_benchmarkMetricsToJson)
+        .toList(growable: false),
+    'comparison': <String, double>{
+      'averageLatencyPercent': _percentDelta(
+        baseline: dartMetrics.averageLatency.inMicroseconds.toDouble(),
+        candidate: nexaMetrics.averageLatency.inMicroseconds.toDouble(),
+        lowerIsBetter: true,
+      ),
+      'throughputPercent': _percentDelta(
+        baseline: dartMetrics.megabytesPerSecond,
+        candidate: nexaMetrics.megabytesPerSecond,
+        lowerIsBetter: false,
+      ),
+      'requestsPerSecondPercent': _percentDelta(
+        baseline: dartMetrics.requestsPerSecond,
+        candidate: nexaMetrics.requestsPerSecond,
+        lowerIsBetter: false,
+      ),
+    },
+  };
+}
+
 Map<String, Object?> _benchmarkMetricsToJson(BenchmarkMetrics metrics) {
   return <String, Object?>{
     'transportLabel': metrics.transportLabel,
+    'runOrderIndex': metrics.runOrderIndex,
     'totalDurationMillis': metrics.totalDuration.inMilliseconds,
+    'firstRequestLatencyMillis': metrics.firstRequestLatency.inMilliseconds,
     'successCount': metrics.successCount,
     'failureCount': metrics.failureCount,
+    'failureBreakdown': metrics.failureBreakdown,
     'totalBytes': metrics.totalBytes,
     'averageLatencyMillis': metrics.averageLatency.inMilliseconds,
+    'postWarmupAverageLatencyMillis':
+        metrics.postWarmupAverageLatency.inMilliseconds,
     'p50LatencyMillis': metrics.p50Latency.inMilliseconds,
     'p95LatencyMillis': metrics.p95Latency.inMilliseconds,
+    'p99LatencyMillis': metrics.p99Latency.inMilliseconds,
+    'maxLatencyMillis': metrics.maxLatency.inMilliseconds,
     'requestsPerSecond': metrics.requestsPerSecond,
     'megabytesPerSecond': metrics.megabytesPerSecond,
   };

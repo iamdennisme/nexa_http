@@ -34,69 +34,87 @@ final class BenchmarkRunner {
     required BenchmarkConfig config,
     required BenchmarkTransport transport,
   }) async {
-    for (var index = 0; index < config.warmupRequests; index += 1) {
-      final uri = buildRequestUri(config: config, requestIndex: index);
+    try {
+      final firstRequestUri = buildRequestUri(config: config, requestIndex: 0);
+      final firstRequestStopwatch = Stopwatch()..start();
       try {
-        await transport.fetch(uri: uri, timeout: config.timeout);
+        await transport.fetch(uri: firstRequestUri, timeout: config.timeout);
       } catch (_) {
-        // Warmup should not abort the measured run.
+        // Cold-start failures should not abort the measured run.
+      } finally {
+        firstRequestStopwatch.stop();
       }
-    }
 
-    var nextRequestIndex = 0;
-    final samples = <BenchmarkSample>[];
-    final stopwatch = Stopwatch()..start();
-
-    Future<void> worker() async {
-      while (true) {
-        final requestIndex = nextRequestIndex;
-        if (requestIndex >= config.totalRequests) {
-          return;
-        }
-        nextRequestIndex += 1;
-
-        final uri = buildRequestUri(config: config, requestIndex: requestIndex);
-        final latency = Stopwatch()..start();
-
+      for (var index = 1; index <= config.warmupRequests; index += 1) {
+        final uri = buildRequestUri(config: config, requestIndex: index);
         try {
-          final result = await transport.fetch(
-            uri: uri,
-            timeout: config.timeout,
-          );
-          latency.stop();
-          samples.add(
-            BenchmarkSample(
-              latency: latency.elapsed,
-              bytesReceived: result.bytesReceived,
-              isSuccess: result.statusCode >= 200 && result.statusCode < 300,
-              statusCode: result.statusCode,
-            ),
-          );
-        } catch (error) {
-          latency.stop();
-          samples.add(
-            BenchmarkSample(
-              latency: latency.elapsed,
-              bytesReceived: 0,
-              isSuccess: false,
-              errorMessage: '$error',
-            ),
-          );
+          await transport.fetch(uri: uri, timeout: config.timeout);
+        } catch (_) {
+          // Warmup should not abort the measured run.
         }
       }
+
+      var nextRequestIndex = config.warmupRequests + 1;
+      final measuredRequestEnd = nextRequestIndex + config.totalRequests;
+      final samples = <BenchmarkSample>[];
+      final stopwatch = Stopwatch()..start();
+
+      Future<void> worker() async {
+        while (true) {
+          final requestIndex = nextRequestIndex;
+          if (requestIndex >= measuredRequestEnd) {
+            return;
+          }
+          nextRequestIndex += 1;
+
+          final uri = buildRequestUri(
+            config: config,
+            requestIndex: requestIndex,
+          );
+          final latency = Stopwatch()..start();
+
+          try {
+            final result = await transport.fetch(
+              uri: uri,
+              timeout: config.timeout,
+            );
+            latency.stop();
+            samples.add(
+              BenchmarkSample(
+                latency: latency.elapsed,
+                bytesReceived: result.bytesReceived,
+                isSuccess: result.statusCode >= 200 && result.statusCode < 300,
+                statusCode: result.statusCode,
+              ),
+            );
+          } catch (error) {
+            latency.stop();
+            samples.add(
+              BenchmarkSample(
+                latency: latency.elapsed,
+                bytesReceived: 0,
+                isSuccess: false,
+                errorMessage: '$error',
+              ),
+            );
+          }
+        }
+      }
+
+      await Future.wait(
+        List<Future<void>>.generate(config.concurrency, (_) => worker()),
+      );
+      stopwatch.stop();
+
+      return BenchmarkMetrics.fromSamples(
+        transportLabel: transport.label,
+        totalDuration: stopwatch.elapsed,
+        firstRequestLatency: firstRequestStopwatch.elapsed,
+        samples: samples,
+      );
+    } finally {
+      await transport.close();
     }
-
-    await Future.wait(
-      List<Future<void>>.generate(config.concurrency, (_) => worker()),
-    );
-    stopwatch.stop();
-    await transport.close();
-
-    return BenchmarkMetrics.fromSamples(
-      transportLabel: transport.label,
-      totalDuration: stopwatch.elapsed,
-      samples: samples,
-    );
   }
 }
 

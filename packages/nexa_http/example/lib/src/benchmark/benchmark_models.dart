@@ -3,6 +3,16 @@ enum BenchmarkScenario {
   image,
 }
 
+final class BenchmarkExecutionResult {
+  const BenchmarkExecutionResult({
+    required this.dartMetrics,
+    required this.nexaMetrics,
+  });
+
+  final BenchmarkMetrics dartMetrics;
+  final BenchmarkMetrics nexaMetrics;
+}
+
 final class BenchmarkConfig {
   const BenchmarkConfig({
     required this.baseUrl,
@@ -45,35 +55,69 @@ final class BenchmarkMetrics {
   const BenchmarkMetrics({
     required this.transportLabel,
     required this.totalDuration,
+    required this.firstRequestLatency,
     required this.successCount,
     required this.failureCount,
     required this.totalBytes,
-    required this.averageLatency,
+    required this.postWarmupAverageLatency,
     required this.p50Latency,
     required this.p95Latency,
+    required this.p99Latency,
+    required this.maxLatency,
     required this.requestsPerSecond,
     required this.megabytesPerSecond,
+    required this.failureBreakdown,
     required this.samples,
+    this.runOrderIndex,
   });
 
   final String transportLabel;
   final Duration totalDuration;
+  final Duration firstRequestLatency;
   final int successCount;
   final int failureCount;
   final int totalBytes;
-  final Duration averageLatency;
+  final Duration postWarmupAverageLatency;
   final Duration p50Latency;
   final Duration p95Latency;
+  final Duration p99Latency;
+  final Duration maxLatency;
   final double requestsPerSecond;
   final double megabytesPerSecond;
+  final Map<String, int> failureBreakdown;
   final List<BenchmarkSample> samples;
+  final int? runOrderIndex;
 
   int get totalRequests => samples.length;
+  Duration get averageLatency => postWarmupAverageLatency;
+
+  BenchmarkMetrics withRunOrderIndex(int value) {
+    return BenchmarkMetrics(
+      transportLabel: transportLabel,
+      totalDuration: totalDuration,
+      firstRequestLatency: firstRequestLatency,
+      successCount: successCount,
+      failureCount: failureCount,
+      totalBytes: totalBytes,
+      postWarmupAverageLatency: postWarmupAverageLatency,
+      p50Latency: p50Latency,
+      p95Latency: p95Latency,
+      p99Latency: p99Latency,
+      maxLatency: maxLatency,
+      requestsPerSecond: requestsPerSecond,
+      megabytesPerSecond: megabytesPerSecond,
+      failureBreakdown: failureBreakdown,
+      samples: samples,
+      runOrderIndex: value,
+    );
+  }
 
   static BenchmarkMetrics fromSamples({
     required String transportLabel,
     required Duration totalDuration,
+    required Duration firstRequestLatency,
     required List<BenchmarkSample> samples,
+    int? runOrderIndex,
   }) {
     final completedSamples = List<BenchmarkSample>.unmodifiable(samples);
     final sortedLatencies = completedSamples
@@ -91,6 +135,11 @@ final class BenchmarkMetrics {
       0,
       (sum, sample) => sum + sample.bytesReceived,
     );
+    final failureBreakdown = <String, int>{};
+    for (final sample in completedSamples.where((sample) => !sample.isSuccess)) {
+      final key = _failureCategoryForSample(sample);
+      failureBreakdown.update(key, (count) => count + 1, ifAbsent: () => 1);
+    }
     final requestsPerSecond = totalDuration.inMicroseconds == 0
         ? 0.0
         : completedSamples.length * 1000000 / totalDuration.inMicroseconds;
@@ -101,19 +150,26 @@ final class BenchmarkMetrics {
     return BenchmarkMetrics(
       transportLabel: transportLabel,
       totalDuration: totalDuration,
+      firstRequestLatency: firstRequestLatency,
       successCount: successCount,
       failureCount: failureCount,
       totalBytes: totalBytes,
-      averageLatency: _durationFromMillis(
+      postWarmupAverageLatency: _durationFromMillis(
         completedSamples.isEmpty
             ? 0
             : ((totalLatencyMicros / completedSamples.length) / 1000).round(),
       ),
       p50Latency: _percentile(sortedLatencies, 0.50),
       p95Latency: _percentile(sortedLatencies, 0.95),
+      p99Latency: _percentile(sortedLatencies, 0.99),
+      maxLatency: _durationFromMicros(
+        sortedLatencies.isEmpty ? 0 : sortedLatencies.last,
+      ),
       requestsPerSecond: requestsPerSecond,
       megabytesPerSecond: megabytesPerSecond,
+      failureBreakdown: Map<String, int>.unmodifiable(failureBreakdown),
       samples: completedSamples,
+      runOrderIndex: runOrderIndex,
     );
   }
 
@@ -132,5 +188,19 @@ final class BenchmarkMetrics {
 
   static Duration _durationFromMillis(int value) {
     return Duration(milliseconds: value);
+  }
+
+  static String _failureCategoryForSample(BenchmarkSample sample) {
+    final statusCode = sample.statusCode;
+    if (statusCode != null && statusCode >= 400) {
+      return 'http_error';
+    }
+
+    final message = sample.errorMessage?.toLowerCase() ?? '';
+    if (message.contains('timeoutexception') || message.contains('timed out')) {
+      return 'timeout';
+    }
+
+    return 'transport_error';
   }
 }

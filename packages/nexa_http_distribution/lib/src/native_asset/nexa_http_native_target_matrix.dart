@@ -137,6 +137,7 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     targetArchitecture: 'arm64',
     releaseAssetFileName: 'nexa_http-native-macos-arm64.dylib',
     packagedRelativePath: 'macos/Libraries/libnexa_http_native.dylib',
+    rustTargetTriple: 'aarch64-apple-darwin',
     sourceArtifactFileName: 'libnexa_http_native_macos_ffi.dylib',
     legacyWorkspaceRelativePaths: <String>[
       'packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/target/debug/libnexa_http_native.dylib',
@@ -148,6 +149,7 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     targetArchitecture: 'x64',
     releaseAssetFileName: 'nexa_http-native-macos-x64.dylib',
     packagedRelativePath: 'macos/Libraries/libnexa_http_native.dylib',
+    rustTargetTriple: 'x86_64-apple-darwin',
     sourceArtifactFileName: 'libnexa_http_native_macos_ffi.dylib',
     legacyWorkspaceRelativePaths: <String>[
       'packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/target/debug/libnexa_http_native.dylib',

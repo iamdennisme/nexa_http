@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
+import 'package:nexa_http_distribution/nexa_http_distribution.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../hook/build.dart' as nexa_http_native_macos_build_hook;
@@ -30,13 +32,76 @@ void main() {
             expect(asset.file, isNotNull);
             expect(
               File.fromUri(asset.file!).path,
-              endsWith('/target/debug/libnexa_http_native_macos_ffi.dylib'),
+              endsWith(
+                '/target/aarch64-apple-darwin/debug/libnexa_http_native_macos_ffi.dylib',
+              ),
             );
           },
         );
       });
     },
   );
+
+  test('macOS x64 target candidates resolve to an architecture-specific path', () {
+    final target = findNexaHttpNativeTarget(
+      targetOS: 'macos',
+      targetArchitecture: 'x64',
+      targetSdk: null,
+    );
+
+    expect(target, isNotNull);
+    expect(
+      target!.sourceDirCandidates('/tmp/source').first,
+      p.join(
+        '/tmp/source',
+        'target',
+        'x86_64-apple-darwin',
+        'debug',
+        'libnexa_http_native_macos_ffi.dylib',
+      ),
+    );
+  });
+
+  test('cargo build arguments target the requested macOS architecture', () {
+    final target = findNexaHttpNativeTarget(
+      targetOS: 'macos',
+      targetArchitecture: 'x64',
+      targetSdk: null,
+    );
+
+    expect(target, isNotNull);
+    expect(
+      nexa_http_native_macos_build_hook
+          .cargoBuildArgumentsForNexaHttpTarget('/tmp/source', target!),
+      <String>[
+        'build',
+        '--manifest-path',
+        p.join('/tmp/source', 'Cargo.toml'),
+        '--target',
+        'x86_64-apple-darwin',
+      ],
+    );
+  });
+
+  test('cross-arch macOS builds receive SDK environment overrides', () {
+    final target = findNexaHttpNativeTarget(
+      targetOS: 'macos',
+      targetArchitecture: 'x64',
+      targetSdk: null,
+    );
+
+    expect(target, isNotNull);
+    expect(
+      nexa_http_native_macos_build_hook.cargoBuildEnvironmentForNexaHttpTarget(
+        target: target!,
+        sdkRoot: '/tmp/MacOSX.sdk',
+      ),
+      <String, String>{
+        'SDKROOT': '/tmp/MacOSX.sdk',
+        'MACOSX_DEPLOYMENT_TARGET': '10.15',
+      },
+    );
+  });
 }
 
 Future<T> _runInPackageRoot<T>(Future<T> Function() action) async {
