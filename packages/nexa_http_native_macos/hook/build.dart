@@ -42,7 +42,7 @@ Future<void> main(List<String> args) async {
       packageRoot: input.packageRoot,
       cacheRoot: input.outputDirectoryShared,
       mode: mode,
-      packageVersion: packageVersionForRoot(input.packageRoot),
+      releaseIdentity: null,
       targetOS: target.targetOS,
       targetArchitecture: target.targetArchitecture,
       targetSdk: null,

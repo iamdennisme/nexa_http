@@ -63,6 +63,7 @@ Release publication entrypoints:
 - External applications declare only `nexa_http`.
 - External consumers default to `release-consumer`.
 - External consumers must not implicitly require local Rust compilation.
+- Published native asset lookup is governed by the selected Git tag/ref release identity, not by local package version metadata.
 
 ### 3. Artifact Contract
 

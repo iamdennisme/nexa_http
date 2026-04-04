@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:yaml/yaml.dart';
 
 import 'nexa_http_native_digest.dart';
 import 'nexa_http_native_file_transfer.dart';
@@ -9,6 +8,7 @@ import 'nexa_http_native_manifest.dart';
 
 const _manifestPathEnvironmentVariable = 'NEXA_HTTP_NATIVE_MANIFEST_PATH';
 const _releaseBaseUrlEnvironmentVariable = 'NEXA_HTTP_NATIVE_RELEASE_BASE_URL';
+const _releaseIdentityEnvironmentVariable = 'NEXA_HTTP_NATIVE_RELEASE_IDENTITY';
 const _defaultReleaseBaseUrl =
     'https://github.com/iamdennisme/nexa_http/releases/download';
 const _manifestFileName = 'nexa_http_native_assets_manifest.json';
@@ -25,7 +25,7 @@ Future<File> resolveNexaHttpNativeArtifactFile({
   required Uri packageRoot,
   required Uri cacheRoot,
   required NexaHttpNativeArtifactResolutionMode mode,
-  required String packageVersion,
+  required String? releaseIdentity,
   required String targetOS,
   required String targetArchitecture,
   required String? targetSdk,
@@ -78,8 +78,9 @@ Future<File> resolveNexaHttpNativeArtifactFile({
   }
 
   return _downloadFromManifest(
+    packageRoot: packageRoot,
     cacheRoot: cacheRoot,
-    packageVersion: packageVersion,
+    releaseIdentity: releaseIdentity,
     targetOS: targetOS,
     targetArchitecture: targetArchitecture,
     targetSdk: targetSdk,
@@ -88,7 +89,7 @@ Future<File> resolveNexaHttpNativeArtifactFile({
 }
 
 Uri resolveNexaHttpNativeManifestUri({
-  required String packageVersion,
+  required String? releaseIdentity,
   required Map<String, String> environment,
 }) {
   final manifestPath = environment[_manifestPathEnvironmentVariable]?.trim();
@@ -98,10 +99,24 @@ Uri resolveNexaHttpNativeManifestUri({
 
   final releaseBaseUrl = environment[_releaseBaseUrlEnvironmentVariable]
       ?.trim();
-  final base = releaseBaseUrl != null && releaseBaseUrl.isNotEmpty
-      ? releaseBaseUrl
-      : '$_defaultReleaseBaseUrl/v$packageVersion';
-  return Uri.parse('$base/$_manifestFileName');
+  if (releaseBaseUrl != null && releaseBaseUrl.isNotEmpty) {
+    return Uri.parse('$releaseBaseUrl/$_manifestFileName');
+  }
+
+  final normalizedIdentity =
+      releaseIdentity == null || releaseIdentity.trim().isEmpty
+      ? null
+      : normalizeReleaseIdentity(releaseIdentity);
+  if (normalizedIdentity == null) {
+    throw StateError(
+      'Missing release identity for release-consumer manifest resolution. '
+      'Set $_releaseIdentityEnvironmentVariable, $_releaseBaseUrlEnvironmentVariable, or $_manifestPathEnvironmentVariable.',
+    );
+  }
+
+  return Uri.parse(
+    '$_defaultReleaseBaseUrl/$normalizedIdentity/$_manifestFileName',
+  );
 }
 
 NexaHttpNativeArtifactResolutionMode
@@ -143,11 +158,87 @@ defaultNexaHttpNativeArtifactResolutionMode({
   return NexaHttpNativeArtifactResolutionMode.releaseConsumer;
 }
 
-String packageVersionForRoot(Uri packageRoot) {
-  final pubspecFile = File.fromUri(packageRoot.resolve('pubspec.yaml'));
-  final pubspec = loadYaml(pubspecFile.readAsStringSync()) as YamlMap;
-  return (pubspec['version'] as String?)?.trim() ??
-      (throw StateError('pubspec.yaml is missing a version field.'));
+String normalizeReleaseIdentity(String releaseIdentity) {
+  final normalized = releaseIdentity.trim();
+  if (normalized.isEmpty) {
+    throw StateError('Release identity must not be empty.');
+  }
+  if (normalized.startsWith('refs/tags/')) {
+    return normalized.substring('refs/tags/'.length);
+  }
+  if (normalized.startsWith('refs/heads/')) {
+    return normalized.substring('refs/heads/'.length);
+  }
+  return normalized;
+}
+
+String releaseVersionForIdentity(String releaseIdentity) {
+  final normalized = normalizeReleaseIdentity(releaseIdentity);
+  return normalized.startsWith('v') ? normalized.substring(1) : normalized;
+}
+
+String? configuredNexaHttpNativeReleaseIdentity({
+  required Map<String, String> environment,
+}) {
+  final explicit =
+      environment[_releaseIdentityEnvironmentVariable]?.trim() ??
+      environment['NEXA_HTTP_NATIVE_RELEASE_REF']?.trim();
+  if (explicit == null || explicit.isEmpty) {
+    return null;
+  }
+  return normalizeReleaseIdentity(explicit);
+}
+
+String? resolveNexaHttpNativeReleaseIdentity({
+  required Uri packageRoot,
+  required Map<String, String> environment,
+}) {
+  final configured = configuredNexaHttpNativeReleaseIdentity(
+    environment: environment,
+  );
+  if (configured != null) {
+    return configured;
+  }
+
+  final packagePath = Directory.fromUri(packageRoot).path;
+  final result = Process.runSync('git', <String>[
+    '-C',
+    packagePath,
+    'tag',
+    '--points-at',
+    'HEAD',
+  ]);
+  if (result.exitCode != 0) {
+    return null;
+  }
+
+  final tags = '${result.stdout}'
+      .split('\n')
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .map(normalizeReleaseIdentity)
+      .toList(growable: false);
+  if (tags.isEmpty) {
+    return null;
+  }
+  if (tags.length > 1) {
+    throw StateError(
+      'Multiple git tags point at HEAD: ${tags.join(', ')}. '
+      'Set $_releaseIdentityEnvironmentVariable explicitly.',
+    );
+  }
+  return tags.single;
+}
+
+bool _hasManifestPathOverride(Map<String, String> environment) {
+  final manifestPath = environment[_manifestPathEnvironmentVariable]?.trim();
+  return manifestPath != null && manifestPath.isNotEmpty;
+}
+
+bool _hasReleaseBaseUrlOverride(Map<String, String> environment) {
+  final releaseBaseUrl = environment[_releaseBaseUrlEnvironmentVariable]
+      ?.trim();
+  return releaseBaseUrl != null && releaseBaseUrl.isNotEmpty;
 }
 
 Future<File?> _resolveExplicitFile({
@@ -226,20 +317,37 @@ Future<File?> _resolveFromSourceDir(
 }
 
 Future<File> _downloadFromManifest({
+  required Uri packageRoot,
   required Uri cacheRoot,
-  required String packageVersion,
+  required String? releaseIdentity,
   required String targetOS,
   required String targetArchitecture,
   required String? targetSdk,
   required Map<String, String> environment,
 }) async {
+  var effectiveReleaseIdentity =
+      releaseIdentity == null || releaseIdentity.trim().isEmpty
+      ? configuredNexaHttpNativeReleaseIdentity(environment: environment)
+      : normalizeReleaseIdentity(releaseIdentity);
+  final requiresDerivedReleaseIdentity =
+      !_hasManifestPathOverride(environment) &&
+      !_hasReleaseBaseUrlOverride(environment);
+  if (effectiveReleaseIdentity == null && requiresDerivedReleaseIdentity) {
+    effectiveReleaseIdentity = resolveNexaHttpNativeReleaseIdentity(
+      packageRoot: packageRoot,
+      environment: environment,
+    );
+  }
+
   final manifestUri = resolveNexaHttpNativeManifestUri(
-    packageVersion: packageVersion,
+    releaseIdentity: effectiveReleaseIdentity,
     environment: environment,
   );
   final manifest = await NexaHttpNativeAssetManifest.load(manifestUri);
   final entry = manifest.select(
-    packageVersion: packageVersion,
+    expectedReleaseVersion: effectiveReleaseIdentity == null
+        ? null
+        : releaseVersionForIdentity(effectiveReleaseIdentity),
     targetOS: targetOS,
     targetArchitecture: targetArchitecture,
     targetSdk: targetSdk,
