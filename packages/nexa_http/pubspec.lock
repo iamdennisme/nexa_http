@@ -382,17 +382,17 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.0.0"
-  nexa_http_distribution:
-    dependency: transitive
-    description:
-      path: "../nexa_http_distribution"
-      relative: true
-    source: path
-    version: "1.0.1"
   nexa_http_native_android:
     dependency: "direct main"
     description:
       path: "../nexa_http_native_android"
+      relative: true
+    source: path
+    version: "1.0.1"
+  nexa_http_native_internal:
+    dependency: "direct main"
+    description:
+      path: "../nexa_http_native_internal"
       relative: true
     source: path
     version: "1.0.1"
@@ -414,13 +414,6 @@ packages:
     dependency: "direct main"
     description:
       path: "../nexa_http_native_windows"
-      relative: true
-    source: path
-    version: "1.0.1"
-  nexa_http_runtime:
-    dependency: "direct main"
-    description:
-      path: "../nexa_http_runtime"
       relative: true
     source: path
     version: "1.0.1"

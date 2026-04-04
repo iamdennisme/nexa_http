@@ -86,21 +86,19 @@ For platform-specific setup, benchmark options, and environment variables, see:
 ## Notes
 
 - Repository-local demo and development use the local workspace source.
-- External git/tag consumers use release-oriented native asset resolution.
+- External consumers integrate through `nexa_http` only.
 - Native startup stays lazy and internal to the SDK surface.
 
 ## More Docs
 
 - Package guide: [`packages/nexa_http/README.md`](./packages/nexa_http/README.md)
 - Demo guide: [`packages/nexa_http/example/README.md`](./packages/nexa_http/example/README.md)
-- Maintainer workflow contract: [`docs/runtime-release-contract.md`](./docs/runtime-release-contract.md)
 
 ## Repository Layout
 
 If you are just consuming the SDK, you can stop here.
 
 - `packages/nexa_http` — public SDK surface
-- `packages/nexa_http_runtime` — runtime internals
-- `packages/nexa_http_distribution` — native artifact and release-manifest internals
-- `packages/nexa_http_native_android|ios|macos|windows` — platform carrier packages
+- `packages/nexa_http_native_internal` — merged internal native layer used by `nexa_http`
+- `packages/nexa_http_native_android|ios|macos|windows` — platform carrier packages that produce artifacts
 - `native/nexa_http_native_core` — shared Rust core

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:nexa_http_runtime/nexa_http_runtime.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:nexa_http_native_macos/nexa_http_native_macos.dart';
 import 'package:test/test.dart';
 
@@ -19,8 +19,11 @@ void main() {
     expect(contents, contains("'libnexa_http_native.dylib'"));
     expect(contents, contains('Platform.environment[_environmentVariable]'));
     expect(contents, contains('DynamicLibrary.open(explicitPath.trim())'));
+    expect(contents, contains('_resolveBundledLibraryPath()'));
+    expect(contents, contains('DynamicLibrary.open(bundledPath)'));
+    expect(contents, contains('Platform.resolvedExecutable'));
+    expect(contents, contains('nexa_http_native.bundle'));
     expect(contents, contains('DynamicLibrary.open(_libraryFileName)'));
-    expect(contents, isNot(contains('Frameworks')));
     expect(contents, isNot(contains('target')));
     expect(contents, isNot(contains('walkUpDynamicLibraryCandidates')));
   });

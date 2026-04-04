@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
-import 'package:nexa_http_distribution/nexa_http_distribution.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 
 import '../lib/src/nexa_http_native_android_asset_bundle.dart';
@@ -23,71 +23,36 @@ Future<void> main(List<String> args) async {
       return;
     }
 
-    final defaultSourceDir = p.normalize(
+    final sourceDir = p.normalize(
       p.join(
         Directory.fromUri(input.packageRoot).path,
         'native',
         'nexa_http_native_android_ffi',
       ),
     );
-    final mode = resolveNexaHttpNativeArtifactResolutionMode(
-      environment: Platform.environment,
-      defaultMode: defaultNexaHttpNativeArtifactResolutionMode(
-        packageRoot: input.packageRoot,
-        defaultSourceDir: defaultSourceDir,
-      ),
-    );
+    final rustTargetTriple = target.rustTargetTriple;
+    if (rustTargetTriple == null || rustTargetTriple.isEmpty) {
+      throw StateError(
+        'Android native target is missing rustTargetTriple for ${target.targetArchitecture}.',
+      );
+    }
 
-    final file = await resolveNexaHttpNativeArtifactFile(
-      packageRoot: input.packageRoot,
-      cacheRoot: input.outputDirectoryShared,
-      mode: mode,
-      releaseIdentity: null,
-      targetOS: target.targetOS,
-      targetArchitecture: target.targetArchitecture,
-      targetSdk: null,
-      packagedRelativePath: target.packagedRelativePath,
-      environment: Platform.environment,
-      libPathEnvironmentVariable: 'NEXA_HTTP_NATIVE_ANDROID_LIB_PATH',
-      sourceDirEnvironmentVariable: 'NEXA_HTTP_NATIVE_ANDROID_SOURCE_DIR',
-      defaultSourceDir: p.normalize(
-        p.join(
-          Directory.fromUri(input.packageRoot).path,
-          'native',
-          'nexa_http_native_android_ffi',
-        ),
-      ),
-      buildDefaultSourceDir: (sourceDir) async {
-        final rustTargetTriple = target.rustTargetTriple;
-        if (rustTargetTriple == null || rustTargetTriple.isEmpty) {
-          throw StateError(
-            'Android native target is missing rustTargetTriple for ${target.targetArchitecture}.',
-          );
-        }
+    final workspaceRoot = p.normalize(p.join(sourceDir, '..', '..', '..', '..'));
+    final buildScript = p.join(workspaceRoot, 'scripts', 'build_native_android.sh');
+    final result = await Process.run('bash', <String>[buildScript, 'debug']);
+    if (result.exitCode != 0) {
+      throw ProcessException(
+        'bash',
+        <String>[buildScript, 'debug'],
+        '${result.stdout}${result.stderr}',
+        result.exitCode,
+      );
+    }
 
-        final workspaceRoot = p.normalize(
-          p.join(sourceDir, '..', '..', '..', '..'),
-        );
-        final buildScript = p.join(
-          workspaceRoot,
-          'scripts',
-          'build_native_android.sh',
-        );
-        final result = await Process.run('bash', <String>[
-          buildScript,
-          'debug',
-        ]);
-        if (result.exitCode != 0) {
-          throw ProcessException(
-            'bash',
-            <String>[buildScript, 'debug'],
-            '${result.stdout}${result.stderr}',
-            result.exitCode,
-          );
-        }
-      },
-      sourceDirCandidates: target.sourceDirCandidates,
-    );
+    final file = File(builtArtifactPathForTarget(sourceDir, target));
+    if (!await file.exists()) {
+      throw StateError('Missing Android native artifact: ${file.path}');
+    }
 
     output.assets.code.add(
       await NexaHttpNativeAndroidAssetBundle.resolveFromFile(

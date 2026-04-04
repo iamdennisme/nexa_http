@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
-import 'package:nexa_http_distribution/nexa_http_distribution.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -32,17 +32,22 @@ void main() {
             expect(asset.file, isNotNull);
             expect(
               File.fromUri(asset.file!).path,
-              endsWith(
-                '/target/aarch64-apple-darwin/debug/libnexa_http_native_macos_ffi.dylib',
+              anyOf(
+                endsWith('/target/debug/libnexa_http_native_macos_ffi.dylib'),
+                endsWith('/target/aarch64-apple-darwin/debug/libnexa_http_native_macos_ffi.dylib'),
               ),
             );
+            final packagedFile = File(
+              p.join('macos', 'Libraries', 'libnexa_http_native.dylib'),
+            );
+            expect(packagedFile.existsSync(), isTrue);
           },
         );
       });
     },
   );
 
-  test('macOS x64 target candidates resolve to an architecture-specific path', () {
+  test('macOS target exposes the expected rust triple', () {
     final target = findNexaHttpNativeTarget(
       targetOS: 'macos',
       targetArchitecture: 'x64',
@@ -50,16 +55,7 @@ void main() {
     );
 
     expect(target, isNotNull);
-    expect(
-      target!.sourceDirCandidates('/tmp/source').first,
-      p.join(
-        '/tmp/source',
-        'target',
-        'x86_64-apple-darwin',
-        'debug',
-        'libnexa_http_native_macos_ffi.dylib',
-      ),
-    );
+    expect(target!.rustTargetTriple, 'x86_64-apple-darwin');
   });
 
   test('cargo build arguments target the requested macOS architecture', () {

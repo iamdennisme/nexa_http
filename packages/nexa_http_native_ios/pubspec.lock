@@ -237,17 +237,17 @@ packages:
       relative: true
     source: path
     version: "1.0.1"
-  nexa_http_distribution:
-    dependency: "direct main"
-    description:
-      path: "../nexa_http_distribution"
-      relative: true
-    source: path
-    version: "1.0.1"
   nexa_http_native_android:
     dependency: transitive
     description:
       path: "../nexa_http_native_android"
+      relative: true
+    source: path
+    version: "1.0.1"
+  nexa_http_native_internal:
+    dependency: "direct main"
+    description:
+      path: "../nexa_http_native_internal"
       relative: true
     source: path
     version: "1.0.1"
@@ -262,13 +262,6 @@ packages:
     dependency: transitive
     description:
       path: "../nexa_http_native_windows"
-      relative: true
-    source: path
-    version: "1.0.1"
-  nexa_http_runtime:
-    dependency: "direct main"
-    description:
-      path: "../nexa_http_runtime"
       relative: true
     source: path
     version: "1.0.1"

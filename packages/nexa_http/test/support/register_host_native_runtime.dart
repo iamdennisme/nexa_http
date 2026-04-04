@@ -1,8 +1,8 @@
 import 'dart:ffi';
 import 'dart:io';
 
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
-import 'package:nexa_http_runtime/nexa_http_runtime.dart';
 
 Future<void> registerHostNativeRuntimeForTests() async {
   if (!Platform.isMacOS) {
@@ -56,6 +56,22 @@ List<String> _libraryCandidates() {
     p.join(
       Directory.current.path,
       '..',
+      '..',
+      'target',
+      'debug',
+      'libnexa_http_native_macos_ffi.dylib',
+    ),
+    p.join(
+      Directory.current.path,
+      '..',
+      '..',
+      'target',
+      'release',
+      'libnexa_http_native_macos_ffi.dylib',
+    ),
+    p.join(
+      Directory.current.path,
+      '..',
       'nexa_http_native_macos',
       'macos',
       'Libraries',
@@ -76,22 +92,6 @@ List<String> _libraryCandidates() {
       'target',
       'release',
       'libnexa_http_native.dylib',
-    ),
-    p.join(
-      Directory.current.path,
-      '..',
-      '..',
-      'target',
-      'debug',
-      'libnexa_http_native_macos_ffi.dylib',
-    ),
-    p.join(
-      Directory.current.path,
-      '..',
-      '..',
-      'target',
-      'release',
-      'libnexa_http_native_macos_ffi.dylib',
     ),
   ];
 }

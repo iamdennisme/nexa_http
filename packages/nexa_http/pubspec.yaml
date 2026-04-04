@@ -13,8 +13,8 @@ dependencies:
   json_annotation: ^4.9.0
   flutter:
     sdk: flutter
-  nexa_http_runtime:
-    path: ../nexa_http_runtime
+  nexa_http_native_internal:
+    path: ../nexa_http_native_internal
   nexa_http_native_android:
     path: ../nexa_http_native_android
   nexa_http_native_ios:
@@ -37,10 +37,10 @@ flutter:
   plugin:
     platforms:
       android:
-        default_package: nexa_http_native_android
+        ffiPlugin: true
       ios:
-        default_package: nexa_http_native_ios
+        ffiPlugin: true
       macos:
-        default_package: nexa_http_native_macos
+        ffiPlugin: true
       windows:
-        default_package: nexa_http_native_windows
+        ffiPlugin: true

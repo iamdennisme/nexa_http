@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
-import 'package:nexa_http_distribution/nexa_http_distribution.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 
 import '../lib/src/nexa_http_native_ios_asset_bundle.dart';
@@ -23,72 +23,46 @@ Future<void> main(List<String> args) async {
       return;
     }
 
-    final defaultSourceDir = p.normalize(
+    final sourceDir = p.normalize(
       p.join(
         Directory.fromUri(input.packageRoot).path,
         'native',
         'nexa_http_native_ios_ffi',
       ),
     );
-    final mode = resolveNexaHttpNativeArtifactResolutionMode(
-      environment: Platform.environment,
-      defaultMode: defaultNexaHttpNativeArtifactResolutionMode(
-        packageRoot: input.packageRoot,
-        defaultSourceDir: defaultSourceDir,
-      ),
-    );
+    final rustTargetTriple = target.rustTargetTriple;
+    if (rustTargetTriple == null || rustTargetTriple.isEmpty) {
+      throw StateError(
+        'iOS native target is missing rustTargetTriple for ${target.targetArchitecture}/${target.targetSdk}.',
+      );
+    }
 
-    final file = await resolveNexaHttpNativeArtifactFile(
-      packageRoot: input.packageRoot,
-      cacheRoot: input.outputDirectoryShared,
-      mode: mode,
-      releaseIdentity: null,
-      targetOS: target.targetOS,
-      targetArchitecture: target.targetArchitecture,
-      targetSdk: target.targetSdk,
-      packagedRelativePath: target.packagedRelativePath,
-      environment: Platform.environment,
-      libPathEnvironmentVariable: 'NEXA_HTTP_NATIVE_IOS_LIB_PATH',
-      sourceDirEnvironmentVariable: 'NEXA_HTTP_NATIVE_IOS_SOURCE_DIR',
-      defaultSourceDir: p.normalize(
-        p.join(
-          Directory.fromUri(input.packageRoot).path,
-          'native',
-          'nexa_http_native_ios_ffi',
-        ),
-      ),
-      buildDefaultSourceDir: (sourceDir) async {
-        final rustTargetTriple = target.rustTargetTriple;
-        if (rustTargetTriple == null || rustTargetTriple.isEmpty) {
-          throw StateError(
-            'iOS native target is missing rustTargetTriple for ${target.targetArchitecture}/${target.targetSdk}.',
-          );
-        }
-
-        final result = await Process.run('cargo', <String>[
+    final result = await Process.run('cargo', <String>[
+      'build',
+      '--manifest-path',
+      p.join(sourceDir, 'Cargo.toml'),
+      '--target',
+      rustTargetTriple,
+    ]);
+    if (result.exitCode != 0) {
+      throw ProcessException(
+        'cargo',
+        <String>[
           'build',
           '--manifest-path',
           p.join(sourceDir, 'Cargo.toml'),
           '--target',
           rustTargetTriple,
-        ]);
-        if (result.exitCode != 0) {
-          throw ProcessException(
-            'cargo',
-            <String>[
-              'build',
-              '--manifest-path',
-              p.join(sourceDir, 'Cargo.toml'),
-              '--target',
-              rustTargetTriple,
-            ],
-            '${result.stdout}${result.stderr}',
-            result.exitCode,
-          );
-        }
-      },
-      sourceDirCandidates: target.sourceDirCandidates,
-    );
+        ],
+        '${result.stdout}${result.stderr}',
+        result.exitCode,
+      );
+    }
+
+    final file = File(builtArtifactPathForTarget(sourceDir, target));
+    if (!await file.exists()) {
+      throw StateError('Missing iOS native artifact: ${file.path}');
+    }
 
     output.assets.code.add(
       await NexaHttpNativeIosAssetBundle.resolveFromFile(

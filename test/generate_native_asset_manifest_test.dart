@@ -7,14 +7,14 @@ import 'package:test/test.dart';
 import '../scripts/generate_native_asset_manifest.dart' as generate_manifest;
 
 void main() {
-  test('manifest generator script delegates to nexa_http_distribution', () {
+  test('manifest generator script delegates to nexa_http_native_internal', () {
     final script = File(
       'scripts/generate_native_asset_manifest.dart',
     ).readAsStringSync();
 
     expect(
       script,
-      contains("package:nexa_http_distribution/nexa_http_distribution.dart"),
+      contains("package:nexa_http_native_internal/nexa_http_native_internal.dart"),
     );
   });
 
@@ -53,8 +53,6 @@ void main() {
     final shaPath = p.join(tempDir.path, 'out', 'SHA256SUMS');
 
     await generate_manifest.main(<String>[
-      '--version',
-      '1.2.3',
       '--dist',
       distDir.path,
       '--output',
@@ -62,7 +60,7 @@ void main() {
       '--sha-output',
       shaPath,
       '--base-url',
-      'https://example.com/download/v1.2.3',
+      'https://example.com/download/native',
     ]);
 
     final manifest = jsonDecode(
@@ -72,11 +70,11 @@ void main() {
     final shaLines = await File(shaPath).readAsLines();
 
     expect(manifest['package'], 'nexa_http');
-    expect(manifest['package_version'], '1.2.3');
+    expect(manifest.containsKey('package_version'), isFalse);
     expect(assets, hasLength(9));
     expect(
       (assets.first as Map<String, Object?>)['source_url'],
-      'https://example.com/download/v1.2.3/nexa_http-native-android-arm64-v8a.so',
+      'https://example.com/download/native/nexa_http-native-android-arm64-v8a.so',
     );
     expect(shaLines, hasLength(9));
   });

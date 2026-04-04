@@ -1,8 +1,9 @@
+import 'dart:ffi' as ffi;
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
-import 'package:nexa_http_distribution/nexa_http_distribution.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 
 import '../lib/src/nexa_http_native_macos_asset_bundle.dart';
@@ -23,57 +24,36 @@ Future<void> main(List<String> args) async {
       return;
     }
 
-    final defaultSourceDir = p.normalize(
+    final sourceDir = p.normalize(
       p.join(
         Directory.fromUri(input.packageRoot).path,
         'native',
         'nexa_http_native_macos_ffi',
       ),
     );
-    final mode = resolveNexaHttpNativeArtifactResolutionMode(
-      environment: Platform.environment,
-      defaultMode: defaultNexaHttpNativeArtifactResolutionMode(
-        packageRoot: input.packageRoot,
-        defaultSourceDir: defaultSourceDir,
-      ),
+    final buildEnvironment = await _buildEnvironmentForTarget(target);
+    final result = await Process.run(
+      'cargo',
+      cargoBuildArgumentsForNexaHttpTarget(sourceDir, target),
+      environment: buildEnvironment.isEmpty ? null : buildEnvironment,
     );
+    if (result.exitCode != 0) {
+      throw ProcessException(
+        'cargo',
+        cargoBuildArgumentsForNexaHttpTarget(sourceDir, target),
+        '${result.stdout}${result.stderr}',
+        result.exitCode,
+      );
+    }
 
-    final file = await resolveNexaHttpNativeArtifactFile(
-      packageRoot: input.packageRoot,
-      cacheRoot: input.outputDirectoryShared,
-      mode: mode,
-      releaseIdentity: null,
-      targetOS: target.targetOS,
-      targetArchitecture: target.targetArchitecture,
-      targetSdk: null,
-      packagedRelativePath: target.packagedRelativePath,
-      environment: Platform.environment,
-      libPathEnvironmentVariable: 'NEXA_HTTP_NATIVE_MACOS_LIB_PATH',
-      sourceDirEnvironmentVariable: 'NEXA_HTTP_NATIVE_MACOS_SOURCE_DIR',
-      defaultSourceDir: p.normalize(
-        p.join(
-          Directory.fromUri(input.packageRoot).path,
-          'native',
-          'nexa_http_native_macos_ffi',
-        ),
-      ),
-      buildDefaultSourceDir: (sourceDir) async {
-        final buildEnvironment = await _buildEnvironmentForTarget(target);
-        final result = await Process.run(
-          'cargo',
-          cargoBuildArgumentsForNexaHttpTarget(sourceDir, target),
-          environment: buildEnvironment.isEmpty ? null : buildEnvironment,
-        );
-        if (result.exitCode != 0) {
-          throw ProcessException(
-            'cargo',
-            cargoBuildArgumentsForNexaHttpTarget(sourceDir, target),
-            '${result.stdout}${result.stderr}',
-            result.exitCode,
-          );
-        }
-      },
-      sourceDirCandidates: target.sourceDirCandidates,
+    final file = File(_builtArtifactPathForMacosTarget(sourceDir, target));
+    if (!await file.exists()) {
+      throw StateError('Missing macOS native artifact: ${file.path}');
+    }
+
+    await _stagePackagedMacosLibrary(
+      packageRoot: Directory.fromUri(input.packageRoot).path,
+      file: file,
     );
 
     output.assets.code.add(
@@ -89,14 +69,12 @@ List<String> cargoBuildArgumentsForNexaHttpTarget(
   String sourceDir,
   NexaHttpNativeTarget target,
 ) {
+  final targetFlag = _macosCargoTargetFlag(target);
   return <String>[
     'build',
     '--manifest-path',
     p.join(sourceDir, 'Cargo.toml'),
-    if (target.rustTargetTriple != null) ...<String>[
-      '--target',
-      target.rustTargetTriple!,
-    ],
+    ...targetFlag,
   ];
 }
 
@@ -131,6 +109,63 @@ Map<String, String> cargoBuildEnvironmentForNexaHttpTarget({
     'MACOSX_DEPLOYMENT_TARGET':
         Platform.environment['MACOSX_DEPLOYMENT_TARGET'] ?? '10.15',
   };
+}
+
+List<String> _macosCargoTargetFlag(NexaHttpNativeTarget target) {
+  final triple = target.rustTargetTriple;
+  if (triple == null || triple.isEmpty) {
+    return const <String>[];
+  }
+  if (_isHostNativeMacosTarget(target)) {
+    return const <String>[];
+  }
+  return <String>['--target', triple];
+}
+
+String _builtArtifactPathForMacosTarget(
+  String sourceDir,
+  NexaHttpNativeTarget target,
+) {
+  final workspaceRoot = p.normalize(p.join(sourceDir, '..', '..', '..', '..'));
+  if (_isHostNativeMacosTarget(target)) {
+    return p.join(
+      workspaceRoot,
+      'target',
+      'debug',
+      target.sourceArtifactFileName,
+    );
+  }
+  return p.join(
+    workspaceRoot,
+    'target',
+    target.rustTargetTriple!,
+    'debug',
+    target.sourceArtifactFileName,
+  );
+}
+
+bool _isHostNativeMacosTarget(NexaHttpNativeTarget target) {
+  if (target.targetOS != 'macos') {
+    return false;
+  }
+  final currentArchitecture = switch (ffi.Abi.current()) {
+    ffi.Abi.macosArm64 => 'arm64',
+    ffi.Abi.macosX64 => 'x64',
+    _ => null,
+  };
+  return currentArchitecture != null &&
+      target.targetArchitecture == currentArchitecture;
+}
+
+Future<void> _stagePackagedMacosLibrary({
+  required String packageRoot,
+  required File file,
+}) async {
+  final packagedFile = File(
+    p.join(packageRoot, 'macos', 'Libraries', 'libnexa_http_native.dylib'),
+  );
+  await packagedFile.parent.create(recursive: true);
+  await file.copy(packagedFile.path);
 }
 
 Future<String?> _resolveMacosSdkRoot() async {

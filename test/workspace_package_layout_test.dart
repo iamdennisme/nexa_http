@@ -17,12 +17,12 @@ void main() {
         .toSet();
 
     expect(packageNames, contains('nexa_http'));
+    expect(packageNames, contains('nexa_http_native_internal'));
     expect(packageNames, contains('nexa_http_native_android'));
     expect(packageNames, contains('nexa_http_native_ios'));
     expect(packageNames, contains('nexa_http_native_macos'));
     expect(packageNames, contains('nexa_http_native_windows'));
-    expect(packageNames, isNot(contains('nexa_http_native_linux')));
-    expect(packageNames, isNot(contains('rust_net')));
-    expect(packageNames, isNot(contains('rust_net_core')));
+    expect(packageNames, isNot(contains('nexa_http_runtime')));
+    expect(packageNames, isNot(contains('nexa_http_distribution')));
   });
 }

@@ -86,21 +86,19 @@ demo 目前包含：
 ## 说明
 
 - 仓库本地开发和 demo 运行使用当前 workspace 源码。
-- 外部 git/tag 消费走 release-oriented native asset resolution。
+- 外部使用方只通过 `nexa_http` 接入。
 - native 启动对 SDK 使用者保持惰性和内部化。
 
 ## 更多文档
 
 - 包说明：[`packages/nexa_http/README.md`](./packages/nexa_http/README.md)
 - Demo 说明：[`packages/nexa_http/example/README.md`](./packages/nexa_http/example/README.md)
-- 维护者流程契约：[`docs/runtime-release-contract.md`](./docs/runtime-release-contract.md)
 
 ## 仓库结构
 
 如果你只是要接入 SDK，到这里其实就可以停了。
 
 - `packages/nexa_http` — 公开 SDK
-- `packages/nexa_http_runtime` — runtime 内部实现
-- `packages/nexa_http_distribution` — 原生产物和 release manifest 相关内部逻辑
-- `packages/nexa_http_native_android|ios|macos|windows` — 各平台 carrier packages
+- `packages/nexa_http_native_internal` — 合并后的内部 native layer，由 `nexa_http` 使用
+- `packages/nexa_http_native_android|ios|macos|windows` — 负责产物生成的各平台 carrier packages
 - `native/nexa_http_native_core` — 共享 Rust core

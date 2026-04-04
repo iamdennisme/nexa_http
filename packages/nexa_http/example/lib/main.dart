@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:nexa_http/nexa_http.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
 import 'src/benchmark/benchmark_models.dart';
 import 'src/benchmark/benchmark_page.dart';
@@ -53,6 +54,9 @@ const String _benchmarkOutputPath = String.fromEnvironment(
 typedef NexaHttpExampleClientFactory = NexaHttpClient Function();
 
 void main() {
+  stdout.writeln(
+    'NEXA_HTTP_RUNTIME_REGISTERED=${isNexaHttpNativeRuntimeRegistered()}',
+  );
   runApp(
     NexaHttpExampleApp(
       initialSection: _autoRunBenchmark

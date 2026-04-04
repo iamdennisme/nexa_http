@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:nexa_http_distribution/nexa_http_distribution.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
 Future<void> main(List<String> args) async {
   final config = _Config.parse(args);
@@ -19,7 +19,6 @@ Future<void> main(List<String> args) async {
   }
 
   await writeNexaHttpNativeReleaseManifestBundle(
-    version: config.version,
     distDirectory: distDir.path,
     outputPath: config.outputPath,
     shaOutputPath: config.shaOutputPath,
@@ -29,21 +28,18 @@ Future<void> main(List<String> args) async {
 
 final class _Config {
   const _Config({
-    required this.version,
     required this.distDirectory,
     required this.outputPath,
     required this.baseUrl,
     required this.shaOutputPath,
   });
 
-  final String version;
   final String distDirectory;
   final String outputPath;
   final String? baseUrl;
   final String? shaOutputPath;
 
   static _Config parse(List<String> args) {
-    String? version;
     var distDirectory = 'dist/native-assets';
     var outputPath = 'dist/nexa_http_native_assets_manifest.json';
     String? baseUrl;
@@ -51,11 +47,7 @@ final class _Config {
 
     for (var index = 0; index < args.length; index++) {
       final argument = args[index];
-      if (argument == '--version') {
-        version = args[++index];
-      } else if (argument.startsWith('--version=')) {
-        version = argument.substring('--version='.length);
-      } else if (argument == '--dist') {
+      if (argument == '--dist') {
         distDirectory = args[++index];
       } else if (argument.startsWith('--dist=')) {
         distDirectory = argument.substring('--dist='.length);
@@ -77,13 +69,7 @@ final class _Config {
       }
     }
 
-    if (version == null || version.isEmpty) {
-      stderr.writeln('Missing required --version argument.');
-      exit(64);
-    }
-
     return _Config(
-      version: version,
       distDirectory: distDirectory,
       outputPath: outputPath,
       baseUrl: baseUrl,

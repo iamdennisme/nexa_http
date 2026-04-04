@@ -29,8 +29,6 @@ jobs:
         run: ./scripts/build_native_android.sh debug
       - name: Workspace artifact verification
         run: dart run scripts/workspace_tools.dart verify-artifact-consistency
-      - name: Release consumer verification
-        run: dart run scripts/workspace_tools.dart verify-release-consumer
       - name: Development path verification
         run: dart run scripts/workspace_tools.dart verify-development-path
 
@@ -50,8 +48,6 @@ jobs:
           ./scripts/build_native_ios.sh debug
       - name: Workspace artifact verification
         run: dart run scripts/workspace_tools.dart verify-artifact-consistency
-      - name: Release consumer verification
-        run: dart run scripts/workspace_tools.dart verify-release-consumer
       - name: Development path verification
         run: dart run scripts/workspace_tools.dart verify-development-path
 
@@ -72,7 +68,5 @@ jobs:
         run: ./scripts/build_native_windows.sh debug
       - name: Workspace artifact verification
         run: dart run scripts/workspace_tools.dart verify-artifact-consistency
-      - name: Release consumer verification
-        run: dart run scripts/workspace_tools.dart verify-release-consumer
       - name: Development path verification
         run: dart run scripts/workspace_tools.dart verify-development-path

@@ -122,10 +122,6 @@ jobs:
         run: dart pub get
       - name: Verify artifact contract
         run: dart run scripts/workspace_tools.dart verify-artifact-consistency
-      - name: Report release-train package metadata
-        env:
-          TAG_NAME: ${{ github.ref_name }}
-        run: dart run scripts/workspace_tools.dart check-release-train --tag "$TAG_NAME"
       - uses: actions/download-artifact@v4
         with:
           pattern: native-assets-*
@@ -136,9 +132,7 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
           REPOSITORY: ${{ github.repository }}
         run: |
-          VERSION="${TAG_NAME#v}"
           dart run scripts/generate_native_asset_manifest.dart \
-            --version "$VERSION" \
             --dist dist/native-assets \
             --output dist/nexa_http_native_assets_manifest.json \
             --sha-output dist/SHA256SUMS \

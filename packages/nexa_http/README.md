@@ -25,29 +25,13 @@ The root entrypoint is `package:nexa_http/nexa_http.dart`.
 
 Normal app code should not deal with:
 
-- runtime registration
+- internal native-layer registration
 - worker lifecycle
 - native-library loading
 - manual startup or shutdown APIs
 
-Platform carrier packages handle runtime registration internally. Apps should
-not import runtime or distribution helper packages directly.
-
-## Versioning
-
-`nexa_http` ships in lockstep with:
-
-- `nexa_http_runtime`
-- `nexa_http_distribution`
-- the carrier packages
-
-If a change crosses SDK, runtime, or native-asset boundaries, bump the workspace
-package set together.
-
-Repository verification enforces this policy through
-`dart run scripts/workspace_tools.dart verify`, and release automation enforces
-tag parity with
-`dart run scripts/workspace_tools.dart check-release-train --tag vX.Y.Z`.
+Platform carriers remain internal implementation details. Apps should not import
+carrier packages or any internal native helpers directly.
 
 ## Usage
 
@@ -84,8 +68,9 @@ and lazy on the first `call.execute()`.
 
 ## Platform Integration
 
-`nexa_http` is the only package apps should declare. Platform implementations
-are resolved through the federated plugin wiring behind this package.
+`nexa_http` is the only package apps should declare. Platform artifacts are
+selected outside the public package surface; carrier packages and the merged
+native layer remain internal to repository/build wiring.
 
 Repository-local path setup:
 
@@ -128,11 +113,12 @@ Repository-level verification:
 
 ```bash
 fvm dart run ../../scripts/workspace_tools.dart verify-artifact-consistency
-fvm dart run ../../scripts/workspace_tools.dart verify-release-consumer
 fvm dart run ../../scripts/workspace_tools.dart verify-development-path
+fvm dart run ../../scripts/workspace_tools.dart verify-external-consumer
 ```
 
-Repository maintainers treat these verification and release flows as governed
-operating contracts. If you need to change how demo startup, external
-consumption, native artifact publication, or CI enforcement works, update the
-governing OpenSpec specs first instead of editing the scripts ad hoc.
+Repository maintainers treat these verification flows as structural checks for
+public-surface boundaries, supported native targets, and carrier-produced
+artifacts. If you need to change how demo startup, external consumption, or CI
+verification works, update the governing OpenSpec specs first instead of editing
+the scripts ad hoc.

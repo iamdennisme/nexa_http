@@ -595,6 +595,7 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     return onCreateClient(config_args);
   }
 
+  @override
   ffi.Pointer<ffi.Char> nexa_http_take_last_error_json() {
     final onTakeLastErrorJson = this.onTakeLastErrorJson;
     if (onTakeLastErrorJson == null) {
