@@ -1,13 +1,36 @@
-## MODIFIED Requirements
+## ADDED Requirements
+
+### Requirement: External consumers SHALL declare only `nexa_http`
+The supported external integration contract SHALL require app consumers to declare only `nexa_http` as a dependency input, and repository/package documentation MUST present that public integration path clearly and accurately, including the current git+ssh tag-based consumption shape.
+
+#### Scenario: External app integrates the SDK through git
+- **WHEN** a Flutter app outside the repository consumes the SDK through git/ssh
+- **THEN** it MUST be sufficient to declare `nexa_http`
+- **AND** it MUST NOT be necessary to declare platform carrier packages manually
+- **AND** it MUST NOT be necessary to declare `nexa_http_runtime` or `nexa_http_distribution`
+
+#### Scenario: Documentation explains external tag consumption
+- **WHEN** repository or package documentation shows how to consume the SDK from git/ssh
+- **THEN** it MUST use the public `nexa_http` package surface
+- **AND** it MUST describe the current tag-based `ref` and `path: packages/nexa_http` contract accurately
+
+### Requirement: Platform implementations SHALL remain internal to the public contract
+Platform carrier packages SHALL be selected through the plugin/federation wiring owned by `nexa_http`, not through public setup instructions.
+
+#### Scenario: Public documentation describes platform integration
+- **WHEN** README or package documentation explains how to integrate the SDK
+- **THEN** it MUST present `nexa_http` as the public package surface
+- **AND** it MUST NOT instruct users to add platform carrier packages as public dependencies
 
 ### Requirement: External consumers SHALL use release-consumer artifact resolution
-The supported external integration path SHALL use release-consumer native artifact resolution, and tag-triggered consumer validation SHALL treat the Git tag as the authoritative release identity instead of relying on aligned workspace package versions.
+The supported external integration path SHALL use release-consumer native artifact resolution, and it SHALL NOT implicitly depend on workspace-local paths, repository checkout layout, or Rust source compilation behavior.
 
 #### Scenario: Consumer resolves native assets from a pinned git ref
 - **WHEN** an external app runs dependency resolution and platform build steps from a supported git/ssh setup
 - **THEN** native artifact resolution MUST execute in `release-consumer`
-- **AND** it MUST use packaged or release-published assets
+- **AND** it MUST use packaged or release-published assets looked up from that same pinned tag or selected git ref
 - **AND** it MUST fail with a structured setup/bootstrap error if required assets are unavailable instead of attempting hidden local Rust compilation
+- **AND** it MUST NOT derive the release URL or manifest lookup path from a locally declared package version
 
 #### Scenario: External consumer runs near a workspace checkout
 - **WHEN** an external consumer resolves runtime assets while repository-local native build outputs or source trees happen to exist on disk
@@ -15,7 +38,9 @@ The supported external integration path SHALL use release-consumer native artifa
 - **AND** it MUST remain in `release-consumer` mode
 - **AND** it MUST NOT switch to workspace-local or native-source behavior implicitly
 
-#### Scenario: Tag consumer verification runs for publication
-- **WHEN** repository tooling validates a tagged consumer flow before or during release publication
-- **THEN** it MUST use the Git tag as the release identity presented to the consumer path
-- **AND** it MUST NOT require aligned workspace package versions as an additional publication gate
+### Requirement: External Consumer Contract Is Governed
+The supported external integration model SHALL remain a governed repository contract.
+
+#### Scenario: Maintainer changes external integration shape
+- **WHEN** a maintainer proposes to change the dependency surface, federation shape, or release-consumer expectations for external apps
+- **THEN** that change MUST be proposed through OpenSpec before implementation is considered complete
