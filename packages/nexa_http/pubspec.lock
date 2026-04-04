@@ -137,14 +137,6 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "0.4.2"
-  code_assets:
-    dependency: transitive
-    description:
-      name: code_assets
-      sha256: "83ccdaa064c980b5596c35dd64a8d3ecc68620174ab9b90b6343b753aa721687"
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "1.0.0"
   code_builder:
     dependency: transitive
     description:
@@ -270,14 +262,6 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.3.2"
-  hooks:
-    dependency: transitive
-    description:
-      name: hooks
-      sha256: e79ed1e8e1929bc6ecb6ec85f0cb519c887aa5b423705ded0d0f2d9226def388
-      url: "https://pub.flutter-io.cn"
-    source: hosted
-    version: "1.0.2"
   http:
     dependency: transitive
     description:
@@ -382,38 +366,10 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "2.0.0"
-  nexa_http_native_android:
+  nexa_http_native_runtime_internal:
     dependency: "direct main"
     description:
-      path: "../nexa_http_native_android"
-      relative: true
-    source: path
-    version: "1.0.1"
-  nexa_http_native_internal:
-    dependency: "direct main"
-    description:
-      path: "../nexa_http_native_internal"
-      relative: true
-    source: path
-    version: "1.0.1"
-  nexa_http_native_ios:
-    dependency: "direct main"
-    description:
-      path: "../nexa_http_native_ios"
-      relative: true
-    source: path
-    version: "1.0.1"
-  nexa_http_native_macos:
-    dependency: "direct main"
-    description:
-      path: "../nexa_http_native_macos"
-      relative: true
-    source: path
-    version: "1.0.1"
-  nexa_http_native_windows:
-    dependency: "direct main"
-    description:
-      path: "../nexa_http_native_windows"
+      path: "../nexa_http_native_runtime_internal"
       relative: true
     source: path
     version: "1.0.1"
@@ -704,4 +660,3 @@ packages:
     version: "2.2.4"
 sdks:
   dart: ">=3.11.0 <4.0.0"
-  flutter: ">=3.35.0"

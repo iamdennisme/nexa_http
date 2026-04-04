@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:nexa_http/nexa_http.dart';
-import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+import 'package:path/path.dart' as p;
 
 import 'src/benchmark/benchmark_models.dart';
 import 'src/benchmark/benchmark_page.dart';
@@ -54,9 +54,10 @@ const String _benchmarkOutputPath = String.fromEnvironment(
 typedef NexaHttpExampleClientFactory = NexaHttpClient Function();
 
 void main() {
-  stdout.writeln(
-    'NEXA_HTTP_RUNTIME_REGISTERED=${isNexaHttpNativeRuntimeRegistered()}',
-  );
+  final contractPath = _resolvedMacosNativeContractPath();
+  if (contractPath != null) {
+    stdout.writeln('NEXA_HTTP_MACOS_CONTRACT_PATH=$contractPath');
+  }
   runApp(
     NexaHttpExampleApp(
       initialSection: _autoRunBenchmark
@@ -280,6 +281,31 @@ void _writeBenchmarkPayload(String payload) {
   final outputFile = File(_benchmarkOutputPath.trim());
   outputFile.parent.createSync(recursive: true);
   outputFile.writeAsStringSync(payload);
+}
+
+String? _resolvedMacosNativeContractPath() {
+  final explicit = Platform.environment['NEXA_HTTP_NATIVE_MACOS_CONTRACT_PATH'];
+  if (explicit != null && explicit.trim().isNotEmpty) {
+    return explicit.trim();
+  }
+  if (!Platform.isMacOS) {
+    return null;
+  }
+  return p.normalize(
+    p.join(
+      File(Platform.resolvedExecutable).parent.path,
+      '..',
+      'Frameworks',
+      'nexa_http_native_macos.framework',
+      'Versions',
+      'A',
+      'Resources',
+      'nexa_http_native.bundle',
+      'Contents',
+      'Resources',
+      'libnexa_http_native.dylib',
+    ),
+  );
 }
 
 Map<String, Object?> buildBenchmarkSuccessPayload({

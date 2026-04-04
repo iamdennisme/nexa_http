@@ -7,13 +7,17 @@
 It is meant to keep app-facing usage small:
 
 - depend on `nexa_http`
+- declare the `nexa_http_native_<platform>` packages for the platforms your app supports
 - import `package:nexa_http/nexa_http.dart`
 - build requests with a familiar HTTP API
-- let the SDK handle platform registration and native asset resolution internally
+- let the SDK keep native startup lazy behind the public API surface
 
 ## Install
 
-For normal app code, `nexa_http` is the only package you should declare.
+For normal app code, declare:
+
+- `nexa_http` as the public Dart API package
+- `nexa_http_native_<platform>` for each target platform your app supports
 
 ### Git / SSH dependency
 
@@ -24,6 +28,11 @@ dependencies:
       url: git@github.com:iamdennisme/nexa_http.git
       ref: vX.Y.Z
       path: packages/nexa_http
+  nexa_http_native_macos:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: vX.Y.Z
+      path: packages/nexa_http_native_macos
 ```
 
 ### Local path dependency
@@ -32,6 +41,8 @@ dependencies:
 dependencies:
   nexa_http:
     path: ../nexa_http/packages/nexa_http
+  nexa_http_native_macos:
+    path: ../nexa_http/packages/nexa_http_native_macos
 ```
 
 The public entrypoint is [`package:nexa_http/nexa_http.dart`](./packages/nexa_http/lib/nexa_http.dart).
@@ -54,7 +65,7 @@ final response = await client.newCall(request).execute();
 final body = await response.body?.string();
 ```
 
-App code should not need to deal with platform carrier packages, runtime registration, native library loading, or release asset lookup directly.
+App code should not need to import platform carrier packages for API usage, nor deal with runtime strategy registration, native library loading, or release asset lookup directly. Platform packages are public dependency artifacts selected at app integration time, while production loading follows a fixed loading contract behind the public Dart API surface.
 
 ## Try The Demo
 
@@ -86,8 +97,8 @@ For platform-specific setup, benchmark options, and environment variables, see:
 ## Notes
 
 - Repository-local demo and development use the local workspace source.
-- External consumers integrate through `nexa_http` only.
-- Native startup stays lazy and internal to the SDK surface.
+- External consumers import `package:nexa_http/nexa_http.dart`, and declare the `nexa_http_native_<platform>` packages for the targets they support.
+- Native startup stays lazy behind the SDK API surface, and runtime strategy registration is the only production loading path.
 
 ## More Docs
 
@@ -99,6 +110,6 @@ For platform-specific setup, benchmark options, and environment variables, see:
 If you are just consuming the SDK, you can stop here.
 
 - `packages/nexa_http` — public SDK surface
-- `packages/nexa_http_native_internal` — merged internal native layer used by `nexa_http`
+- `packages/nexa_http_native_runtime_internal` — internal native runtime/loading layer used by `nexa_http`
 - `packages/nexa_http_native_android|ios|macos|windows` — platform carrier packages that produce artifacts
 - `native/nexa_http_native_core` — shared Rust core

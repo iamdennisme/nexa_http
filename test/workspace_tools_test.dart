@@ -31,12 +31,12 @@ void main() {
     );
     await _writeFile(
       workspace,
-      'packages/nexa_http_native_internal/pubspec.yaml',
-      'name: nexa_http_native_internal\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http_native_runtime_internal/pubspec.yaml',
+      'name: nexa_http_native_runtime_internal\nenvironment:\n  sdk: ^3.11.0\n',
     );
     await _writeFile(
       workspace,
-      'packages/nexa_http_native_internal/test/internal_test.dart',
+      'packages/nexa_http_native_runtime_internal/test/internal_test.dart',
       'void main() {}\n',
     );
     await _writeFile(

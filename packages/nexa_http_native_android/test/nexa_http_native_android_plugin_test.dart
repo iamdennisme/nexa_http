@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:nexa_http_native_android/nexa_http_native_android.dart';
-import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -15,11 +15,10 @@ void main() {
       'lib/src/nexa_http_native_android_plugin.dart',
     ).readAsString();
 
-    expect(contents, contains("'NEXA_HTTP_NATIVE_ANDROID_LIB_PATH'"));
-    expect(contents, contains("'libnexa_http_native.so'"));
-    expect(contents, contains('Platform.environment[_environmentVariable]'));
-    expect(contents, contains('DynamicLibrary.open(explicitPath.trim())'));
     expect(contents, contains("DynamicLibrary.open('libnexa_http_native.so')"));
+    expect(contents, isNot(contains('NEXA_HTTP_NATIVE_ANDROID_LIB_PATH')));
+    expect(contents, isNot(contains('Platform.environment[_environmentVariable]')));
+    expect(contents, isNot(contains('DynamicLibrary.open(explicitPath.trim())')));
     expect(contents, isNot(contains('target')));
     expect(contents, isNot(contains('walkUpDynamicLibraryCandidates')));
     expect(contents, isNot(contains('resolveNexaHttpDynamicLibraryCandidates')));

@@ -237,31 +237,10 @@ packages:
       relative: true
     source: path
     version: "1.0.1"
-  nexa_http_native_internal:
+  nexa_http_native_runtime_internal:
     dependency: "direct main"
     description:
-      path: "../nexa_http_native_internal"
-      relative: true
-    source: path
-    version: "1.0.1"
-  nexa_http_native_ios:
-    dependency: transitive
-    description:
-      path: "../nexa_http_native_ios"
-      relative: true
-    source: path
-    version: "1.0.1"
-  nexa_http_native_macos:
-    dependency: transitive
-    description:
-      path: "../nexa_http_native_macos"
-      relative: true
-    source: path
-    version: "1.0.1"
-  nexa_http_native_windows:
-    dependency: transitive
-    description:
-      path: "../nexa_http_native_windows"
+      path: "../nexa_http_native_runtime_internal"
       relative: true
     source: path
     version: "1.0.1"

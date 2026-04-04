@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
 import 'package:nexa_http_native_macos/nexa_http_native_macos.dart';
 import 'package:test/test.dart';
 
@@ -15,16 +15,17 @@ void main() {
       'lib/src/nexa_http_native_macos_plugin.dart',
     ).readAsString();
 
-    expect(contents, contains("'NEXA_HTTP_NATIVE_MACOS_LIB_PATH'"));
-    expect(contents, contains("'libnexa_http_native.dylib'"));
-    expect(contents, contains('Platform.environment[_environmentVariable]'));
-    expect(contents, contains('DynamicLibrary.open(explicitPath.trim())'));
-    expect(contents, contains('_resolveBundledLibraryPath()'));
-    expect(contents, contains('DynamicLibrary.open(bundledPath)'));
+    expect(contents, contains('DynamicLibrary.open(_resolvedBundledLibraryPath())'));
     expect(contents, contains('Platform.resolvedExecutable'));
-    expect(contents, contains('nexa_http_native.bundle'));
-    expect(contents, contains('DynamicLibrary.open(_libraryFileName)'));
-    expect(contents, isNot(contains('target')));
+    expect(contents, contains("'Frameworks'"));
+    expect(contents, contains("'nexa_http_native_macos.framework'"));
+    expect(contents, contains("'nexa_http_native.bundle'"));
+    expect(contents, contains("'libnexa_http_native.dylib'"));
+    expect(contents, isNot(contains('NEXA_HTTP_NATIVE_MACOS_LIB_PATH')));
+    expect(contents, isNot(contains('NEXA_HTTP_NATIVE_MACOS_CONTRACT_PATH')));
+    expect(contents, isNot(contains('Platform.environment[_environmentVariable]')));
+    expect(contents, isNot(contains('DynamicLibrary.open(explicitPath.trim())')));
+    expect(contents, isNot(contains('contractPath.trim()')));
     expect(contents, isNot(contains('walkUpDynamicLibraryCandidates')));
   });
 }

@@ -1,7 +1,7 @@
 import 'dart:ffi';
 import 'dart:io';
 
-import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
 import 'package:path/path.dart' as p;
 
 Future<void> registerHostNativeRuntimeForTests() async {
@@ -9,15 +9,15 @@ Future<void> registerHostNativeRuntimeForTests() async {
     return;
   }
 
-  final libraryPath = await _resolveHostLibraryPath();
+  final hostLibraryFile = await _resolveHostLibraryFile();
   registerNexaHttpNativeRuntime(
     _HostTestRuntime(
-      libraryPath,
+      hostLibraryFile,
     ),
   );
 }
 
-Future<String> _resolveHostLibraryPath() async {
+Future<String> _resolveHostLibraryFile() async {
   final candidates = _libraryCandidates();
 
   for (final candidate in candidates) {
@@ -97,10 +97,10 @@ List<String> _libraryCandidates() {
 }
 
 final class _HostTestRuntime implements NexaHttpNativeRuntime {
-  const _HostTestRuntime(this.libraryPath);
+  const _HostTestRuntime(this.hostLibraryFile);
 
-  final String libraryPath;
+  final String hostLibraryFile;
 
   @override
-  DynamicLibrary open() => DynamicLibrary.open(libraryPath);
+  DynamicLibrary open() => DynamicLibrary.open(hostLibraryFile);
 }

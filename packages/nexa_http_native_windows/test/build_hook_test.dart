@@ -7,7 +7,7 @@ import '../hook/build.dart' as nexa_http_native_windows_build_hook;
 
 void main() {
   test(
-    'workspace-dev resolves Windows artifact from source build output',
+    'build hook produces the Windows artifact from the fixed source-build contract',
     () async {
       if (!Platform.isWindows ||
           !await _hasRustTarget('x86_64-pc-windows-msvc')) {

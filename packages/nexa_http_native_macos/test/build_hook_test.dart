@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
-import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -9,7 +9,7 @@ import '../hook/build.dart' as nexa_http_native_macos_build_hook;
 
 void main() {
   test(
-    'workspace-dev resolves macOS artifact from source build output',
+    'build hook produces the macOS artifact from the fixed source-build contract',
     () async {
       if (!Platform.isMacOS) {
         markTestSkipped('Requires macOS host.');

@@ -142,31 +142,49 @@ void main() {
     );
   });
 
-  test('public package README presents nexa_http as the only consumer dependency', () {
+  test('public package README presents nexa_http as the API package and platform packages as explicit dependencies', () {
     final readme = File(
       p.join('packages', 'nexa_http', 'README.md'),
     ).readAsStringSync();
 
     expect(readme, isNot(contains('nexa_http_runtime:')));
     expect(readme, isNot(contains('nexa_http_distribution:')));
-    expect(readme, isNot(contains('nexa_http_native_macos:')));
-    expect(readme, isNot(contains('nexa_http_native_ios:')));
-    expect(readme, isNot(contains('nexa_http_native_android:')));
-    expect(readme, isNot(contains('nexa_http_native_windows:')));
     expect(readme, contains('nexa_http:'));
+    expect(readme, contains('nexa_http_native_macos:'));
+    expect(readme, contains('public Dart API'));
+    expect(readme, contains('public dependency artifacts'));
     expect(readme, contains('git:'));
   });
 
-  test('official example depends only on nexa_http at the app layer', () {
+  test('official example app layer declares platform carrier packages explicitly', () {
     final pubspec = File(
       p.join('packages', 'nexa_http', 'example', 'pubspec.yaml'),
     ).readAsStringSync();
 
     expect(pubspec, contains('nexa_http:'));
-    expect(pubspec, isNot(contains('nexa_http_native_android:')));
-    expect(pubspec, isNot(contains('nexa_http_native_ios:')));
-    expect(pubspec, isNot(contains('nexa_http_native_macos:')));
-    expect(pubspec, isNot(contains('nexa_http_native_windows:')));
+    expect(pubspec, contains('nexa_http_native_android:'));
+    expect(pubspec, contains('nexa_http_native_ios:'));
+    expect(pubspec, contains('nexa_http_native_macos:'));
+    expect(pubspec, contains('nexa_http_native_windows:'));
+    expect(pubspec, isNot(contains('nexa_http_native_runtime_internal:')));
+  });
+
+  test('external consumer fixture declares the host platform carrier explicitly', () {
+    final macosPubspec = buildExternalConsumerPubspecForHost(
+      'https://example.invalid/repo.git',
+      WorkspaceHostPlatform.macos,
+    );
+    expect(macosPubspec, contains('nexa_http:'));
+    expect(macosPubspec, contains('nexa_http_native_macos:'));
+    expect(macosPubspec, isNot(contains('nexa_http_native_windows:')));
+    expect(macosPubspec, isNot(contains('nexa_http_native_internal:')));
+
+    final windowsPubspec = buildExternalConsumerPubspecForHost(
+      'https://example.invalid/repo.git',
+      WorkspaceHostPlatform.windows,
+    );
+    expect(windowsPubspec, contains('nexa_http_native_windows:'));
+    expect(windowsPubspec, isNot(contains('nexa_http_native_macos:')));
   });
 
   test('nexa_http pubspec no longer defines federated default packages', () {

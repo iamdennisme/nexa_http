@@ -22,7 +22,7 @@ void main() {
       ],
     );
     final factory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
+      loadDynamicLibrary: () => DynamicLibrary.process(),
       createDataSource: (_) => dataSource,
     );
     final session = NexaHttpTransportSession(

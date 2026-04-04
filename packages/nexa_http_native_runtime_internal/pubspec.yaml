@@ -1,4 +1,4 @@
-name: nexa_http_native_internal
+name: nexa_http_native_runtime_internal
 description: Internal merged native layer for nexa_http.
 version: 1.0.1
 publish_to: none

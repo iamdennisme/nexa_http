@@ -8,9 +8,9 @@ export 'src/native/nexa_http_native_target_matrix.dart';
 export 'src/native/nexa_http_native_release_manifest.dart';
 
 void registerNexaHttpNativeRuntime(NexaHttpNativeRuntime runtime) {
-  NexaHttpPlatformRegistry.register(runtime);
+  NexaHttpNativeLibraryStrategyRegistry.register(runtime);
 }
 
 bool isNexaHttpNativeRuntimeRegistered() {
-  return NexaHttpPlatformRegistry.isRegistered;
+  return NexaHttpNativeLibraryStrategyRegistry.isRegistered;
 }

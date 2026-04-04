@@ -44,7 +44,7 @@ void main() {
       ],
     );
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
+      loadDynamicLibrary: () => DynamicLibrary.process(),
       createDataSource: (_) => dataSource,
     );
     NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
@@ -116,16 +116,16 @@ void main() {
       );
       expect(dataSource.closedClientIds, <int>[41]);
       expect(dataSource.disposeCount, 1);
-      final firstHeaders = dataSource.executeCalls[0].request.headers
-          .map((header) => (header.key, header.value))
-          .toList();
-      expect(firstHeaders, contains(('x-sdk', 'nexa_http')));
+      final openConfig = dataSource.createClientConfigs.single;
+      expect(openConfig.defaultHeaders, <String, String>{
+        'x-sdk': 'nexa_http',
+      });
     },
   );
 
   test('blocks new executions after the client is closed', () async {
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
+      loadDynamicLibrary: () => DynamicLibrary.process(),
       createDataSource: (_) =>
           _FakeNativeDataSource(executeResponses: const <TransportResponse>[]),
     );

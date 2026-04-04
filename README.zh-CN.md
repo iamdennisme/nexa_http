@@ -9,7 +9,7 @@
 - 依赖只声明 `nexa_http`
 - 代码里只 import `package:nexa_http/nexa_http.dart`
 - 请求和响应都按公开 HTTP API 使用
-- 平台注册和原生产物解析由 SDK 内部处理
+- 平台注册与固定装载契约由 SDK 内部处理
 
 ## 安装
 
@@ -54,7 +54,7 @@ final response = await client.newCall(request).execute();
 final body = await response.body?.string();
 ```
 
-正常业务代码不需要直接处理 platform carrier packages、runtime 注册、native library 加载，或 release asset 查找这些事情。
+正常业务代码不需要直接处理 platform carrier packages、runtime strategy 注册、native library 加载，或 release asset 查找这些事情。生产环境里的动态库装载只走固定契约，不依赖运行时路径 override。
 
 ## 试一下 Demo
 
@@ -87,7 +87,7 @@ demo 目前包含：
 
 - 仓库本地开发和 demo 运行使用当前 workspace 源码。
 - 外部使用方只通过 `nexa_http` 接入。
-- native 启动对 SDK 使用者保持惰性和内部化。
+- native 启动对 SDK 使用者保持惰性和内部化，且 runtime strategy 注册是生产环境唯一的装载路径。
 
 ## 更多文档
 
@@ -99,6 +99,6 @@ demo 目前包含：
 如果你只是要接入 SDK，到这里其实就可以停了。
 
 - `packages/nexa_http` — 公开 SDK
-- `packages/nexa_http_native_internal` — 合并后的内部 native layer，由 `nexa_http` 使用
+- `packages/nexa_http_native_runtime_internal` — 内部 native runtime / loading 层，由 `nexa_http` 使用
 - `packages/nexa_http_native_android|ios|macos|windows` — 负责产物生成的各平台 carrier packages
 - `native/nexa_http_native_core` — 共享 Rust core

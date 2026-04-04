@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
-import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
 import 'package:path/path.dart' as p;
 
 import '../lib/src/nexa_http_native_android_asset_bundle.dart';
@@ -49,7 +49,7 @@ Future<void> main(List<String> args) async {
       );
     }
 
-    final file = File(builtArtifactPathForTarget(sourceDir, target));
+    final file = File(_builtArtifactPathForTarget(sourceDir, target));
     if (!await file.exists()) {
       throw StateError('Missing Android native artifact: ${file.path}');
     }
@@ -61,4 +61,22 @@ Future<void> main(List<String> args) async {
       ),
     );
   });
+}
+
+String _builtArtifactPathForTarget(
+  String sourceDir,
+  NexaHttpNativeTarget target,
+) {
+  final workspaceRoot = p.normalize(p.join(sourceDir, '..', '..', '..', '..'));
+  final rustTargetTriple = target.rustTargetTriple;
+  if (rustTargetTriple == null || rustTargetTriple.isEmpty) {
+    return p.join(workspaceRoot, 'target', 'debug', target.sourceArtifactFileName);
+  }
+  return p.join(
+    workspaceRoot,
+    'target',
+    rustTargetTriple,
+    'debug',
+    target.sourceArtifactFileName,
+  );
 }

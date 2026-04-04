@@ -17,7 +17,7 @@ void main() {
         .toSet();
 
     expect(packageNames, contains('nexa_http'));
-    expect(packageNames, contains('nexa_http_native_internal'));
+    expect(packageNames, contains('nexa_http_native_runtime_internal'));
     expect(packageNames, contains('nexa_http_native_android'));
     expect(packageNames, contains('nexa_http_native_ios'));
     expect(packageNames, contains('nexa_http_native_macos'));

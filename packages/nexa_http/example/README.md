@@ -32,9 +32,8 @@ fvm flutter pub get
 fvm flutter run -d macos
 ```
 
-The example app explicitly selects the platform carrier packages it needs so the
-public SDK surface can remain `nexa_http` while the app controls platform
-artifacts at integration time.
+The example app explicitly declares the platform carrier packages it supports so the
+public Dart API stays `nexa_http` while the app owns platform dependency selection.
 
 Other supported targets use the same project without source edits:
 

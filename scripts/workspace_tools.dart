@@ -1,7 +1,7 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
 
-import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -176,7 +176,7 @@ Future<void> verifyArtifactConsistency(
   }
 
   final internalDir = Directory(
-    p.join(workspaceRoot, 'packages', 'nexa_http_native_internal'),
+    p.join(workspaceRoot, 'packages', 'nexa_http_native_runtime_internal'),
   );
   if (Directory(p.join(internalDir.path, 'test')).existsSync()) {
     await runPackageCommand(
@@ -202,14 +202,20 @@ Future<void> verifyDevelopmentPath(
   WorkspaceHostPlatform? hostPlatform,
   PackageCommandRunner runPackageCommand = _runPackageCommand,
 }) async {
+  final resolvedHostPlatform = hostPlatform ?? currentWorkspaceHostPlatform();
   final exampleDir = Directory(p.join(workspaceRoot, 'packages', 'nexa_http', 'example'));
+  stdout.writeln('[verify-development-path] Running flutter pub get for example app.');
   await runPackageCommand(exampleDir, 'flutter', const <String>['pub', 'get']);
+  stdout.writeln('[verify-development-path] Running flutter test for example app.');
   await runPackageCommand(exampleDir, 'flutter', const <String>['test']);
 
   for (final buildArguments in demoBuildCommandsForHost(
     exampleDir,
-    hostPlatform ?? currentWorkspaceHostPlatform(),
+    resolvedHostPlatform,
   )) {
+    stdout.writeln(
+      '[verify-development-path] Running `flutter ${buildArguments.join(' ')}`.',
+    );
     try {
       await runPackageCommand(exampleDir, 'flutter', buildArguments);
     } on ProcessException catch (error) {
@@ -222,6 +228,7 @@ Future<void> verifyDevelopmentPath(
       rethrow;
     }
   }
+  stdout.writeln('[verify-development-path] Passed.');
 }
 
 Future<void> verifyDemo(
@@ -243,17 +250,22 @@ Future<void> verifyExternalConsumer(
   bool initializeGitRepository = true,
 }) async {
   final resolvedHostPlatform = hostPlatform ?? currentWorkspaceHostPlatform();
+  stdout.writeln(
+    '[verify-external-consumer] Preparing external consumer fixture for $resolvedHostPlatform.',
+  );
   final tempRoot = await Directory.systemTemp.createTemp('nexa_http_external_consumer_');
   try {
     final snapshotDir = Directory(p.join(tempRoot.path, 'repo'));
     await _copyWorkspaceForConsumerSnapshot(Directory(workspaceRoot), snapshotDir);
     if (initializeGitRepository) {
+      stdout.writeln('[verify-external-consumer] Initializing temporary git snapshot.');
       await _initializeTemporaryGitRepository(snapshotDir);
     }
 
     final consumerDir = Directory(p.join(tempRoot.path, 'consumer'));
     await consumerDir.create(recursive: true);
 
+    stdout.writeln('[verify-external-consumer] Creating Flutter consumer app shell.');
     await runPackageCommand(
       consumerDir,
       'flutter',
@@ -262,19 +274,24 @@ Future<void> verifyExternalConsumer(
 
     final repoUri = snapshotDir.absolute.uri.toString();
     await File(p.join(consumerDir.path, 'pubspec.yaml')).writeAsString(
-      _buildExternalConsumerPubspec(repoUri),
+      buildExternalConsumerPubspecForHost(repoUri, resolvedHostPlatform),
     );
     final libDir = Directory(p.join(consumerDir.path, 'lib'));
     await libDir.create(recursive: true);
     await File(p.join(libDir.path, 'main.dart')).writeAsString('void main() {}\n');
 
+    stdout.writeln('[verify-external-consumer] Running flutter pub get for external consumer.');
     await runPackageCommand(consumerDir, 'flutter', const <String>['pub', 'get']);
     for (final buildArguments in consumerBuildCommandsForHost(
       consumerDir,
       resolvedHostPlatform,
     )) {
+      stdout.writeln(
+        '[verify-external-consumer] Running `flutter ${buildArguments.join(' ')}`.',
+      );
       await runPackageCommand(consumerDir, 'flutter', buildArguments);
     }
+    stdout.writeln('[verify-external-consumer] Passed.');
   } finally {
     if (tempRoot.existsSync()) {
       await tempRoot.delete(recursive: true);
@@ -463,7 +480,27 @@ bool isSkippableDemoBuildPrerequisiteFailure(ProcessException error) {
       (message.contains('is not installed') || message.contains('unable to find a destination'));
 }
 
-String _buildExternalConsumerPubspec(String repoUrl) {
+String buildExternalConsumerPubspecForHost(
+  String repoUrl,
+  WorkspaceHostPlatform hostPlatform,
+) {
+  final platformDependency = switch (hostPlatform) {
+    WorkspaceHostPlatform.macos => '''  nexa_http_native_macos:
+    git:
+      url: $repoUrl
+      path: packages/nexa_http_native_macos
+''',
+    WorkspaceHostPlatform.windows => '''  nexa_http_native_windows:
+    git:
+      url: $repoUrl
+      path: packages/nexa_http_native_windows
+''',
+    WorkspaceHostPlatform.linux || WorkspaceHostPlatform.other =>
+      throw StateError(
+        'No supported external consumer platform package is defined for $hostPlatform.',
+      ),
+  };
+
   return '''
 name: nexa_http_external_consumer_fixture
 publish_to: none
@@ -478,7 +515,7 @@ dependencies:
     git:
       url: $repoUrl
       path: packages/nexa_http
-
+$platformDependency
 flutter:
   uses-material-design: true
 ''';

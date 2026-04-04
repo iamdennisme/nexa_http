@@ -6,8 +6,8 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
-  nexa_http_native_internal:
-    path: packages/nexa_http_native_internal
+  nexa_http_native_runtime_internal:
+    path: packages/nexa_http_native_runtime_internal
 
 dev_dependencies:
   code_assets: ^1.0.0

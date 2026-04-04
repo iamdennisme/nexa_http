@@ -41,8 +41,7 @@ dependencies:
     path: ../../nexa_http_native_macos
   nexa_http_native_windows:
     path: ../../nexa_http_native_windows
-  nexa_http_native_internal:
-    path: ../../nexa_http_native_internal
+  path: ^1.9.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

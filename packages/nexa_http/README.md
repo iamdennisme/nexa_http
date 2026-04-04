@@ -30,8 +30,7 @@ Normal app code should not deal with:
 - native-library loading
 - manual startup or shutdown APIs
 
-Platform carriers remain internal implementation details. Apps should not import
-carrier packages or any internal native helpers directly.
+Apps should continue to import only `package:nexa_http/nexa_http.dart` for the public Dart API. Platform carrier packages are public dependency artifacts that apps declare explicitly per supported target, but they are not primary app-facing API packages.
 
 ## Usage
 
@@ -68,9 +67,7 @@ and lazy on the first `call.execute()`.
 
 ## Platform Integration
 
-`nexa_http` is the only package apps should declare. Platform artifacts are
-selected outside the public package surface; carrier packages and the merged
-native layer remain internal to repository/build wiring.
+`nexa_http` remains the only public Dart API package apps should import. For dependency declaration, apps must add `nexa_http` plus the `nexa_http_native_<platform>` packages for every platform they intend to support.
 
 Repository-local path setup:
 
@@ -78,6 +75,8 @@ Repository-local path setup:
 dependencies:
   nexa_http:
     path: ../nexa_http/packages/nexa_http
+  nexa_http_native_macos:
+    path: ../nexa_http/packages/nexa_http_native_macos
 ```
 
 External git setup:
@@ -89,6 +88,11 @@ dependencies:
       url: git@github.com:iamdennisme/nexa_http.git
       ref: v1.0.1
       path: packages/nexa_http
+  nexa_http_native_macos:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: v1.0.1
+      path: packages/nexa_http_native_macos
 ```
 
 ## Example App

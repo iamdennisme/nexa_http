@@ -7,7 +7,7 @@ import '../hook/build.dart' as nexa_http_native_android_build_hook;
 
 void main() {
   test(
-    'workspace-dev resolves Android arm64 artifact from source build output',
+    'build hook produces the Android arm64 artifact from the fixed source-build contract',
     () async {
       if (!await _hasRustTarget('aarch64-linux-android') || !_hasAndroidNdk()) {
         markTestSkipped(

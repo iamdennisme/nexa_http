@@ -60,7 +60,7 @@ void main() {
       ],
     );
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
+      loadDynamicLibrary: () => DynamicLibrary.process(),
       createDataSource: (_) => dataSource,
     );
     NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
@@ -93,7 +93,7 @@ void main() {
     () async {
       final dataSource = _CancelableNativeDataSource();
       final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-        loadDynamicLibrary: ({String? explicitPath}) =>
+        loadDynamicLibrary: () =>
             DynamicLibrary.process(),
         createDataSource: (_) => dataSource,
       );
@@ -131,7 +131,7 @@ void main() {
   test('cancel after completion does not forward cancellation again', () async {
     final dataSource = _CompletedCancelableNativeDataSource();
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: ({String? explicitPath}) => DynamicLibrary.process(),
+      loadDynamicLibrary: () => DynamicLibrary.process(),
       createDataSource: (_) => dataSource,
     );
     NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);

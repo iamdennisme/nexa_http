@@ -7,7 +7,7 @@ import '../hook/build.dart' as nexa_http_native_ios_build_hook;
 
 void main() {
   test(
-    'workspace-dev resolves iOS simulator artifact from source build output',
+    'build hook produces the iOS simulator artifact from the fixed source-build contract',
     () async {
       if (!Platform.isMacOS || !await _hasRustTarget('aarch64-apple-ios-sim')) {
         markTestSkipped(
