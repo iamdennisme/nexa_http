@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:test/test.dart';
 
 import '../hook/build.dart' as nexa_http_native_ios_build_hook;
@@ -35,7 +37,7 @@ void main() {
             expect(
               assetPath,
               endsWith(
-                '/target/aarch64-apple-ios-sim/debug/libnexa_http_native_ios_ffi.dylib',
+                '/ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib',
               ),
             );
           },
@@ -43,6 +45,68 @@ void main() {
       });
     },
   );
+
+  test('release manifest parser materializes relative iOS asset URL', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nexa_http_ios_release_consumer_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final packageRoot = Directory(
+      '${tempDir.path}/packages/nexa_http_native_ios',
+    )..createSync(recursive: true);
+    final expectedBytes = utf8.encode('ios-sim-arm64');
+    var fetchCount = 0;
+
+    final file = await materializeNexaHttpNativeReleaseArtifact(
+      packageRoot: packageRoot.path,
+      targetOS: 'ios',
+      targetArchitecture: 'arm64',
+      targetSdk: 'iphonesimulator',
+      resolveReleaseRef: (_) async => const NexaHttpNativeGitReleaseRef(
+        repositorySlug: 'example/nexa_http',
+        tag: 'v0.0.3',
+      ),
+      fetchBytes: (uri) async {
+        fetchCount += 1;
+        if (fetchCount == 1) {
+          return utf8.encode('''
+{
+  "package": "nexa_http",
+  "assets": [
+    {
+      "target_os": "ios",
+      "target_architecture": "arm64",
+      "target_sdk": "iphonesimulator",
+      "file_name": "nexa_http-native-ios-sim-arm64.dylib",
+      "source_url": "nexa_http-native-ios-sim-arm64.dylib",
+      "sha256": "${sha256OfString('ios-sim-arm64')}"
+    }
+  ]
+}
+''');
+        }
+        expect(
+          uri,
+          Uri.parse(
+            'https://github.com/example/nexa_http/releases/download/v0.0.3/nexa_http-native-ios-sim-arm64.dylib',
+          ),
+        );
+        return expectedBytes;
+      },
+    );
+
+    expect(file.existsSync(), isTrue);
+    expect(
+      file.path,
+      endsWith('ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib'),
+    );
+    expect(await file.readAsBytes(), expectedBytes);
+  });
 }
 
 Future<T> _runInPackageRoot<T>(Future<T> Function() action) async {

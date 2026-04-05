@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 
 import '../lib/src/nexa_http_native_windows_asset_bundle.dart';
@@ -16,6 +17,13 @@ Future<void> main(List<String> args) async {
     final packageRoot = Directory.fromUri(input.packageRoot).path;
     if (_isWorkspacePackage(packageRoot)) {
       await _prepareWorkspaceWindowsArtifacts(packageRoot);
+    } else {
+      await materializeNexaHttpNativeReleaseArtifact(
+        packageRoot: packageRoot,
+        targetOS: 'windows',
+        targetArchitecture: _targetArchitecture(input.config.code.targetArchitecture),
+        targetSdk: null,
+      );
     }
 
     output.assets.code.add(
@@ -46,4 +54,13 @@ Future<void> _prepareWorkspaceWindowsArtifacts(String packageRoot) async {
       result.exitCode,
     );
   }
+}
+
+String _targetArchitecture(Architecture architecture) {
+  return switch (architecture) {
+    Architecture.x64 => 'x64',
+    _ => throw UnsupportedError(
+        'No Windows target mapping for architecture $architecture.',
+      ),
+  };
 }

@@ -22,6 +22,7 @@ const List<String> workspaceVerificationCommands = <String>[
   'verify-artifact-consistency',
   'verify-development-path',
   'verify-external-consumer',
+  'verify-release-consumer',
 ];
 
 Future<void> main(List<String> args) async {
@@ -55,6 +56,9 @@ Future<void> main(List<String> args) async {
       return;
     case 'verify-external-consumer':
       await verifyExternalConsumer(workspaceRoot);
+      return;
+    case 'verify-release-consumer':
+      await verifyReleaseConsumer(workspaceRoot);
       return;
     default:
       stderr.writeln('Unknown workspace command: $command');
@@ -138,6 +142,7 @@ Future<void> verifyWorkspacePackages(
   await verifyArtifactConsistency(workspaceRoot, runPackageCommand: runPackageCommand);
   await verifyDevelopmentPath(workspaceRoot, runPackageCommand: runPackageCommand);
   await verifyExternalConsumer(workspaceRoot, runPackageCommand: runPackageCommand);
+  await verifyReleaseConsumer(workspaceRoot, runPackageCommand: runPackageCommand);
   for (final packageDir in discoverWorkspacePackageDirs(workspaceRoot)) {
     await runPackageCommand(
       packageDir,
@@ -267,41 +272,86 @@ Future<void> verifyExternalConsumer(
       await _initializeTemporaryGitRepository(snapshotDir);
     }
 
-    final consumerDir = Directory(p.join(tempRoot.path, 'consumer'));
-    await consumerDir.create(recursive: true);
-
-    stdout.writeln('[verify-external-consumer] Creating Flutter consumer app shell.');
-    await runPackageCommand(
-      consumerDir,
-      'flutter',
-      consumerCreateArgumentsForHost(resolvedHostPlatform),
-    );
-
     final repoUri = snapshotDir.absolute.uri.toString();
-    await File(p.join(consumerDir.path, 'pubspec.yaml')).writeAsString(
-      buildExternalConsumerPubspecForHost(repoUri, resolvedHostPlatform),
+    await _runConsumerFixturePipeline(
+      fixtureDir: Directory(p.join(tempRoot.path, 'consumer')),
+      hostPlatform: resolvedHostPlatform,
+      runPackageCommand: runPackageCommand,
+      pubspecContents: buildExternalConsumerPubspecForHost(
+        repoUri,
+        resolvedHostPlatform,
+        includeRef: false,
+      ),
+      logPrefix: 'verify-external-consumer',
     );
-    final libDir = Directory(p.join(consumerDir.path, 'lib'));
-    await libDir.create(recursive: true);
-    await File(p.join(libDir.path, 'main.dart')).writeAsString('void main() {}\n');
-
-    stdout.writeln('[verify-external-consumer] Running flutter pub get for external consumer.');
-    await runPackageCommand(consumerDir, 'flutter', const <String>['pub', 'get']);
-    for (final buildArguments in consumerBuildCommandsForHost(
-      consumerDir,
-      resolvedHostPlatform,
-    )) {
-      stdout.writeln(
-        '[verify-external-consumer] Running `flutter ${buildArguments.join(' ')}`.',
-      );
-      await runPackageCommand(consumerDir, 'flutter', buildArguments);
-    }
-    stdout.writeln('[verify-external-consumer] Passed.');
   } finally {
     if (tempRoot.existsSync()) {
       await tempRoot.delete(recursive: true);
     }
   }
+}
+
+Future<void> verifyReleaseConsumer(
+  String workspaceRoot, {
+  WorkspaceHostPlatform? hostPlatform,
+  PackageCommandRunner runPackageCommand = _runPackageCommand,
+  String? repoUrl,
+  String? ref,
+}) async {
+  final resolvedHostPlatform = hostPlatform ?? currentWorkspaceHostPlatform();
+  final resolvedRepoUrl = repoUrl ?? 'https://github.com/iamdennisme/nexa_http.git';
+  final resolvedRef = ref ?? _gitHeadTagOrDefault(workspaceRoot);
+  await _runConsumerFixturePipeline(
+    fixtureDir: Directory(
+      p.join(workspaceRoot, '.claude', 'tmp', 'release_consumer_fixture'),
+    ),
+    hostPlatform: resolvedHostPlatform,
+    runPackageCommand: runPackageCommand,
+    pubspecContents: buildExternalConsumerPubspecForHost(
+      resolvedRepoUrl,
+      resolvedHostPlatform,
+      ref: resolvedRef,
+      includeRef: true,
+    ),
+    logPrefix: 'verify-release-consumer',
+  );
+}
+
+Future<void> _runConsumerFixturePipeline({
+  required Directory fixtureDir,
+  required WorkspaceHostPlatform hostPlatform,
+  required PackageCommandRunner runPackageCommand,
+  required String pubspecContents,
+  required String logPrefix,
+}) async {
+  stdout.writeln('[$logPrefix] Preparing consumer fixture for $hostPlatform.');
+  if (fixtureDir.existsSync()) {
+    await fixtureDir.delete(recursive: true);
+  }
+  await fixtureDir.create(recursive: true);
+
+  stdout.writeln('[$logPrefix] Creating Flutter consumer app shell.');
+  await runPackageCommand(
+    fixtureDir,
+    'flutter',
+    consumerCreateArgumentsForHost(hostPlatform),
+  );
+
+  await File(p.join(fixtureDir.path, 'pubspec.yaml')).writeAsString(pubspecContents);
+  final libDir = Directory(p.join(fixtureDir.path, 'lib'));
+  await libDir.create(recursive: true);
+  await File(p.join(libDir.path, 'main.dart')).writeAsString('void main() {}\n');
+
+  stdout.writeln('[$logPrefix] Running flutter pub get for consumer.');
+  await runPackageCommand(fixtureDir, 'flutter', const <String>['pub', 'get']);
+  for (final buildArguments in consumerBuildCommandsForHost(
+    fixtureDir,
+    hostPlatform,
+  )) {
+    stdout.writeln('[$logPrefix] Running `flutter ${buildArguments.join(' ')}`.');
+    await runPackageCommand(fixtureDir, 'flutter', buildArguments);
+  }
+  stdout.writeln('[$logPrefix] Passed.');
 }
 
 bool _usesFlutter(Directory packageDir) {
@@ -487,18 +537,21 @@ bool isSkippableDemoBuildPrerequisiteFailure(ProcessException error) {
 
 String buildExternalConsumerPubspecForHost(
   String repoUrl,
-  WorkspaceHostPlatform hostPlatform,
-) {
+  WorkspaceHostPlatform hostPlatform, {
+  String ref = 'vX.Y.Z',
+  bool includeRef = true,
+}) {
+  final refBlock = includeRef ? '      ref: $ref\n' : '';
   final platformDependency = switch (hostPlatform) {
     WorkspaceHostPlatform.macos => '''  nexa_http_native_macos:
     git:
       url: $repoUrl
-      path: packages/nexa_http_native_macos
+$refBlock      path: packages/nexa_http_native_macos
 ''',
     WorkspaceHostPlatform.windows => '''  nexa_http_native_windows:
     git:
       url: $repoUrl
-      path: packages/nexa_http_native_windows
+$refBlock      path: packages/nexa_http_native_windows
 ''',
     WorkspaceHostPlatform.linux || WorkspaceHostPlatform.other =>
       throw StateError(
@@ -519,11 +572,31 @@ dependencies:
   nexa_http:
     git:
       url: $repoUrl
-      path: packages/nexa_http
+$refBlock      path: packages/nexa_http
 $platformDependency
 flutter:
   uses-material-design: true
 ''';
+}
+
+String _gitHeadTagOrDefault(String workspaceRoot) {
+  try {
+    final result = Process.runSync(
+      'git',
+      const <String>['describe', '--tags', '--exact-match', 'HEAD'],
+      workingDirectory: workspaceRoot,
+      runInShell: true,
+    );
+    if (result.exitCode == 0) {
+      final tag = '${result.stdout}'.trim();
+      if (tag.isNotEmpty) {
+        return tag;
+      }
+    }
+  } catch (_) {
+    // fall through
+  }
+  return 'vX.Y.Z';
 }
 
 String currentMacOsArchitecture() {
@@ -536,7 +609,7 @@ String currentMacOsArchitecture() {
 
 Never _printUsageAndExit({int exitCode = 64}) {
   stderr.writeln(
-    'Usage: dart run scripts/workspace_tools.dart <bootstrap|analyze|test|verify|verify-artifact-consistency|verify-development-path|verify-external-consumer>',
+    'Usage: dart run scripts/workspace_tools.dart <bootstrap|analyze|test|verify|verify-artifact-consistency|verify-development-path|verify-external-consumer|verify-release-consumer>',
   );
   exit(exitCode);
 }

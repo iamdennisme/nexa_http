@@ -122,6 +122,8 @@ jobs:
         run: dart pub get
       - name: Verify artifact contract
         run: dart run scripts/workspace_tools.dart verify-artifact-consistency
+      - name: Verify release consumer contract
+        run: dart run scripts/workspace_tools.dart verify-release-consumer
       - uses: actions/download-artifact@v4
         with:
           pattern: native-assets-*

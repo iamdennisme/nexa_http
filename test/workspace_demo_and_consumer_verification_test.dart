@@ -21,7 +21,7 @@ void main() {
     );
     expect(
       workspaceVerificationCommands,
-      isNot(contains('verify-release-consumer')),
+      contains('verify-release-consumer'),
     );
     expect(
       workspaceVerificationCommands,
@@ -45,6 +45,7 @@ void main() {
     expect(copiedAssets, containsAll(expectedAssets));
     expect(expectedAssets, containsAll(copiedAssets));
     expect(workflow, contains('verify-artifact-consistency'));
+    expect(workflow, contains('verify-release-consumer'));
   });
 
   test('pr CI workflow blocks on development-path and artifact-consistency verification', () {
@@ -174,14 +175,23 @@ void main() {
     );
     expect(macosPubspec, contains('nexa_http:'));
     expect(macosPubspec, contains('nexa_http_native_macos:'));
+    expect(macosPubspec, contains('ref: vX.Y.Z'));
     expect(macosPubspec, isNot(contains('nexa_http_native_windows:')));
     expect(macosPubspec, isNot(contains('nexa_http_native_internal:')));
+
+    final macosSnapshotPubspec = buildExternalConsumerPubspecForHost(
+      'https://example.invalid/repo.git',
+      WorkspaceHostPlatform.macos,
+      includeRef: false,
+    );
+    expect(macosSnapshotPubspec, isNot(contains('ref:')));
 
     final windowsPubspec = buildExternalConsumerPubspecForHost(
       'https://example.invalid/repo.git',
       WorkspaceHostPlatform.windows,
     );
     expect(windowsPubspec, contains('nexa_http_native_windows:'));
+    expect(windowsPubspec, contains('ref: vX.Y.Z'));
     expect(windowsPubspec, isNot(contains('nexa_http_native_macos:')));
   });
 

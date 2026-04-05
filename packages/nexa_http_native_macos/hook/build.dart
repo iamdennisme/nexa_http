@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 
 import '../lib/src/nexa_http_native_macos_asset_bundle.dart';
@@ -16,6 +17,13 @@ Future<void> main(List<String> args) async {
     final packageRoot = Directory.fromUri(input.packageRoot).path;
     if (_isWorkspacePackage(packageRoot)) {
       await _prepareWorkspaceMacosArtifacts(packageRoot);
+    } else {
+      await materializeNexaHttpNativeReleaseArtifact(
+        packageRoot: packageRoot,
+        targetOS: 'macos',
+        targetArchitecture: _targetArchitecture(input.config.code.targetArchitecture),
+        targetSdk: null,
+      );
     }
 
     output.assets.code.add(
@@ -46,4 +54,14 @@ Future<void> _prepareWorkspaceMacosArtifacts(String packageRoot) async {
       result.exitCode,
     );
   }
+}
+
+String _targetArchitecture(Architecture architecture) {
+  return switch (architecture) {
+    Architecture.arm64 => 'arm64',
+    Architecture.x64 => 'x64',
+    _ => throw UnsupportedError(
+        'No macOS target mapping for architecture $architecture.',
+      ),
+  };
 }

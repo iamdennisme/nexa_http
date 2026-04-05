@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:test/test.dart';
 
 import '../hook/build.dart' as nexa_http_native_android_build_hook;
@@ -34,7 +36,7 @@ void main() {
             expect(
               assetPath,
               endsWith(
-                '/target/aarch64-linux-android/debug/libnexa_http_native_android_ffi.so',
+                '/android/src/main/jniLibs/arm64-v8a/libnexa_http_native.so',
               ),
             );
           },
@@ -42,6 +44,71 @@ void main() {
       });
     },
   );
+
+  test('release manifest parser materializes relative Android asset URL', () async {
+    final manifestUri = Uri.parse(
+      'https://github.com/example/nexa_http/releases/download/v0.0.3/nexa_http_native_assets_manifest.json',
+    );
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nexa_http_android_release_consumer_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final packageRoot = Directory(
+      '${tempDir.path}/packages/nexa_http_native_android',
+    )..createSync(recursive: true);
+    final expectedBytes = utf8.encode('android-arm64');
+    var fetchCount = 0;
+
+    final file = await materializeNexaHttpNativeReleaseArtifact(
+      packageRoot: packageRoot.path,
+      targetOS: 'android',
+      targetArchitecture: 'arm64',
+      targetSdk: null,
+      resolveReleaseRef: (_) async => const NexaHttpNativeGitReleaseRef(
+        repositorySlug: 'example/nexa_http',
+        tag: 'v0.0.3',
+      ),
+      fetchBytes: (uri) async {
+        fetchCount += 1;
+        if (fetchCount == 1) {
+          expect(uri, manifestUri);
+          return utf8.encode('''
+{
+  "package": "nexa_http",
+  "assets": [
+    {
+      "target_os": "android",
+      "target_architecture": "arm64",
+      "file_name": "nexa_http-native-android-arm64-v8a.so",
+      "source_url": "nexa_http-native-android-arm64-v8a.so",
+      "sha256": "${sha256OfString('android-arm64')}"
+    }
+  ]
+}
+''');
+        }
+        expect(
+          uri,
+          Uri.parse(
+            'https://github.com/example/nexa_http/releases/download/v0.0.3/nexa_http-native-android-arm64-v8a.so',
+          ),
+        );
+        return expectedBytes;
+      },
+    );
+
+    expect(file.existsSync(), isTrue);
+    expect(
+      file.path,
+      endsWith('android/src/main/jniLibs/arm64-v8a/libnexa_http_native.so'),
+    );
+    expect(await file.readAsBytes(), expectedBytes);
+  });
 }
 
 Future<T> _runInPackageRoot<T>(Future<T> Function() action) async {

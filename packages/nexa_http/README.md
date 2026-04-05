@@ -50,6 +50,8 @@ dependencies:
       path: packages/nexa_http_native_macos
 ```
 
+When consuming a Git tag, the native carrier package resolves its binary from the GitHub Release assets published for that same tag.
+
 ## Example
 
 ```dart

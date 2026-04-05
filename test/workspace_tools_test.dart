@@ -69,6 +69,15 @@ void main() {
       runPackageCommand: (packageDir, executable, arguments, {environment}) async {
         commands.add('${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
       },
+      initializeGitRepository: false,
+    );
+    await verifyReleaseConsumer(
+      workspace.path,
+      runPackageCommand: (packageDir, executable, arguments, {environment}) async {
+        commands.add('${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
+      },
+      repoUrl: 'https://example.invalid/repo.git',
+      ref: 'v0.0.3',
     );
 
     expect(commands, isNotEmpty);

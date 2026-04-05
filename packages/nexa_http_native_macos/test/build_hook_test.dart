@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
@@ -32,10 +33,7 @@ void main() {
             expect(asset.file, isNotNull);
             expect(
               File.fromUri(asset.file!).path,
-              anyOf(
-                endsWith('/target/debug/libnexa_http_native_macos_ffi.dylib'),
-                endsWith('/target/aarch64-apple-darwin/debug/libnexa_http_native_macos_ffi.dylib'),
-              ),
+              endsWith('/macos/Libraries/libnexa_http_native.dylib'),
             );
             final packagedFile = File(
               p.join('macos', 'Libraries', 'libnexa_http_native.dylib'),
@@ -47,6 +45,64 @@ void main() {
     },
   );
 
+  test('release manifest parser materializes relative macOS asset URL', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nexa_http_macos_release_consumer_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final packageRoot = Directory(
+      '${tempDir.path}/packages/nexa_http_native_macos',
+    )..createSync(recursive: true);
+    final expectedBytes = utf8.encode('macos-arm64');
+    var fetchCount = 0;
+
+    final file = await materializeNexaHttpNativeReleaseArtifact(
+      packageRoot: packageRoot.path,
+      targetOS: 'macos',
+      targetArchitecture: 'arm64',
+      targetSdk: null,
+      resolveReleaseRef: (_) async => const NexaHttpNativeGitReleaseRef(
+        repositorySlug: 'example/nexa_http',
+        tag: 'v0.0.3',
+      ),
+      fetchBytes: (uri) async {
+        fetchCount += 1;
+        if (fetchCount == 1) {
+          return utf8.encode('''
+{
+  "package": "nexa_http",
+  "assets": [
+    {
+      "target_os": "macos",
+      "target_architecture": "arm64",
+      "file_name": "nexa_http-native-macos-arm64.dylib",
+      "source_url": "nexa_http-native-macos-arm64.dylib",
+      "sha256": "${sha256OfString('macos-arm64')}"
+    }
+  ]
+}
+''');
+        }
+        expect(
+          uri,
+          Uri.parse(
+            'https://github.com/example/nexa_http/releases/download/v0.0.3/nexa_http-native-macos-arm64.dylib',
+          ),
+        );
+        return expectedBytes;
+      },
+    );
+
+    expect(file.existsSync(), isTrue);
+    expect(file.path, endsWith('macos/Libraries/libnexa_http_native.dylib'));
+    expect(await file.readAsBytes(), expectedBytes);
+  });
+
   test('macOS target exposes the expected rust triple', () {
     final target = findNexaHttpNativeTarget(
       targetOS: 'macos',
@@ -56,47 +112,6 @@ void main() {
 
     expect(target, isNotNull);
     expect(target!.rustTargetTriple, 'x86_64-apple-darwin');
-  });
-
-  test('cargo build arguments target the requested macOS architecture', () {
-    final target = findNexaHttpNativeTarget(
-      targetOS: 'macos',
-      targetArchitecture: 'x64',
-      targetSdk: null,
-    );
-
-    expect(target, isNotNull);
-    expect(
-      nexa_http_native_macos_build_hook
-          .cargoBuildArgumentsForNexaHttpTarget('/tmp/source', target!),
-      <String>[
-        'build',
-        '--manifest-path',
-        p.join('/tmp/source', 'Cargo.toml'),
-        '--target',
-        'x86_64-apple-darwin',
-      ],
-    );
-  });
-
-  test('cross-arch macOS builds receive SDK environment overrides', () {
-    final target = findNexaHttpNativeTarget(
-      targetOS: 'macos',
-      targetArchitecture: 'x64',
-      targetSdk: null,
-    );
-
-    expect(target, isNotNull);
-    expect(
-      nexa_http_native_macos_build_hook.cargoBuildEnvironmentForNexaHttpTarget(
-        target: target!,
-        sdkRoot: '/tmp/MacOSX.sdk',
-      ),
-      <String, String>{
-        'SDKROOT': '/tmp/MacOSX.sdk',
-        'MACOSX_DEPLOYMENT_TARGET': '10.15',
-      },
-    );
   });
 }
 
