@@ -7,7 +7,7 @@ CI consumer verification SHALL validate that supported consumer integrations dec
 - **WHEN** CI verifies a supported consumer integration
 - **THEN** the integration MUST declare `nexa_http`
 - **AND** it MUST declare the relevant `nexa_http_native_<platform>` package(s)
-- **AND** it MUST NOT depend on `nexa_http_native_runtime_internal`
+- **AND** it MUST NOT depend on `nexa_http_native_internal`
 
 ### Requirement: CI SHALL distinguish API surface from dependency artifacts
 CI validation SHALL not treat “only public API surface” as equivalent to “only declared package dependency”.

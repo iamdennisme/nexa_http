@@ -17,7 +17,7 @@ Under this model:
 
 - `nexa_http` is the only public Dart API surface
 - `nexa_http_native_<platform>` packages are public dependency artifacts selected explicitly by consumers
-- `nexa_http_native_runtime_internal` and native core remain internal-only implementation details
+- `nexa_http_native_internal` and native core remain internal-only implementation details
 - production loading follows a fixed loading contract via registered platform runtime strategies
 
 ## Goals / Non-Goals
@@ -53,7 +53,7 @@ A package may be public as a declared dependency artifact without being part of 
 **Why:** This prevents confusion between “users install this package” and “users program against this package directly.”
 
 ### 4. Internal runtime and native core remain non-public
-`nexa_http_native_runtime_internal` and native core must remain unavailable as supported consumer integration surfaces. Production loading must rely on registered platform runtime strategies as the only supported path.
+`nexa_http_native_internal` and native core must remain unavailable as supported consumer integration surfaces. Production loading must rely on registered platform runtime strategies as the only supported path.
 
 **Why:** These layers exist to support runtime loading and shared native execution, not app-facing integration.
 
@@ -82,7 +82,7 @@ They must not depend on internal runtime packages directly.
 
 ### Internal implementation
 
-- `nexa_http_native_runtime_internal`
+- `nexa_http_native_internal`
 - native core
 - platform-specific Rust implementation details
 

@@ -7,7 +7,7 @@
 ## 2. Align Demo Documentation
 
 - [x] 2.1 Update demo startup commands to prefer the repository-safe `fvm` path where appropriate.
-- [x] 2.2 Refresh `packages/nexa_http/example/README.md` so the documented benchmark metrics match the current example UI and output model.
+- [x] 2.2 Refresh `app/demo/README.md` so the documented benchmark metrics match the current example UI and output model.
 - [x] 2.3 Keep demo base URL guidance and platform notes aligned with the current example behavior.
 
 ## 3. Verify Documentation Against Current Repo State

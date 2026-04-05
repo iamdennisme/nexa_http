@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Workspace package versions stay aligned
-The system SHALL support inspecting whether the seven release-train packages use the same semantic version for coordinated maintenance, but this alignment check SHALL remain advisory metadata hygiene rather than a required gate for tag-triggered release publication or release-consumer native asset resolution. The check SHALL exclude `packages/nexa_http/example`.
+The system SHALL support inspecting whether the seven release-train packages use the same semantic version for coordinated maintenance, but this alignment check SHALL remain advisory metadata hygiene rather than a required gate for tag-triggered release publication or release-consumer native asset resolution. The check SHALL exclude `app/demo`.
 
 #### Scenario: one package version drifts
 - **WHEN** repository tooling inspects aligned package metadata and one aligned package declares a different version

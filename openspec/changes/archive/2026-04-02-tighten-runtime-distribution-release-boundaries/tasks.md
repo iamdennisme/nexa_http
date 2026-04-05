@@ -14,7 +14,7 @@
 
 ## 3. Version Alignment Enforcement
 
-- [x] 3.1 Restrict lockstep versioning to the seven release-train packages and explicitly exclude `packages/nexa_http/example`.
+- [x] 3.1 Restrict lockstep versioning to the seven release-train packages and explicitly exclude `app/demo`.
 - [x] 3.2 Add a workspace verification command or check that fails when aligned package versions drift.
 - [x] 3.3 Wire the version-alignment check into repository verification and release paths.
 - [x] 3.4 Add release-time verification that the repository tag matches the aligned package versions.

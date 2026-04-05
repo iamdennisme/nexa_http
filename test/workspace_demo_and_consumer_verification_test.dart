@@ -106,7 +106,7 @@ void main() {
 
   test('example README documents all supported platform run targets', () {
     final readme = File(
-      p.join('packages', 'nexa_http', 'example', 'README.md'),
+      p.join('app', 'demo', 'README.md'),
     ).readAsStringSync();
 
     expect(readme, contains('flutter run -d macos'));
@@ -115,28 +115,28 @@ void main() {
     expect(readme, contains('flutter run -d ios'));
   });
 
-  test('official example contains platform projects for every supported demo target', () {
+  test('official demo contains platform projects for every supported demo target', () {
     expect(
       Directory(
-        p.join('packages', 'nexa_http', 'example', 'android'),
+        p.join('app', 'demo', 'android'),
       ).existsSync(),
       isTrue,
     );
     expect(
       Directory(
-        p.join('packages', 'nexa_http', 'example', 'ios'),
+        p.join('app', 'demo', 'ios'),
       ).existsSync(),
       isTrue,
     );
     expect(
       Directory(
-        p.join('packages', 'nexa_http', 'example', 'macos'),
+        p.join('app', 'demo', 'macos'),
       ).existsSync(),
       isTrue,
     );
     expect(
       Directory(
-        p.join('packages', 'nexa_http', 'example', 'windows'),
+        p.join('app', 'demo', 'windows'),
       ).existsSync(),
       isTrue,
     );
@@ -151,14 +151,12 @@ void main() {
     expect(readme, isNot(contains('nexa_http_distribution:')));
     expect(readme, contains('nexa_http:'));
     expect(readme, contains('nexa_http_native_macos:'));
-    expect(readme, contains('public Dart API'));
-    expect(readme, contains('public dependency artifacts'));
     expect(readme, contains('git:'));
   });
 
-  test('official example app layer declares platform carrier packages explicitly', () {
+  test('official demo app layer declares platform carrier packages explicitly', () {
     final pubspec = File(
-      p.join('packages', 'nexa_http', 'example', 'pubspec.yaml'),
+      p.join('app', 'demo', 'pubspec.yaml'),
     ).readAsStringSync();
 
     expect(pubspec, contains('nexa_http:'));
@@ -166,7 +164,7 @@ void main() {
     expect(pubspec, contains('nexa_http_native_ios:'));
     expect(pubspec, contains('nexa_http_native_macos:'));
     expect(pubspec, contains('nexa_http_native_windows:'));
-    expect(pubspec, isNot(contains('nexa_http_native_runtime_internal:')));
+    expect(pubspec, isNot(contains('nexa_http_native_internal:')));
   });
 
   test('external consumer fixture declares the host platform carrier explicitly', () {

@@ -6,7 +6,7 @@ The supported integration contract SHALL expose `nexa_http` as the only public D
 #### Scenario: App imports and uses the SDK
 - **WHEN** a supported app integration uses the SDK API
 - **THEN** application code MUST import and call `nexa_http`
-- **AND** application code MUST NOT be required to use `nexa_http_native_runtime_internal` APIs directly
+- **AND** application code MUST NOT be required to use `nexa_http_native_internal` APIs directly
 
 ### Requirement: Consumers SHALL declare platform native packages explicitly
 The supported integration contract SHALL require consumers to declare the platform native packages needed for their target platforms.
@@ -22,5 +22,5 @@ Internal native runtime packages and native core implementation layers SHALL NOT
 
 #### Scenario: Consumer dependency guidance
 - **WHEN** repository or package documentation explains supported dependencies
-- **THEN** it MUST NOT instruct consumers to declare `nexa_http_native_runtime_internal`
+- **THEN** it MUST NOT instruct consumers to declare `nexa_http_native_internal`
 - **AND** it MUST describe internal runtime/core layers as non-public implementation details

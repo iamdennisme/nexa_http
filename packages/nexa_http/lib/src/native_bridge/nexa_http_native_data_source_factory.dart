@@ -1,6 +1,6 @@
 import 'dart:ffi';
 
-import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
 import '../data/sources/ffi_nexa_http_native_data_source.dart';
 import '../data/sources/nexa_http_native_data_source.dart';

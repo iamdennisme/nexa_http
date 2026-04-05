@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: Repository example SHALL be the official development demo
-The workspace SHALL treat `packages/nexa_http/example` as the single official development demo for supported platform debugging, Flutter-to-Rust integration validation, and benchmark-based transport diagnosis, and repository documentation for that demo MUST describe the current startup flow, host base URLs, and benchmark surface accurately.
+The workspace SHALL treat `app/demo` as the single official development demo for supported platform debugging, Flutter-to-Rust integration validation, and benchmark-based transport diagnosis, and repository documentation for that demo MUST describe the current startup flow, host base URLs, and benchmark surface accurately.
 
 #### Scenario: Repository documentation references the demo
 - **WHEN** setup guidance or verification refers to the official demo
-- **THEN** it MUST point to `packages/nexa_http/example`
+- **THEN** it MUST point to `app/demo`
 - **AND** it MUST describe that demo as the repository development entrypoint rather than a second-class example
 
 #### Scenario: Benchmark documentation describes demo output

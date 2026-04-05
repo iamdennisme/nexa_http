@@ -167,7 +167,7 @@ This package README should focus on:
 - compact usage examples
 - where to look for the example app and workspace-level docs
 
-### `packages/nexa_http/example/README.md`
+### `app/demo/README.md`
 
 This README should explain:
 

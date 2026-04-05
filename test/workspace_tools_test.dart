@@ -31,22 +31,22 @@ void main() {
     );
     await _writeFile(
       workspace,
-      'packages/nexa_http_native_runtime_internal/pubspec.yaml',
-      'name: nexa_http_native_runtime_internal\nenvironment:\n  sdk: ^3.11.0\n',
+      'packages/nexa_http_native_internal/pubspec.yaml',
+      'name: nexa_http_native_internal\nenvironment:\n  sdk: ^3.11.0\n',
     );
     await _writeFile(
       workspace,
-      'packages/nexa_http_native_runtime_internal/test/internal_test.dart',
+      'packages/nexa_http_native_internal/test/internal_test.dart',
       'void main() {}\n',
     );
     await _writeFile(
       workspace,
-      'packages/nexa_http/example/pubspec.yaml',
-      'name: nexa_http_example\ndependencies:\n  flutter:\n    sdk: flutter\n',
+      'app/demo/pubspec.yaml',
+      'name: nexa_http_demo\ndependencies:\n  flutter:\n    sdk: flutter\n',
     );
     await _writeFile(
       workspace,
-      'packages/nexa_http/example/test/widget_test.dart',
+      'app/demo/test/widget_test.dart',
       'void main() {}\n',
     );
 
@@ -86,16 +86,16 @@ void main() {
 
     await _writeFile(
       workspace,
-      'packages/nexa_http/example/pubspec.yaml',
-      'name: nexa_http_example\ndependencies:\n  flutter:\n    sdk: flutter\n',
+      'app/demo/pubspec.yaml',
+      'name: nexa_http_demo\ndependencies:\n  flutter:\n    sdk: flutter\n',
     );
     await _writeFile(
       workspace,
-      'packages/nexa_http/example/test/widget_test.dart',
+      'app/demo/test/widget_test.dart',
       'void main() {}\n',
     );
-    await _writeFile(workspace, 'packages/nexa_http/example/macos/.keep', '');
-    await _writeFile(workspace, 'packages/nexa_http/example/ios/.keep', '');
+    await _writeFile(workspace, 'app/demo/macos/.keep', '');
+    await _writeFile(workspace, 'app/demo/ios/.keep', '');
 
     final commands = <String>[];
 
@@ -110,10 +110,10 @@ void main() {
     expect(
       commands,
       containsAll(<String>[
-        'example:flutter pub get',
-        'example:flutter test',
-        'example:flutter build macos --debug',
-        'example:flutter build ios --simulator --debug --no-codesign',
+        'demo:flutter pub get',
+        'demo:flutter test',
+        'demo:flutter build macos --debug',
+        'demo:flutter build ios --simulator --debug --no-codesign',
       ]),
     );
   });
@@ -153,8 +153,8 @@ void main() {
     );
     await _writeFile(
       workspace,
-      'packages/nexa_http/example/pubspec.yaml',
-      'name: nexa_http_example\nenvironment:\n  sdk: ^3.11.0\n',
+      'app/demo/pubspec.yaml',
+      'name: nexa_http_demo\nenvironment:\n  sdk: ^3.11.0\n',
     );
 
     final packages = discoverWorkspacePackageDirs(workspace.path);
@@ -164,8 +164,8 @@ void main() {
           .map((directory) => p.relative(directory.path, from: workspace.path))
           .toList(),
       <String>[
+        'app/demo',
         'packages/nexa_http',
-        'packages/nexa_http/example',
         'packages/nexa_http_native_ios',
       ],
     );

@@ -1,5 +1,5 @@
 ### Requirement: Workspace package versions stay aligned
-The system SHALL verify that these seven release-train packages use the same semantic version for a coordinated release: `nexa_http`, `nexa_http_runtime`, `nexa_http_distribution`, `nexa_http_native_android`, `nexa_http_native_ios`, `nexa_http_native_macos`, and `nexa_http_native_windows`. The check SHALL exclude `packages/nexa_http/example`.
+The system SHALL verify that these seven release-train packages use the same semantic version for a coordinated release: `nexa_http`, `nexa_http_runtime`, `nexa_http_distribution`, `nexa_http_native_android`, `nexa_http_native_ios`, `nexa_http_native_macos`, and `nexa_http_native_windows`. The check SHALL exclude `app/demo`.
 
 #### Scenario: one package version drifts
 - **WHEN** repository verification runs and one aligned package declares a different version

@@ -1,0 +1,31 @@
+name: nexa_http_demo
+description: "Official demo app for the nexa_http workspace."
+publish_to: 'none'
+version: 1.0.1+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  nexa_http:
+    path: ../../packages/nexa_http
+  nexa_http_native_android:
+    path: ../../packages/nexa_http_native_android
+  nexa_http_native_ios:
+    path: ../../packages/nexa_http_native_ios
+  nexa_http_native_macos:
+    path: ../../packages/nexa_http_native_macos
+  nexa_http_native_windows:
+    path: ../../packages/nexa_http_native_windows
+  path: ^1.9.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

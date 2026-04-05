@@ -1,25 +1,35 @@
 # nexa_http
 
-[中文](./README.zh-CN.md)
+[中文说明](./README.zh-CN.md)
 
-`nexa_http` is a Flutter HTTP SDK with an OkHttp-style Dart API backed by a Rust transport runtime.
+`nexa_http` is a Flutter HTTP SDK with an OkHttp-style Dart API and a Rust-powered transport core.
 
-It is meant to keep app-facing usage small:
+The goal of this repository is simple:
 
-- depend on `nexa_http`
-- declare the `nexa_http_native_<platform>` packages for the platforms your app supports
-- import `package:nexa_http/nexa_http.dart`
-- build requests with a familiar HTTP API
-- let the SDK keep native startup lazy behind the public API surface
+- app code talks to one public SDK
+- platform-specific native loading stays behind that SDK
+- shared transport logic lives in Rust
+- platform carriers package the right native binaries for each target
+
+## Why this exists
+
+If you like the ergonomics of building requests in Dart, but you want the transport layer to live in Rust, this project is for you.
+
+`nexa_http` gives you:
+
+- a small public Dart surface
+- lazy native startup behind the API
+- one shared Rust native core
+- platform carriers for Android, iOS, macOS, and Windows
 
 ## Install
 
-For normal app code, declare:
+Application code should depend on:
 
-- `nexa_http` as the public Dart API package
-- `nexa_http_native_<platform>` for each target platform your app supports
+1. `nexa_http` — required, the public SDK
+2. `nexa_http_native_<platform>` — add the carrier packages for the platforms your app supports
 
-### Git / SSH dependency
+### Git dependency
 
 ```yaml
 dependencies:
@@ -45,6 +55,8 @@ dependencies:
     path: ../nexa_http/packages/nexa_http_native_macos
 ```
 
+## Quick start
+
 The public entrypoint is [`package:nexa_http/nexa_http.dart`](./packages/nexa_http/lib/nexa_http.dart).
 
 ```dart
@@ -52,7 +64,7 @@ import 'package:nexa_http/nexa_http.dart';
 
 final client = NexaHttpClientBuilder()
     .callTimeout(const Duration(seconds: 10))
-    .userAgent('example-app/1.0.0')
+    .userAgent('my-app/1.0.0')
     .build();
 
 final request = RequestBuilder()
@@ -65,11 +77,28 @@ final response = await client.newCall(request).execute();
 final body = await response.body?.string();
 ```
 
-App code should not need to import platform carrier packages for API usage, nor deal with runtime strategy registration, native library loading, or release asset lookup directly. Platform packages are public dependency artifacts selected at app integration time, while production loading follows a fixed loading contract behind the public Dart API surface.
+## Architecture
 
-## Try The Demo
+This repository is organized around five layers:
 
-The repository demo lives in [`packages/nexa_http/example`](./packages/nexa_http/example).
+1. `app/demo` — the official demo app
+2. `packages/nexa_http` — the public SDK
+3. `packages/nexa_http_native_internal` — the internal native runtime/loading layer
+4. `packages/nexa_http_native_<platform>` — platform carriers
+5. `native/nexa_http_native_core` — shared Rust core
+
+### What external projects actually consume
+
+There are only two kinds of artifacts that matter to consumers:
+
+- `nexa_http`
+- the platform carrier packages you choose for your app targets
+
+Everything else is internal implementation detail.
+
+## Demo
+
+The official demo lives in [`app/demo`](./app/demo).
 
 Start the local fixture server from the repository root:
 
@@ -77,39 +106,52 @@ Start the local fixture server from the repository root:
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-Then run the example app:
+Then run the demo app:
 
 ```bash
-cd packages/nexa_http/example
+cd app/demo
 fvm flutter pub get
 fvm flutter run -d macos
 ```
 
 The demo includes:
 
-- `HTTP Playground` — send real requests with the public API
-- `Benchmark` — compare `nexa_http` and Dart `HttpClient`
+- `HTTP Playground`
+- `Benchmark`
 
-For platform-specific setup, benchmark options, and environment variables, see:
+More demo details are in [`app/demo/README.md`](./app/demo/README.md).
 
-- [`packages/nexa_http/example/README.md`](./packages/nexa_http/example/README.md)
+## Development
 
-## Notes
+Useful local checks:
 
-- Repository-local demo and development use the local workspace source.
-- External consumers import `package:nexa_http/nexa_http.dart`, and declare the `nexa_http_native_<platform>` packages for the targets they support.
-- Native startup stays lazy behind the SDK API surface, and runtime strategy registration is the only production loading path.
+```bash
+fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
+fvm dart run scripts/workspace_tools.dart verify-development-path
+fvm dart run scripts/workspace_tools.dart verify-external-consumer
+```
 
-## More Docs
+## Repository layout
 
-- Package guide: [`packages/nexa_http/README.md`](./packages/nexa_http/README.md)
-- Demo guide: [`packages/nexa_http/example/README.md`](./packages/nexa_http/example/README.md)
-
-## Repository Layout
-
-If you are just consuming the SDK, you can stop here.
-
-- `packages/nexa_http` — public SDK surface
-- `packages/nexa_http_native_runtime_internal` — internal native runtime/loading layer used by `nexa_http`
-- `packages/nexa_http_native_android|ios|macos|windows` — platform carrier packages that produce artifacts
+- `app/demo` — demo app
+- `packages/nexa_http` — public SDK
+- `packages/nexa_http_native_internal` — internal native runtime/loading layer
+- `packages/nexa_http_native_android` — Android carrier
+- `packages/nexa_http_native_ios` — iOS carrier
+- `packages/nexa_http_native_macos` — macOS carrier
+- `packages/nexa_http_native_windows` — Windows carrier
 - `native/nexa_http_native_core` — shared Rust core
+- `fixture_server` — local HTTP fixture server for demo and verification
+
+## For developers
+
+A few practical rules shape this repo:
+
+- `nexa_http` is the only public Dart API surface
+- app code should not know about internal runtime details
+- native carriers own platform packaging and registration
+- shared transport logic belongs in `nexa_http_native_core`
+
+## License
+
+[LICENSE](./LICENSE)

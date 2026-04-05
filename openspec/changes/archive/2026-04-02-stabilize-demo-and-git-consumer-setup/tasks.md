@@ -13,7 +13,7 @@
 
 ## 3. Rebuild The Demo Around Development Mode
 
-- [x] 3.1 Update `packages/nexa_http/example` so it is the canonical development demo for Flutter-to-Rust debugging.
+- [x] 3.1 Update `app/demo` so it is the canonical development demo for Flutter-to-Rust debugging.
 - [x] 3.2 Ensure the documented demo startup path executes `workspace-dev` without requiring source or pubspec edits.
 - [x] 3.3 Add verification that demo startup failures surface structured bootstrap diagnostics.
 

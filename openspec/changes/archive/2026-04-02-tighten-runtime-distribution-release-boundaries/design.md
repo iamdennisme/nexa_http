@@ -63,7 +63,7 @@ Why not:
 
 ### 4. Treat workspace version alignment as a verification concern
 
-Version lockstep should be checked by workspace tooling or CI verification rather than relying on human review of README guidance. The enforced set is the seven release-train packages and explicitly excludes `packages/nexa_http/example`.
+Version lockstep should be checked by workspace tooling or CI verification rather than relying on human review of README guidance. The enforced set is the seven release-train packages and explicitly excludes `app/demo`.
 
 Alternative considered:
 - Keep version policy purely in documentation.

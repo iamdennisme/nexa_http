@@ -1,6 +1,6 @@
 import 'dart:ffi';
 
-import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
 final class NexaHttpNativeIosPlugin {
   NexaHttpNativeIosPlugin._();

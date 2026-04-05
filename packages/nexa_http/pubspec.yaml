@@ -13,8 +13,8 @@ dependencies:
   json_annotation: ^4.9.0
   flutter:
     sdk: flutter
-  nexa_http_native_runtime_internal:
-    path: ../nexa_http_native_runtime_internal
+  nexa_http_native_internal:
+    path: ../nexa_http_native_internal
 
 dev_dependencies:
   build_runner: ^2.4.14

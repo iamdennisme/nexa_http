@@ -250,7 +250,7 @@ Run:
 
 - `cargo test --workspace`
 - `fvm dart test` in `packages/nexa_http`
-- `fvm flutter test` in `packages/nexa_http/example`
+- `fvm flutter test` in `app/demo`
 - `fvm dart run scripts/workspace_tools.dart analyze`
 
 ## Expected Outcome

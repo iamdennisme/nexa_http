@@ -375,9 +375,9 @@ Expected work includes:
 - `packages/nexa_http/lib/src/internal/ffi/*` (re-homed current FFI bridge files as needed)
 - `packages/nexa_http/lib/src/internal/platform/*` (re-homed current loader/runtime files as needed)
 - `packages/nexa_http/test/*`
-- `packages/nexa_http/example/*`
+- `app/demo/*`
 - `packages/nexa_http/README.md`
-- `packages/nexa_http/example/README.md`
+- `app/demo/README.md`
 - `README.md`
 - `README.zh-CN.md`
 - `packages/nexa_http_native_*/lib/src/*`

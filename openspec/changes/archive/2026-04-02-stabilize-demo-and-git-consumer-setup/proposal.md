@@ -31,6 +31,6 @@ The existing shape does neither cleanly enough. The example app still behaves li
 
 ## Impact
 
-- Affected code: `packages/nexa_http`, `packages/nexa_http_runtime`, `packages/nexa_http_distribution`, `packages/nexa_http_native_*`, `native/nexa_http_native_core`, `packages/nexa_http/example`, `scripts/`, `.github/workflows/`.
+- Affected code: `packages/nexa_http`, `packages/nexa_http_runtime`, `packages/nexa_http_distribution`, `packages/nexa_http_native_*`, `native/nexa_http_native_core`, `app/demo`, `scripts/`, `.github/workflows/`.
 - Affected interfaces: public package dependency model, plugin registration topology, artifact resolver behavior, bootstrap error surface, README setup instructions, verification commands, CI workflows.
 - Affected systems: demo startup, external git/ssh integration, native asset publication/consumption, platform bootstrap debugging.

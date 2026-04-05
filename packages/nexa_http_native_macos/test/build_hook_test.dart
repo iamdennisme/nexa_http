@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
-import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

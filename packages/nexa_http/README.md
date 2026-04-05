@@ -1,10 +1,12 @@
 # nexa_http
 
-`nexa_http` is the public Dart package in this workspace.
+`nexa_http` is the public Dart SDK in this repository.
 
-## What It Exposes
+If you are integrating this library into an application, this is the package you write code against.
 
-The package keeps the end-user surface small and HTTP-focused:
+## What you use directly
+
+`nexa_http` exposes the app-facing HTTP API, including:
 
 - `NexaHttpClient`
 - `NexaHttpClientBuilder`
@@ -19,20 +21,60 @@ The package keeps the end-user surface small and HTTP-focused:
 - `Callback`
 - `NexaHttpException`
 
-The root entrypoint is `package:nexa_http/nexa_http.dart`.
+Entrypoint:
 
-## What It Does Not Expose
+```dart
+import 'package:nexa_http/nexa_http.dart';
+```
 
-Normal app code should not deal with:
+## What stays internal
 
-- internal native-layer registration
-- worker lifecycle
-- native-library loading
-- manual startup or shutdown APIs
+Application code should not need to deal with:
 
-Apps should continue to import only `package:nexa_http/nexa_http.dart` for the public Dart API. Platform carrier packages are public dependency artifacts that apps declare explicitly per supported target, but they are not primary app-facing API packages.
+- native runtime registration
+- dynamic-library loading details
+- platform-specific startup logic
+- internal artifact layout
 
-## Usage
+Those concerns are handled by:
+
+- `packages/nexa_http_native_internal`
+- the platform carrier packages
+
+## Dependency model
+
+To integrate `nexa_http`, add:
+
+1. `nexa_http`
+2. the platform carrier packages for the targets your app supports
+
+### Local path setup
+
+```yaml
+dependencies:
+  nexa_http:
+    path: ../nexa_http/packages/nexa_http
+  nexa_http_native_macos:
+    path: ../nexa_http/packages/nexa_http_native_macos
+```
+
+### Git setup
+
+```yaml
+dependencies:
+  nexa_http:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: vX.Y.Z
+      path: packages/nexa_http
+  nexa_http_native_macos:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: vX.Y.Z
+      path: packages/nexa_http_native_macos
+```
+
+## Example
 
 ```dart
 import 'package:nexa_http/nexa_http.dart';
@@ -52,77 +94,38 @@ final response = await client.newCall(request).execute();
 final body = await response.body?.string();
 ```
 
-Supported builder verbs:
+## Demo
 
-- `get()`
-- `post(RequestBody)`
-- `put(RequestBody)`
-- `patch(RequestBody)`
-- `delete([RequestBody])`
-- `head()`
-- `method('OPTIONS')`
+The official demo app lives at [`../../app/demo`](../../app/demo).
 
-`NexaHttpClient` is lightweight and synchronous. Transport startup is internal
-and lazy on the first `call.execute()`.
-
-## Platform Integration
-
-`nexa_http` remains the only public Dart API package apps should import. For dependency declaration, apps must add `nexa_http` plus the `nexa_http_native_<platform>` packages for every platform they intend to support.
-
-Repository-local path setup:
-
-```yaml
-dependencies:
-  nexa_http:
-    path: ../nexa_http/packages/nexa_http
-  nexa_http_native_macos:
-    path: ../nexa_http/packages/nexa_http_native_macos
-```
-
-External git setup:
-
-```yaml
-dependencies:
-  nexa_http:
-    git:
-      url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http
-  nexa_http_native_macos:
-    git:
-      url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.1
-      path: packages/nexa_http_native_macos
-```
-
-## Example App
-
-See [`example/`](./example) for:
-
-- `HTTP Playground`
-- `Benchmark` comparing `nexa_http` vs Dart `HttpClient`
-
-Run focused verification:
+Useful local commands:
 
 ```bash
 cd packages/nexa_http
 fvm dart test
 
-cd packages/nexa_http/example
+cd ../../app/demo
 fvm flutter test
 fvm flutter analyze
 ```
 
-Repository-level verification:
+## Repository verification
+
+From the repository root:
 
 ```bash
-fvm dart run ../../scripts/workspace_tools.dart verify-artifact-consistency
-fvm dart run ../../scripts/workspace_tools.dart verify-development-path
-fvm dart run ../../scripts/workspace_tools.dart verify-external-consumer
+fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
+fvm dart run scripts/workspace_tools.dart verify-development-path
+fvm dart run scripts/workspace_tools.dart verify-external-consumer
 ```
 
-Repository maintainers treat these verification flows as structural checks for
-public-surface boundaries, supported native targets, and carrier-produced
-artifacts. If you need to change how demo startup, external consumption, or CI
-verification works, update the governing OpenSpec specs first instead of editing
-the scripts ad hoc.
+## Architecture note
+
+`nexa_http` is the only public Dart API surface.
+
+The full stack behind it is:
+
+- `nexa_http` — public SDK
+- `nexa_http_native_internal` — internal native runtime/loading layer
+- `nexa_http_native_<platform>` — platform carriers
+- `nexa_http_native_core` — shared Rust core

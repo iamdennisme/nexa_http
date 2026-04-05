@@ -7,14 +7,14 @@ import 'package:test/test.dart';
 import '../scripts/generate_native_asset_manifest.dart' as generate_manifest;
 
 void main() {
-  test('manifest generator script delegates to nexa_http_native_runtime_internal', () {
+  test('manifest generator script delegates to nexa_http_native_internal', () {
     final script = File(
       'scripts/generate_native_asset_manifest.dart',
     ).readAsStringSync();
 
     expect(
       script,
-      contains("package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart"),
+      contains("package:nexa_http_native_internal/nexa_http_native_internal.dart"),
     );
   });
 

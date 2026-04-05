@@ -7,7 +7,7 @@ import '../packages/nexa_http/test/support/http_fixture_server.dart';
 void main() {
   test('fixture image exists at the repo-root lookup path', () {
     final file = File(
-      'packages/nexa_http/example/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+      'app/demo/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
     );
     expect(file.existsSync(), isTrue);
   });

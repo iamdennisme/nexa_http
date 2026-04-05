@@ -22,4 +22,4 @@ The repository README files are mostly accurate, but they no longer line up clea
 
 ## Impact
 
-Affected files include `README.md`, `README.zh-CN.md`, and `packages/nexa_http/example/README.md`. Affected systems are repository onboarding, external git/tag consumption guidance, demo setup instructions, and maintainer workflow discoverability.
+Affected files include `README.md`, `README.zh-CN.md`, and `app/demo/README.md`. Affected systems are repository onboarding, external git/tag consumption guidance, demo setup instructions, and maintainer workflow discoverability.

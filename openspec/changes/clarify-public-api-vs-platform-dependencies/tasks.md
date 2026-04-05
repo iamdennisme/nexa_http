@@ -1,12 +1,12 @@
 ## 1. 修正公开契约术语
 - [ ] 1.1 将所有 “only public surface” 文案拆分为 “only public API surface” 与 “public dependency artifacts”
 - [ ] 1.2 删除或改写将 `nexa_http` 描述为唯一 public package/dependency surface 的表述
-- [ ] 1.3 明确 `nexa_http_native_runtime_internal` 与 native core 为非公开实现细节
+- [ ] 1.3 明确 `nexa_http_native_internal` 与 native core 为非公开实现细节
 
 ## 2. 修正 consumer dependency boundary
 - [ ] 2.1 更新 `git-consumer-dependency-boundary` spec，要求消费者声明 `nexa_http`
 - [ ] 2.2 更新该 spec，要求消费者按目标平台显式声明 `nexa_http_native_<platform>`
-- [ ] 2.3 更新该 spec，禁止消费者依赖 `nexa_http_native_runtime_internal`
+- [ ] 2.3 更新该 spec，禁止消费者依赖 `nexa_http_native_internal`
 
 ## 3. 修正验证模型
 - [ ] 3.1 更新 `platform-runtime-verification`，校验平台选择属于公开依赖契约的一部分

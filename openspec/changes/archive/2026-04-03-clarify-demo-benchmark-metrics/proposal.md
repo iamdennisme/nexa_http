@@ -19,6 +19,6 @@ The official demo benchmark currently compares `nexa_http` against Dart `HttpCli
 
 ## Impact
 
-- Affected code: `packages/nexa_http/example/lib/src/benchmark/benchmark_runner.dart`, `benchmark_models.dart`, `benchmark_page.dart`, `packages/nexa_http/example/lib/main.dart`, and `packages/nexa_http/example/test/benchmark_runner_test.dart`
+- Affected code: `app/demo/lib/src/benchmark/benchmark_runner.dart`, `benchmark_models.dart`, `benchmark_page.dart`, `app/demo/lib/main.dart`, and `app/demo/test/benchmark_runner_test.dart`
 - Affected interfaces: benchmark JSON/export payload and benchmark metric cards in the official demo UI
 - Affected systems: local demo benchmarking and any automation that consumes exported benchmark results

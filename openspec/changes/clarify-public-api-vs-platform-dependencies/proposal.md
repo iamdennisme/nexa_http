@@ -11,7 +11,7 @@ The intended contract is now:
 
 - `nexa_http` is the only public Dart API surface
 - platform native packages are public dependency artifacts selected explicitly by consumers per target platform
-- `nexa_http_native_runtime_internal` and native core remain non-public implementation details
+- `nexa_http_native_internal` and native core remain non-public implementation details
 
 Without codifying that distinction, the repository continues to mix package-boundary language, example integration, and verification rules from two incompatible models.
 
@@ -20,7 +20,7 @@ Without codifying that distinction, the repository continues to mix package-boun
 - Clarify that `nexa_http` remains the only public Dart API surface.
 - Redefine platform native packages as required public dependency artifacts for supported target platforms rather than hidden internal-only package surfaces.
 - Require consumer-owned explicit platform package selection.
-- Prohibit public integration guidance from treating `nexa_http_native_runtime_internal` as a consumer dependency.
+- Prohibit public integration guidance from treating `nexa_http_native_internal` as a consumer dependency.
 - Rewrite dependency-boundary, verification, and example-facing architecture language to distinguish API surface from dependency artifacts.
 
 ## Capabilities

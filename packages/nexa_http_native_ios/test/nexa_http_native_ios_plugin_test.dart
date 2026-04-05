@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:nexa_http_native_ios/nexa_http_native_ios.dart';
 import 'package:test/test.dart';
 

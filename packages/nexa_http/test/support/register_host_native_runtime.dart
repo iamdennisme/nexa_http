@@ -1,7 +1,7 @@
 import 'dart:ffi';
 import 'dart:io';
 
-import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 
 Future<void> registerHostNativeRuntimeForTests() async {

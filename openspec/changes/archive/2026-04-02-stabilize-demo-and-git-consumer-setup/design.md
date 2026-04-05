@@ -22,7 +22,7 @@ The redesign should stop treating those as one fuzzy path and instead model them
 - Define two explicit native artifact modes:
   - `workspace-dev`
   - `release-consumer`
-- Make `packages/nexa_http/example` the canonical local development demo and ensure it exercises `workspace-dev`.
+- Make `app/demo` the canonical local development demo and ensure it exercises `workspace-dev`.
 - Ensure external git/ssh consumers resolve native artifacts without implicit local Rust compilation.
 - Replace opaque bootstrap failures with structured diagnostics that identify the failing stage.
 - Make CI verify both product paths independently.
@@ -69,7 +69,7 @@ Why:
 
 ### 3. The repository example becomes a development tool, not just documentation
 
-`packages/nexa_http/example` becomes the official development demo. Its job is not merely to show API usage; it must prove the contributor workflow:
+`app/demo` becomes the official development demo. Its job is not merely to show API usage; it must prove the contributor workflow:
 
 - clone repository
 - prepare native artifacts locally

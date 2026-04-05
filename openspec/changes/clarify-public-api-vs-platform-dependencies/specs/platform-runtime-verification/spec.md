@@ -13,4 +13,4 @@ Repository verification SHALL ensure internal runtime and native core layers rem
 
 #### Scenario: Verification checks internal package usage
 - **WHEN** repository verification inspects public integration examples or guidance
-- **THEN** it MUST reject direct dependence on `nexa_http_native_runtime_internal` as a supported consumer contract
+- **THEN** it MUST reject direct dependence on `nexa_http_native_internal` as a supported consumer contract

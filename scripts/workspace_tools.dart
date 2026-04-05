@@ -1,7 +1,7 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
 
-import 'package:nexa_http_native_runtime_internal/nexa_http_native_runtime_internal.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -63,17 +63,22 @@ Future<void> main(List<String> args) async {
 }
 
 List<Directory> discoverWorkspacePackageDirs(String workspaceRoot) {
-  final packagesRoot = Directory(p.join(workspaceRoot, 'packages'));
-  if (!packagesRoot.existsSync()) {
-    return const <Directory>[];
-  }
+  final roots = <Directory>[
+    Directory(p.join(workspaceRoot, 'packages')),
+    Directory(p.join(workspaceRoot, 'app')),
+  ];
 
   final directories = <Directory>{};
-  for (final entity in packagesRoot.listSync(recursive: true, followLinks: false)) {
-    if (entity is! File || p.basename(entity.path) != 'pubspec.yaml') {
+  for (final root in roots) {
+    if (!root.existsSync()) {
       continue;
     }
-    directories.add(entity.parent.absolute);
+    for (final entity in root.listSync(recursive: true, followLinks: false)) {
+      if (entity is! File || p.basename(entity.path) != 'pubspec.yaml') {
+        continue;
+      }
+      directories.add(entity.parent.absolute);
+    }
   }
 
   final result = directories.toList()
@@ -176,7 +181,7 @@ Future<void> verifyArtifactConsistency(
   }
 
   final internalDir = Directory(
-    p.join(workspaceRoot, 'packages', 'nexa_http_native_runtime_internal'),
+    p.join(workspaceRoot, 'packages', 'nexa_http_native_internal'),
   );
   if (Directory(p.join(internalDir.path, 'test')).existsSync()) {
     await runPackageCommand(
@@ -203,21 +208,21 @@ Future<void> verifyDevelopmentPath(
   PackageCommandRunner runPackageCommand = _runPackageCommand,
 }) async {
   final resolvedHostPlatform = hostPlatform ?? currentWorkspaceHostPlatform();
-  final exampleDir = Directory(p.join(workspaceRoot, 'packages', 'nexa_http', 'example'));
-  stdout.writeln('[verify-development-path] Running flutter pub get for example app.');
-  await runPackageCommand(exampleDir, 'flutter', const <String>['pub', 'get']);
-  stdout.writeln('[verify-development-path] Running flutter test for example app.');
-  await runPackageCommand(exampleDir, 'flutter', const <String>['test']);
+  final demoDir = Directory(p.join(workspaceRoot, 'app', 'demo'));
+  stdout.writeln('[verify-development-path] Running flutter pub get for demo app.');
+  await runPackageCommand(demoDir, 'flutter', const <String>['pub', 'get']);
+  stdout.writeln('[verify-development-path] Running flutter test for demo app.');
+  await runPackageCommand(demoDir, 'flutter', const <String>['test']);
 
   for (final buildArguments in demoBuildCommandsForHost(
-    exampleDir,
+    demoDir,
     resolvedHostPlatform,
   )) {
     stdout.writeln(
       '[verify-development-path] Running `flutter ${buildArguments.join(' ')}`.',
     );
     try {
-      await runPackageCommand(exampleDir, 'flutter', buildArguments);
+      await runPackageCommand(demoDir, 'flutter', buildArguments);
     } on ProcessException catch (error) {
       if (isSkippableDemoBuildPrerequisiteFailure(error)) {
         stderr.writeln(

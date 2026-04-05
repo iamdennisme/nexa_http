@@ -170,7 +170,7 @@ Expected changes include:
 - `packages/nexa_http/README.md`
 - `README.md`
 - `README.zh-CN.md`
-- `packages/nexa_http/example/nexa_http_dio_consumer/*`
+- `app/demo/nexa_http_dio_consumer/*`
 - `packages/nexa_http/tool/benchmark_nexa_http_vs_dio.dart`
 
 ## Migration Outcome

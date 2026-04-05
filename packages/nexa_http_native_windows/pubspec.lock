@@ -237,10 +237,10 @@ packages:
       relative: true
     source: path
     version: "1.0.1"
-  nexa_http_native_runtime_internal:
+  nexa_http_native_internal:
     dependency: "direct main"
     description:
-      path: "../nexa_http_native_runtime_internal"
+      path: "../nexa_http_native_internal"
       relative: true
     source: path
     version: "1.0.1"
