@@ -45,7 +45,7 @@ void main() {
     expect(copiedAssets, containsAll(expectedAssets));
     expect(expectedAssets, containsAll(copiedAssets));
     expect(workflow, contains('verify-artifact-consistency'));
-    expect(workflow, contains('verify-release-consumer'));
+    expect(workflow, isNot(contains('verify-release-consumer')));
   });
 
   test('pr CI workflow blocks on development-path and artifact-consistency verification', () {

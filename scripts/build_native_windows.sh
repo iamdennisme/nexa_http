@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/build_native_common.sh"
 
 PROFILE="$(normalize_profile "${1:-release}")"
-TARGET='x86_64-pc-windows-gnu'
+TARGET='x86_64-pc-windows-msvc'
 PACKAGE_ROOT="${REPO_ROOT}/packages/nexa_http_native_windows"
 RUST_CRATE_DIR="${PACKAGE_ROOT}/native/nexa_http_native_windows_ffi"
 CARGO_MANIFEST_PATH="${RUST_CRATE_DIR}/Cargo.toml"
