@@ -59,7 +59,7 @@ Future<void> main(List<String> args) async {
       );
     }
 
-    final file = File(builtArtifactPathForTarget(sourceDir, target));
+    final file = File(_builtArtifactPathForTarget(sourceDir, target));
     if (!await file.exists()) {
       throw StateError('Missing Windows native artifact: ${file.path}');
     }
@@ -71,4 +71,22 @@ Future<void> main(List<String> args) async {
       ),
     );
   });
+}
+
+String _builtArtifactPathForTarget(
+  String sourceDir,
+  NexaHttpNativeTarget target,
+) {
+  final workspaceRoot = p.normalize(p.join(sourceDir, '..', '..', '..', '..'));
+  final rustTargetTriple = target.rustTargetTriple;
+  if (rustTargetTriple == null || rustTargetTriple.isEmpty) {
+    return p.join(workspaceRoot, 'target', 'debug', target.sourceArtifactFileName);
+  }
+  return p.join(
+    workspaceRoot,
+    'target',
+    rustTargetTriple,
+    'debug',
+    target.sourceArtifactFileName,
+  );
 }
