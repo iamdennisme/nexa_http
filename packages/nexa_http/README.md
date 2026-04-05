@@ -2,24 +2,14 @@
 
 `nexa_http` is the public Dart SDK in this repository.
 
-If you are integrating this library into an application, this is the package you write code against.
+If you are integrating the project into an app, this is the package your application code talks to.
 
-## What you use directly
+## What it gives you
 
-`nexa_http` exposes the app-facing HTTP API, including:
-
-- `NexaHttpClient`
-- `NexaHttpClientBuilder`
-- `Request`
-- `RequestBuilder`
-- `RequestBody`
-- `Response`
-- `ResponseBody`
-- `Headers`
-- `MediaType`
-- `Call`
-- `Callback`
-- `NexaHttpException`
+- An app-facing HTTP API in Dart
+- A request-building style that feels familiar if you have used OkHttp before
+- A Rust-powered transport layer behind the scenes
+- Platform carrier packages for Android, iOS, macOS, and Windows
 
 Entrypoint:
 
@@ -27,26 +17,12 @@ Entrypoint:
 import 'package:nexa_http/nexa_http.dart';
 ```
 
-## What stays internal
-
-Application code should not need to deal with:
-
-- native runtime registration
-- dynamic-library loading details
-- platform-specific startup logic
-- internal artifact layout
-
-Those concerns are handled by:
-
-- `packages/nexa_http_native_internal`
-- the platform carrier packages
-
 ## Dependency model
 
-To integrate `nexa_http`, add:
+A normal app uses:
 
 1. `nexa_http`
-2. the platform carrier packages for the targets your app supports
+2. the carrier packages for the platforms it ships
 
 ### Local path setup
 
@@ -94,9 +70,37 @@ final response = await client.newCall(request).execute();
 final body = await response.body?.string();
 ```
 
+## Public API
+
+The package exposes the core request and response types you use directly:
+
+- `NexaHttpClient`
+- `NexaHttpClientBuilder`
+- `Request`
+- `RequestBuilder`
+- `RequestBody`
+- `Response`
+- `ResponseBody`
+- `Headers`
+- `MediaType`
+- `Call`
+- `Callback`
+- `NexaHttpException`
+
+## What stays internal
+
+Application code should not need to handle:
+
+- runtime registration
+- dynamic-library loading details
+- platform-specific startup logic
+- artifact layout inside the carrier packages
+
+Those concerns live behind `nexa_http` and the platform carriers.
+
 ## Demo
 
-The official demo app lives at [`../../app/demo`](../../app/demo).
+The official demo app is in [`../../app/demo`](../../app/demo).
 
 Useful local commands:
 
@@ -109,23 +113,8 @@ fvm flutter test
 fvm flutter analyze
 ```
 
-## Repository verification
+## More docs
 
-From the repository root:
-
-```bash
-fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
-fvm dart run scripts/workspace_tools.dart verify-development-path
-fvm dart run scripts/workspace_tools.dart verify-external-consumer
-```
-
-## Architecture note
-
-`nexa_http` is the only public Dart API surface.
-
-The full stack behind it is:
-
-- `nexa_http` — public SDK
-- `nexa_http_native_internal` — internal native runtime/loading layer
-- `nexa_http_native_<platform>` — platform carriers
-- `nexa_http_native_core` — shared Rust core
+- Workspace overview: [`../../README.md`](../../README.md)
+- Demo guide: [`../../app/demo/README.md`](../../app/demo/README.md)
+- Verification guide: [`../../docs/verification-playbook.md`](../../docs/verification-playbook.md)

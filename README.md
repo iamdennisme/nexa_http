@@ -1,33 +1,31 @@
 # nexa_http
 
-[中文说明](./README.zh-CN.md)
+[中文](./README.zh-CN.md)
 
 `nexa_http` is a Flutter HTTP SDK with an OkHttp-style Dart API and a Rust-powered transport core.
 
-The goal of this repository is simple:
+It is built for apps that want a straightforward Dart request API while keeping the transport layer in native code.
 
-- app code talks to one public SDK
-- platform-specific native loading stays behind that SDK
-- shared transport logic lives in Rust
-- platform carriers package the right native binaries for each target
+## Why use it
 
-## Why this exists
+- A small, app-facing Dart API
+- Rust-powered transport under the hood
+- Explicit platform packages for Android, iOS, macOS, and Windows
+- A demo app you can run locally to exercise the full Flutter → FFI → Rust path
 
-If you like the ergonomics of building requests in Dart, but you want the transport layer to live in Rust, this project is for you.
+## Supported platforms
 
-`nexa_http` gives you:
+- Android
+- iOS
+- macOS
+- Windows
 
-- a small public Dart surface
-- lazy native startup behind the API
-- one shared Rust native core
-- platform carriers for Android, iOS, macOS, and Windows
+## Installation
 
-## Install
+A normal app depends on:
 
-Application code should depend on:
-
-1. `nexa_http` — required, the public SDK
-2. `nexa_http_native_<platform>` — add the carrier packages for the platforms your app supports
+1. `nexa_http`
+2. the carrier packages for the platforms it ships
 
 ### Git dependency
 
@@ -77,25 +75,6 @@ final response = await client.newCall(request).execute();
 final body = await response.body?.string();
 ```
 
-## Architecture
-
-This repository is organized around five layers:
-
-1. `app/demo` — the official demo app
-2. `packages/nexa_http` — the public SDK
-3. `packages/nexa_http_native_internal` — the internal native runtime/loading layer
-4. `packages/nexa_http_native_<platform>` — platform carriers
-5. `native/nexa_http_native_core` — shared Rust core
-
-### What external projects actually consume
-
-There are only two kinds of artifacts that matter to consumers:
-
-- `nexa_http`
-- the platform carrier packages you choose for your app targets
-
-Everything else is internal implementation detail.
-
 ## Demo
 
 The official demo lives in [`app/demo`](./app/demo).
@@ -106,7 +85,7 @@ Start the local fixture server from the repository root:
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-Then prepare fresh artifacts and run the demo app:
+Then run the demo on macOS:
 
 ```bash
 ./scripts/build_native_macos.sh debug
@@ -121,11 +100,21 @@ The demo includes:
 - `HTTP Playground`
 - `Benchmark`
 
-More demo details are in [`app/demo/README.md`](./app/demo/README.md).
+More run details are in [`app/demo/README.md`](./app/demo/README.md).
+
+## Packages
+
+- `packages/nexa_http` — public Dart SDK
+- `packages/nexa_http_native_internal` — internal runtime/loading layer
+- `packages/nexa_http_native_android` — Android carrier
+- `packages/nexa_http_native_ios` — iOS carrier
+- `packages/nexa_http_native_macos` — macOS carrier
+- `packages/nexa_http_native_windows` — Windows carrier
+- `native/nexa_http_native_core` — shared Rust transport core
 
 ## Development
 
-Useful local checks:
+For maintainers, the most useful local checks are:
 
 ```bash
 fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
@@ -133,30 +122,7 @@ fvm dart run scripts/workspace_tools.dart verify-development-path
 fvm dart run scripts/workspace_tools.dart verify-external-consumer
 ```
 
-For local native debugging, prepare artifacts first with the platform build scripts, then run the app. Runtime integration should consume prepared binaries rather than triggering source builds implicitly.
-
-A full reproducible verification guide for other machines and other AI agents is in [`docs/verification-playbook.md`](./docs/verification-playbook.md).
-
-## Repository layout
-
-- `app/demo` — demo app
-- `packages/nexa_http` — public SDK
-- `packages/nexa_http_native_internal` — internal native runtime/loading layer
-- `packages/nexa_http_native_android` — Android carrier
-- `packages/nexa_http_native_ios` — iOS carrier
-- `packages/nexa_http_native_macos` — macOS carrier
-- `packages/nexa_http_native_windows` — Windows carrier
-- `native/nexa_http_native_core` — shared Rust core
-- `fixture_server` — local HTTP fixture server for demo and verification
-
-## For developers
-
-A few practical rules shape this repo:
-
-- `nexa_http` is the only public Dart API surface
-- app code should not know about internal runtime details
-- native carriers own platform packaging and registration
-- shared transport logic belongs in `nexa_http_native_core`
+A fuller verification guide is in [`docs/verification-playbook.md`](./docs/verification-playbook.md).
 
 ## License
 

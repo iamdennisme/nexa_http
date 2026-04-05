@@ -2,38 +2,30 @@
 
 [English](./README.md)
 
-`nexa_http` 是一个给 Flutter 用的 HTTP SDK：上层是接近 OkHttp 风格的 Dart API，底层传输由 Rust 驱动。
+`nexa_http` 是一个面向 Flutter 的 HTTP SDK：上层提供接近 OkHttp 风格的 Dart API，底层传输由 Rust 驱动。
 
-这个仓库想解决的事情很直接：
+如果你想保留 Dart 侧顺手的请求写法，同时把传输层放到 native 里，这个项目就是为这种场景准备的。
 
-- 业务代码只面对一个 public SDK
-- 平台相关的 native 加载细节藏在 SDK 后面
-- 公共传输逻辑收敛到 Rust
-- 各平台 carrier 负责打包对应平台产物
+## 为什么用它
 
-## 这个项目解决什么问题
+- 应用侧 API 尽量保持简单
+- 传输层由 Rust 驱动
+- Android / iOS / macOS / Windows 都有明确的 carrier 包
+- 仓库里有一个可直接运行的 demo，可以把 Flutter → FFI → Rust 这条链路跑一遍
 
-如果你希望：
+## 支持平台
 
-- 在 Flutter 侧保留顺手的 Dart 请求构建体验
-- 在传输层使用 Rust
-- 不把 native 启动、动态库加载、平台差异暴露给业务代码
-
-那这个仓库就是围绕这件事构建的。
-
-它提供：
-
-- 一个尽量小的公开 Dart API
-- 惰性的 native 启动流程
-- 一个共享 Rust native core
-- Android / iOS / macOS / Windows 的平台 carrier
+- Android
+- iOS
+- macOS
+- Windows
 
 ## 安装
 
-应用侧真正需要关心的只有两类产物：
+普通应用通常只需要两类依赖：
 
-1. `nexa_http` —— 必选，公开 SDK
-2. `nexa_http_native_<platform>` —— 按你支持的平台选择对应 carrier
+1. `nexa_http`
+2. 你目标平台对应的 carrier package
 
 ### Git 依赖
 
@@ -83,25 +75,6 @@ final response = await client.newCall(request).execute();
 final body = await response.body?.string();
 ```
 
-## 分层
-
-当前仓库按 5 层组织：
-
-1. `app/demo` —— 官方 demo
-2. `packages/nexa_http` —— public SDK
-3. `packages/nexa_http_native_internal` —— internal native runtime / loading 层
-4. `packages/nexa_http_native_<platform>` —— 各平台 carrier
-5. `native/nexa_http_native_core` —— 共享 Rust core
-
-### 外部项目真正会接触什么
-
-对接入方来说，只需要理解两类产物：
-
-- `nexa_http`
-- 你要支持的平台对应的 carrier package
-
-其他内容都属于内部实现细节。
-
 ## Demo
 
 官方 demo 在 [`app/demo`](./app/demo)。
@@ -112,24 +85,36 @@ final body = await response.body?.string();
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-然后运行 demo：
+然后在 macOS 上运行 demo：
 
 ```bash
+./scripts/build_native_macos.sh debug
+./scripts/build_native_ios.sh debug
 cd app/demo
 fvm flutter pub get
 fvm flutter run -d macos
 ```
 
-demo 目前包含：
+demo 里有两部分：
 
 - `HTTP Playground`
 - `Benchmark`
 
-更完整的说明见 [`app/demo/README.md`](./app/demo/README.md)。
+更完整的运行说明见 [`app/demo/README.md`](./app/demo/README.md)。
+
+## 包结构
+
+- `packages/nexa_http` —— 公开 Dart SDK
+- `packages/nexa_http_native_internal` —— 内部 runtime/loading 层
+- `packages/nexa_http_native_android` —— Android carrier
+- `packages/nexa_http_native_ios` —— iOS carrier
+- `packages/nexa_http_native_macos` —— macOS carrier
+- `packages/nexa_http_native_windows` —— Windows carrier
+- `native/nexa_http_native_core` —— 共享 Rust transport core
 
 ## 开发与验证
 
-常用校验命令：
+如果你在维护这个仓库，最常用的本地检查是：
 
 ```bash
 fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
@@ -137,26 +122,7 @@ fvm dart run scripts/workspace_tools.dart verify-development-path
 fvm dart run scripts/workspace_tools.dart verify-external-consumer
 ```
 
-## 仓库结构
-
-- `app/demo` —— demo 应用
-- `packages/nexa_http` —— 公开 SDK
-- `packages/nexa_http_native_internal` —— 内部 native runtime/loading 层
-- `packages/nexa_http_native_android` —— Android carrier
-- `packages/nexa_http_native_ios` —— iOS carrier
-- `packages/nexa_http_native_macos` —— macOS carrier
-- `packages/nexa_http_native_windows` —— Windows carrier
-- `native/nexa_http_native_core` —— 共享 Rust core
-- `fixture_server` —— 本地 HTTP fixture server
-
-## 给开发者的约束
-
-这个仓库有几条核心边界：
-
-- `nexa_http` 是唯一 public Dart API surface
-- app 代码不应该感知 internal runtime 细节
-- carrier 只负责平台注册、装配和产物打包
-- 共享传输逻辑应该收敛在 `nexa_http_native_core`
+更完整的验证流程在 [`docs/verification-playbook.md`](./docs/verification-playbook.md)。
 
 ## License
 
