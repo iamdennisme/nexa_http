@@ -109,7 +109,8 @@ fvm dart run fixture_server/http_fixture_server.dart --port 8080
 Then prepare fresh artifacts and run the demo app:
 
 ```bash
-./scripts/prepare_demo_artifacts.sh debug
+./scripts/build_native_macos.sh debug
+./scripts/build_native_ios.sh debug
 cd app/demo
 fvm flutter pub get
 fvm flutter run -d macos

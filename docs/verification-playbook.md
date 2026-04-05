@@ -20,15 +20,9 @@ That means:
 
 If you are debugging native code locally, prepare fresh artifacts first, then run the app.
 
-The standard entrypoint is:
+Platform-specific commands:
 
-```bash
-./scripts/prepare_demo_artifacts.sh debug
-```
-
-This script removes previously prepared carrier artifacts and regenerates them for the current host platform before the demo runs.
-
-Platform-specific equivalents are still available when needed:
+### macOS
 
 ```bash
 ./scripts/build_native_macos.sh debug
