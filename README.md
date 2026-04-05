@@ -106,9 +106,10 @@ Start the local fixture server from the repository root:
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-Then run the demo app:
+Then prepare fresh artifacts and run the demo app:
 
 ```bash
+./scripts/prepare_demo_artifacts.sh debug
 cd app/demo
 fvm flutter pub get
 fvm flutter run -d macos
@@ -130,6 +131,10 @@ fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
 fvm dart run scripts/workspace_tools.dart verify-development-path
 fvm dart run scripts/workspace_tools.dart verify-external-consumer
 ```
+
+For local native debugging, prepare artifacts first with the platform build scripts, then run the app. Runtime integration should consume prepared binaries rather than triggering source builds implicitly.
+
+A full reproducible verification guide for other machines and other AI agents is in [`docs/verification-playbook.md`](./docs/verification-playbook.md).
 
 ## Repository layout
 

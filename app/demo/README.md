@@ -30,10 +30,15 @@ fvm dart run fixture_server/http_fixture_server.dart --port 8080
 Then start the demo:
 
 ```bash
+./scripts/prepare_demo_artifacts.sh debug
 cd app/demo
 fvm flutter pub get
 fvm flutter run -d macos
 ```
+
+For the complete cross-machine verification flow, including Windows guidance and git+tag consumer validation, see [`../../docs/verification-playbook.md`](../../docs/verification-playbook.md).
+
+For local native debugging, prepare artifacts first with the repository build scripts. The demo should consume prepared binaries at runtime instead of rebuilding Rust implicitly during app integration.
 
 Other supported targets:
 
