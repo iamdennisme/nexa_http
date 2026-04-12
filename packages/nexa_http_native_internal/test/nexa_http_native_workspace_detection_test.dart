@@ -74,4 +74,53 @@ void main() {
 
     expect(isNexaHttpNativeWorkspacePackage(packageRoot.path), isTrue);
   });
+
+  test('preserves .gitkeep while removing stale workspace artifacts', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nexa_http_workspace_artifacts_cleanup_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final artifactsDir = Directory(p.join(tempDir.path, 'macos', 'Libraries'))
+      ..createSync(recursive: true);
+    final gitkeepFile = File(p.join(artifactsDir.path, '.gitkeep'))
+      ..writeAsStringSync('');
+    File(p.join(artifactsDir.path, 'stale.dylib')).writeAsStringSync('old');
+    Directory(p.join(artifactsDir.path, 'nested')).createSync();
+    File(
+      p.join(artifactsDir.path, 'nested', 'stale.txt'),
+    ).writeAsStringSync('nested');
+
+    await prepareNexaHttpNativeWorkspaceArtifactsDirectory(artifactsDir.path);
+
+    expect(artifactsDir.existsSync(), isTrue);
+    expect(gitkeepFile.existsSync(), isTrue);
+    expect(
+        File(p.join(artifactsDir.path, 'stale.dylib')).existsSync(), isFalse);
+    expect(
+        Directory(p.join(artifactsDir.path, 'nested')).existsSync(), isFalse);
+  });
+
+  test('creates missing workspace artifacts directory with .gitkeep', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nexa_http_workspace_artifacts_create_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final artifactsDir =
+        Directory(p.join(tempDir.path, 'windows', 'Libraries'));
+
+    await prepareNexaHttpNativeWorkspaceArtifactsDirectory(artifactsDir.path);
+
+    expect(artifactsDir.existsSync(), isTrue);
+    expect(File(p.join(artifactsDir.path, '.gitkeep')).existsSync(), isTrue);
+  });
 }

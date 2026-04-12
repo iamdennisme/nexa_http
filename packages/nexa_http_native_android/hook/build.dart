@@ -38,11 +38,9 @@ bool _isWorkspacePackage(String packageRoot) {
 }
 
 Future<void> _prepareWorkspaceAndroidArtifacts(String packageRoot) async {
-  final artifactsDir =
-      Directory(p.join(packageRoot, 'android', 'src', 'main', 'jniLibs'));
-  if (artifactsDir.existsSync()) {
-    await artifactsDir.delete(recursive: true);
-  }
+  await prepareNexaHttpNativeWorkspaceArtifactsDirectory(
+    p.join(packageRoot, 'android', 'src', 'main', 'jniLibs'),
+  );
 
   final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
   final script = p.join(workspaceRoot, 'scripts', 'build_native_android.sh');

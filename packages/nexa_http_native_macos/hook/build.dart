@@ -38,10 +38,9 @@ bool _isWorkspacePackage(String packageRoot) {
 }
 
 Future<void> _prepareWorkspaceMacosArtifacts(String packageRoot) async {
-  final artifactsDir = Directory(p.join(packageRoot, 'macos', 'Libraries'));
-  if (artifactsDir.existsSync()) {
-    await artifactsDir.delete(recursive: true);
-  }
+  await prepareNexaHttpNativeWorkspaceArtifactsDirectory(
+    p.join(packageRoot, 'macos', 'Libraries'),
+  );
 
   final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
   final script = p.join(workspaceRoot, 'scripts', 'build_native_macos.sh');

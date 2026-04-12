@@ -23,6 +23,27 @@ bool isNexaHttpNativeWorkspacePackage(
       File(gitMetadataPath).existsSync();
 }
 
+Future<void> prepareNexaHttpNativeWorkspaceArtifactsDirectory(
+  String artifactsDirectoryPath,
+) async {
+  final artifactsDirectory = Directory(artifactsDirectoryPath);
+  if (artifactsDirectory.existsSync()) {
+    for (final entity in artifactsDirectory.listSync(followLinks: false)) {
+      if (p.basename(entity.path) == '.gitkeep') {
+        continue;
+      }
+      await entity.delete(recursive: true);
+    }
+  } else {
+    await artifactsDirectory.create(recursive: true);
+  }
+
+  final gitkeepFile = File(p.join(artifactsDirectory.path, '.gitkeep'));
+  if (!gitkeepFile.existsSync()) {
+    await gitkeepFile.create();
+  }
+}
+
 List<String> _pubCacheRoots(Map<String, String> environment) {
   final roots = <String>{};
 

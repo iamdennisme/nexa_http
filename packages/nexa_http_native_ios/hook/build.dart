@@ -37,10 +37,9 @@ bool _isWorkspacePackage(String packageRoot) {
 }
 
 Future<void> _prepareWorkspaceIosArtifacts(String packageRoot) async {
-  final artifactsDir = Directory(p.join(packageRoot, 'ios', 'Frameworks'));
-  if (artifactsDir.existsSync()) {
-    await artifactsDir.delete(recursive: true);
-  }
+  await prepareNexaHttpNativeWorkspaceArtifactsDirectory(
+    p.join(packageRoot, 'ios', 'Frameworks'),
+  );
 
   final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
   final script = p.join(workspaceRoot, 'scripts', 'build_native_ios.sh');

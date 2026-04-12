@@ -38,10 +38,9 @@ bool _isWorkspacePackage(String packageRoot) {
 }
 
 Future<void> _prepareWorkspaceWindowsArtifacts(String packageRoot) async {
-  final artifactsDir = Directory(p.join(packageRoot, 'windows', 'Libraries'));
-  if (artifactsDir.existsSync()) {
-    await artifactsDir.delete(recursive: true);
-  }
+  await prepareNexaHttpNativeWorkspaceArtifactsDirectory(
+    p.join(packageRoot, 'windows', 'Libraries'),
+  );
 
   final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
   final script = p.join(workspaceRoot, 'scripts', 'build_native_windows.sh');
