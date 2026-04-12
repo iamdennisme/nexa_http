@@ -28,7 +28,8 @@ final class NexaHttpNativeReleaseAsset {
   final Uri sourceUrl;
 }
 
-typedef NexaHttpNativeReleaseRefResolver = Future<NexaHttpNativeGitReleaseRef> Function(
+typedef NexaHttpNativeReleaseRefResolver = Future<NexaHttpNativeGitReleaseRef>
+    Function(
   String packageRoot,
 );
 typedef NexaHttpNativeFetchBytes = Future<List<int>> Function(Uri uri);
@@ -111,7 +112,8 @@ NexaHttpNativeReleaseAsset parseNexaHttpNativeReleaseAssetFromManifest({
 
   final assets = decoded['assets'];
   if (assets is! List<Object?>) {
-    throw StateError('Native asset manifest missing assets list at $manifestUri.');
+    throw StateError(
+        'Native asset manifest missing assets list at $manifestUri.');
   }
 
   for (final entry in assets) {
@@ -136,7 +138,8 @@ NexaHttpNativeReleaseAsset parseNexaHttpNativeReleaseAssetFromManifest({
     return NexaHttpNativeReleaseAsset(
       fileName: fileName,
       sha256: sha256,
-      sourceUrl: sourceUrl.hasScheme ? sourceUrl : manifestUri.resolveUri(sourceUrl),
+      sourceUrl:
+          sourceUrl.hasScheme ? sourceUrl : manifestUri.resolveUri(sourceUrl),
     );
   }
 
@@ -155,15 +158,10 @@ Future<NexaHttpNativeGitReleaseRef> discoverNexaHttpNativeGitReleaseRef(
     );
   }
 
-  final origin = await _runGitAndReadStdout(repoRoot, <String>[
-    'config',
-    '--get',
-    'remote.origin.url',
-  ]);
-  final repositorySlug = parseGitHubRepositorySlug(origin);
+  final repositorySlug = await _discoverGitHubRepositorySlug(repoRoot);
   if (repositorySlug == null) {
     throw StateError(
-      'Unsupported git remote for release-consumer native resolution: $origin.',
+      'Unsupported git remote for release-consumer native resolution: $repoRoot.',
     );
   }
 
@@ -180,6 +178,38 @@ Future<NexaHttpNativeGitReleaseRef> discoverNexaHttpNativeGitReleaseRef(
   }
 
   return NexaHttpNativeGitReleaseRef(repositorySlug: repositorySlug, tag: tag);
+}
+
+Future<String?> _discoverGitHubRepositorySlug(String repoRoot) async {
+  final visitedRoots = <String>{};
+  var currentRoot = p.normalize(repoRoot);
+
+  while (visitedRoots.add(currentRoot)) {
+    final origin = await _tryRunGitAndReadStdout(currentRoot, <String>[
+      'config',
+      '--get',
+      'remote.origin.url',
+    ]);
+    if (origin == null || origin.isEmpty) {
+      return null;
+    }
+
+    final repositorySlug = parseGitHubRepositorySlug(origin);
+    if (repositorySlug != null) {
+      return repositorySlug;
+    }
+
+    final nestedRoot = _resolveNestedGitRemoteRoot(
+      remoteUrl: origin,
+      workingDirectory: currentRoot,
+    );
+    if (nestedRoot == null) {
+      return null;
+    }
+    currentRoot = nestedRoot;
+  }
+
+  return null;
 }
 
 String? findAncestorGitRepositoryRoot(String startPath) {
@@ -199,20 +229,47 @@ String? findAncestorGitRepositoryRoot(String startPath) {
 
 String? parseGitHubRepositorySlug(String remoteUrl) {
   final value = remoteUrl.trim();
-  final sshMatch = RegExp(r'^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$').firstMatch(value);
+  final sshMatch =
+      RegExp(r'^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$').firstMatch(value);
   if (sshMatch != null) {
     return '${sshMatch.group(1)}/${sshMatch.group(2)}';
   }
 
   final httpsUri = Uri.tryParse(value);
   if (httpsUri != null && httpsUri.host == 'github.com') {
-    final segments = httpsUri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    final segments =
+        httpsUri.pathSegments.where((segment) => segment.isNotEmpty).toList();
     if (segments.length >= 2) {
       final repo = segments[1].endsWith('.git')
           ? segments[1].substring(0, segments[1].length - 4)
           : segments[1];
       return '${segments[0]}/$repo';
     }
+  }
+
+  return null;
+}
+
+String? _resolveNestedGitRemoteRoot({
+  required String remoteUrl,
+  required String workingDirectory,
+}) {
+  final value = remoteUrl.trim();
+  if (value.isEmpty) {
+    return null;
+  }
+
+  final fileUri = Uri.tryParse(value);
+  if (fileUri != null && fileUri.scheme == 'file') {
+    return p.normalize(fileUri.toFilePath());
+  }
+
+  if (p.isAbsolute(value)) {
+    return p.normalize(value);
+  }
+
+  if (value.startsWith('.')) {
+    return p.normalize(p.join(workingDirectory, value));
   }
 
   return null;
@@ -252,7 +309,24 @@ Future<String> _runGitAndReadStdout(
   return '${result.stdout}'.trim();
 }
 
-Future<List<int>> consolidateHttpClientResponseBytes(HttpClientResponse response) async {
+Future<String?> _tryRunGitAndReadStdout(
+  String workingDirectory,
+  List<String> arguments,
+) async {
+  final result = await Process.run(
+    'git',
+    arguments,
+    workingDirectory: workingDirectory,
+    runInShell: true,
+  );
+  if (result.exitCode != 0) {
+    return null;
+  }
+  return '${result.stdout}'.trim();
+}
+
+Future<List<int>> consolidateHttpClientResponseBytes(
+    HttpClientResponse response) async {
   final builder = BytesBuilder(copy: false);
   await for (final chunk in response) {
     builder.add(chunk);
