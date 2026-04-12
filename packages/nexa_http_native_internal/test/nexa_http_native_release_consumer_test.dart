@@ -86,6 +86,27 @@ void main() {
     expect(utf8.decode(bytes), 'ok');
     expect(requestCount, 2);
   });
+
+  test('reads the full response body before closing the HTTP client', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() async {
+      await server.close(force: true);
+    });
+
+    server.listen((request) async {
+      request.response.add(utf8.encode('hello '));
+      await request.response.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      request.response.add(utf8.encode('world'));
+      await request.response.close();
+    });
+
+    final bytes = await fetchNexaHttpNativeBytes(
+      Uri.parse('http://127.0.0.1:${server.port}/stream'),
+    );
+
+    expect(utf8.decode(bytes), 'hello world');
+  });
 }
 
 Future<void> _runGit(String workingDirectory, List<String> arguments) async {

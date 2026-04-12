@@ -284,7 +284,7 @@ Future<List<int>> fetchNexaHttpNativeBytes(Uri uri) async {
         final request = await client.getUrl(uri);
         final response = await request.close();
         if (response.statusCode == HttpStatus.ok) {
-          return consolidateHttpClientResponseBytes(response);
+          return await consolidateHttpClientResponseBytes(response);
         }
         if (_isRetriableStatusCode(response.statusCode) &&
             attempt < maxAttempts) {
