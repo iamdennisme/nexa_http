@@ -21,7 +21,8 @@ Future<void> main(List<String> args) async {
       await materializeNexaHttpNativeReleaseArtifact(
         packageRoot: packageRoot,
         targetOS: 'windows',
-        targetArchitecture: _targetArchitecture(input.config.code.targetArchitecture),
+        targetArchitecture:
+            _targetArchitecture(input.config.code.targetArchitecture),
         targetSdk: null,
       );
     }
@@ -33,8 +34,7 @@ Future<void> main(List<String> args) async {
 }
 
 bool _isWorkspacePackage(String packageRoot) {
-  final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
-  return Directory(p.join(workspaceRoot, '.git')).existsSync();
+  return isNexaHttpNativeWorkspacePackage(packageRoot);
 }
 
 Future<void> _prepareWorkspaceWindowsArtifacts(String packageRoot) async {
