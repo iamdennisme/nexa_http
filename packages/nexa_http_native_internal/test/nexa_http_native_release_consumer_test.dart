@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
@@ -56,6 +57,34 @@ void main() {
 
     expect(releaseRef.repositorySlug, 'example/nexa_http');
     expect(releaseRef.tag, 'v1.2.3');
+  });
+
+  test('retries transient HTTP failures while fetching release assets',
+      () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() async {
+      await server.close(force: true);
+    });
+
+    var requestCount = 0;
+    server.listen((request) async {
+      requestCount += 1;
+      if (requestCount == 1) {
+        request.response.statusCode = HttpStatus.serviceUnavailable;
+        await request.response.close();
+        return;
+      }
+
+      request.response.add(utf8.encode('ok'));
+      await request.response.close();
+    });
+
+    final bytes = await fetchNexaHttpNativeBytes(
+      Uri.parse('http://127.0.0.1:${server.port}/asset'),
+    );
+
+    expect(utf8.decode(bytes), 'ok');
+    expect(requestCount, 2);
   });
 }
 

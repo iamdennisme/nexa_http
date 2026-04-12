@@ -278,17 +278,49 @@ String? _resolveNestedGitRemoteRoot({
 Future<List<int>> fetchNexaHttpNativeBytes(Uri uri) async {
   final client = HttpClient();
   try {
-    final request = await client.getUrl(uri);
-    final response = await request.close();
-    if (response.statusCode != HttpStatus.ok) {
-      throw StateError(
-        'Failed to fetch native release asset from $uri: HTTP ${response.statusCode}.',
-      );
+    const maxAttempts = 3;
+    for (var attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        final request = await client.getUrl(uri);
+        final response = await request.close();
+        if (response.statusCode == HttpStatus.ok) {
+          return consolidateHttpClientResponseBytes(response);
+        }
+        if (_isRetriableStatusCode(response.statusCode) &&
+            attempt < maxAttempts) {
+          await response.drain<void>();
+          await Future<void>.delayed(Duration(milliseconds: 250 * attempt));
+          continue;
+        }
+        throw StateError(
+          'Failed to fetch native release asset from $uri: HTTP ${response.statusCode}.',
+        );
+      } on HandshakeException {
+        if (attempt >= maxAttempts) {
+          rethrow;
+        }
+      } on HttpException {
+        if (attempt >= maxAttempts) {
+          rethrow;
+        }
+      } on SocketException {
+        if (attempt >= maxAttempts) {
+          rethrow;
+        }
+      }
+      await Future<void>.delayed(Duration(milliseconds: 250 * attempt));
     }
-    return consolidateHttpClientResponseBytes(response);
+
+    throw StateError('Failed to fetch native release asset from $uri.');
   } finally {
     client.close(force: true);
   }
+}
+
+bool _isRetriableStatusCode(int statusCode) {
+  return statusCode == HttpStatus.requestTimeout ||
+      statusCode == HttpStatus.tooManyRequests ||
+      statusCode >= HttpStatus.internalServerError;
 }
 
 Future<String> _runGitAndReadStdout(
