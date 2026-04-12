@@ -27,14 +27,8 @@ String _resolvedBundledLibraryPath() {
       File(Platform.resolvedExecutable).parent.path,
       '..',
       'Frameworks',
-      'nexa_http_native_macos.framework',
-      'Versions',
-      'A',
-      'Resources',
-      'nexa_http_native.bundle',
-      'Contents',
-      'Resources',
-      'libnexa_http_native.dylib',
+      'nexa_http_native.framework',
+      'nexa_http_native',
     ),
   );
 }
