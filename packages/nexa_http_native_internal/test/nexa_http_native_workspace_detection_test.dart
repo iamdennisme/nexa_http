@@ -54,6 +54,37 @@ void main() {
     );
   });
 
+  test('treats Windows default pub cache packages as release-consumer packages '
+      'when only USERPROFILE is available', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'nexa_http_workspace_detection_windows_userprofile_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final pubCacheRoot = Directory(
+      p.join(tempDir.path, 'AppData', 'Local', 'Pub', 'Cache'),
+    )..createSync(recursive: true);
+    final gitCheckoutRoot = Directory(
+      p.join(pubCacheRoot.path, 'git', 'nexa_http-a4e51b9'),
+    )..createSync(recursive: true);
+    Directory(p.join(gitCheckoutRoot.path, '.git')).createSync();
+    final packageRoot = Directory(
+      p.join(gitCheckoutRoot.path, 'packages', 'nexa_http_native_windows'),
+    )..createSync(recursive: true);
+
+    expect(
+      isNexaHttpNativeWorkspacePackage(
+        packageRoot.path,
+        environment: <String, String>{'USERPROFILE': tempDir.path},
+      ),
+      isFalse,
+    );
+  });
+
   test('supports worktree-style git metadata files', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'nexa_http_workspace_detection_worktree_',
@@ -66,8 +97,9 @@ void main() {
 
     final workspaceRoot = Directory(p.join(tempDir.path, 'nexa_http'))
       ..createSync();
-    File(p.join(workspaceRoot.path, '.git'))
-        .writeAsStringSync('gitdir: /tmp/example');
+    File(
+      p.join(workspaceRoot.path, '.git'),
+    ).writeAsStringSync('gitdir: /tmp/example');
     final packageRoot = Directory(
       p.join(workspaceRoot.path, 'packages', 'nexa_http_native_ios'),
     )..createSync(recursive: true);
@@ -100,9 +132,13 @@ void main() {
     expect(artifactsDir.existsSync(), isTrue);
     expect(gitkeepFile.existsSync(), isTrue);
     expect(
-        File(p.join(artifactsDir.path, 'stale.dylib')).existsSync(), isFalse);
+      File(p.join(artifactsDir.path, 'stale.dylib')).existsSync(),
+      isFalse,
+    );
     expect(
-        Directory(p.join(artifactsDir.path, 'nested')).existsSync(), isFalse);
+      Directory(p.join(artifactsDir.path, 'nested')).existsSync(),
+      isFalse,
+    );
   });
 
   test('creates missing workspace artifacts directory with .gitkeep', () async {
@@ -115,8 +151,9 @@ void main() {
       }
     });
 
-    final artifactsDir =
-        Directory(p.join(tempDir.path, 'windows', 'Libraries'));
+    final artifactsDir = Directory(
+      p.join(tempDir.path, 'windows', 'Libraries'),
+    );
 
     await prepareNexaHttpNativeWorkspaceArtifactsDirectory(artifactsDir.path);
 

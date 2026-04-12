@@ -57,18 +57,35 @@ List<String> _pubCacheRoots(Map<String, String> environment) {
   addRoot(environment['PUB_CACHE']);
   addRoot(_joinPath(environment['HOME'], '.pub-cache'));
   addRoot(_joinPath(environment['USERPROFILE'], '.pub-cache'));
+  addRoot(
+    _joinPath(environment['USERPROFILE'], 'AppData', 'Local', 'Pub', 'Cache'),
+  );
   addRoot(_joinPath(environment['LOCALAPPDATA'], 'Pub', 'Cache'));
 
   return roots.toList(growable: false);
 }
 
-String? _joinPath(String? root, String segmentA, [String? segmentB]) {
+String? _joinPath(
+  String? root,
+  String segmentA, [
+  String? segmentB,
+  String? segmentC,
+  String? segmentD,
+]) {
   if (root == null || root.isEmpty) {
     return null;
   }
-  return segmentB == null
-      ? p.join(root, segmentA)
-      : p.join(root, segmentA, segmentB);
+  final segments = <String>[root, segmentA];
+  if (segmentB != null) {
+    segments.add(segmentB);
+  }
+  if (segmentC != null) {
+    segments.add(segmentC);
+  }
+  if (segmentD != null) {
+    segments.add(segmentD);
+  }
+  return p.joinAll(segments);
 }
 
 String _normalizePath(String value) {
