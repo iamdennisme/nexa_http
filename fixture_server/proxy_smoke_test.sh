@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROXY_BASE_URL="${RUST_NET_PROXY_BASE_URL:-http://127.0.0.1:8081}"
+PROXY_BASE_URL="${NEXA_HTTP_PROXY_BASE_URL:-http://127.0.0.1:8081}"
 
 log() {
   printf '%s\n' "$1"
@@ -22,14 +22,14 @@ assert_status() {
   local url="$2"
   local label="$3"
   local actual
-  actual="$(curl -sS -o /tmp/rust_net_smoke_body.$$ -w '%{http_code}' "$url")"
+  actual="$(curl -sS -o /tmp/nexa_http_smoke_body.$$ -w '%{http_code}' "$url")"
   if [[ "$actual" != "$expected" ]]; then
     printf 'smoke test failed: %s\nexpected status: %s\nactual status: %s\n' "$label" "$expected" "$actual" >&2
-    printf 'body: %s\n' "$(cat /tmp/rust_net_smoke_body.$$)" >&2
-    rm -f /tmp/rust_net_smoke_body.$$
+    printf 'body: %s\n' "$(cat /tmp/nexa_http_smoke_body.$$)" >&2
+    rm -f /tmp/nexa_http_smoke_body.$$
     exit 1
   fi
-  rm -f /tmp/rust_net_smoke_body.$$
+  rm -f /tmp/nexa_http_smoke_body.$$
 }
 
 log "Running proxy smoke checks against ${PROXY_BASE_URL}"

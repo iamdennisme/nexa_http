@@ -62,11 +62,6 @@ void main() {
       isTrue,
     );
     expect(
-      File(p.join(outputDir.path, 'packages', 'rust_net_core', 'pubspec.yaml'))
-          .existsSync(),
-      isFalse,
-    );
-    expect(
       File(p.join(outputDir.path, 'packages', 'nexa_http_native_macos', 'pubspec.yaml'))
           .existsSync(),
       isTrue,

@@ -1,7 +1,7 @@
 services:
   nginx:
     image: nginx:1.27-alpine
-    container_name: rust_net_nginx
+    container_name: nexa_http_nginx
     ports:
       - "8081:8081"
     extra_hosts:

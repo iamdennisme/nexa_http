@@ -10,7 +10,7 @@ final class FixtureHandler {
 
   static Future<void> handle(HttpRequest request) async {
     final response = request.response;
-    response.headers.set('x-rust-net-fixture', 'true');
+    response.headers.set('x-nexa-http-fixture', 'true');
 
     final method = request.method.toUpperCase();
     final path = request.uri.path;
