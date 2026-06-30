@@ -1,0 +1,32 @@
+{
+  "id": "00-bootstrap-guidelines",
+  "name": "00-bootstrap-guidelines",
+  "title": "Bootstrap Guidelines",
+  "description": "Fill in project development guidelines for AI agents",
+  "status": "in_progress",
+  "dev_type": "docs",
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "daicheng",
+  "assignee": "daicheng",
+  "createdAt": "2026-06-30",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": null,
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/nexa_http_native_core/",
+    ".trellis/spec/nexa_http_native_macos_ffi/",
+    ".trellis/spec/nexa_http_native_windows_ffi/",
+    ".trellis/spec/nexa_http_native_ios_ffi/",
+    ".trellis/spec/nexa_http_native_android_ffi/"
+  ],
+  "notes": "First-time setup task created by trellis init (backend project)",
+  "meta": {}
+}
