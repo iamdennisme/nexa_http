@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'nexa_http_native_ios'
-  s.version          = '0.1.1'
+  s.version          = '2.0.0'
   s.summary          = 'iOS carrier package for nexa_http native artifacts.'
   s.description      = <<-DESC
 iOS carrier package for nexa_http native artifacts.

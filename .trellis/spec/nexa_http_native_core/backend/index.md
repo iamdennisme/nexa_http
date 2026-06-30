@@ -1,12 +1,6 @@
-# 后端开发规范
+# nexa_http_native_core 后端规范
 
-> 本目录记录该 包/层 的后端开发约定。
-
----
-
-## 概览
-
-这里存放后端开发规范。填充每个文件时，只记录本项目真实采用的约定，不写空泛理想。
+> 本目录记录共享 Rust native core 的开发约定。该 crate 位于 `native/nexa_http_native_core`，为所有平台 FFI crate 提供 HTTP runtime、FFI 数据结构、proxy 抽象和错误模型。
 
 ---
 
@@ -14,25 +8,25 @@
 
 | 规范 | 说明 | 状态 |
 |------|------|------|
-| [目录结构](./directory-structure.md) | 模块组织和文件布局 | 待填充 |
-| [数据库规范](./database-guidelines.md) | ORM、查询、迁移约定 | 待填充 |
-| [错误处理](./error-handling.md) | 错误类型和传播策略 | 待填充 |
-| [质量规范](./quality-guidelines.md) | 代码标准和禁止模式 | 待填充 |
-| [日志规范](./logging-guidelines.md) | 结构化日志和日志级别 | 待填充 |
+| [目录结构](./directory-structure.md) | crate 模块边界、FFI/API/runtime/platform 分层 | 已填充 |
+| [数据库规范](./database-guidelines.md) | 本 crate 无数据库，记录禁止引入持久化的规则 | 已填充 |
+| [错误处理](./error-handling.md) | `NativeError`、`NativeHttpError`、bootstrap error 和 FFI 传播 | 已填充 |
+| [质量规范](./quality-guidelines.md) | FFI ownership、测试、格式化和禁止模式 | 已填充 |
+| [日志规范](./logging-guidelines.md) | native core 默认不写运行时日志，错误通过结构化 JSON 传播 | 已填充 |
 
 ---
 
-## 填写要求
+## Pre-Development Checklist
 
-每个规范文件都要：
+- [ ] 变更 FFI struct、函数名或 ownership 时先读 [错误处理](./error-handling.md) 和 [质量规范](./quality-guidelines.md)。
+- [ ] 变更模块布局、proxy abstraction 或 runtime 注册时先读 [目录结构](./directory-structure.md)。
+- [ ] 准备新增持久化、缓存文件、日志或诊断输出时先读 [数据库规范](./database-guidelines.md) 和 [日志规范](./logging-guidelines.md)。
+- [ ] 跨 Dart SDK、platform carrier、Rust core 时同时读共享 [跨层思考指南](../../guides/cross-layer-thinking-guide.md) 和 [Flutter SDK 编写契约](../../guides/flutter-sdk-authoring-contract.md)。
 
-1. 记录项目实际约定，不写尚未采用的理想方案。
-2. 引用代码库中的真实例子。
-3. 列出禁止模式，并说明原因。
-4. 记录团队踩过或容易踩的常见错误。
+## Quality Check
 
-目标是让 AI 助手 和新成员能按本项目方式工作，而不是写通用模板代码。
-
----
-
-**语言**：所有 `.trellis/spec/` 规则文档必须使用中文；代码标识符、命令、包名和外部工具术语可以保留英文原文。
+- [ ] `cargo fmt --all --check` 通过。
+- [ ] `cargo test -p nexa_http_native_core` 或等价 workspace Rust 测试通过。
+- [ ] Dart FFI 侧调用方仍能按既有 ownership contract 释放 body、headers、error string。
+- [ ] 没有新增 generic path probing、环境变量搜索或宿主可见 native workaround。
+- [ ] 新增错误字段时同步 Dart decoder / mapper / tests。

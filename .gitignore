@@ -41,6 +41,7 @@ native/Cargo.lock
 packages/nexa_http_native_*/native/*/target/
 packages/nexa_http_native_*/native/*/Cargo.lock
 **/android/.cxx/
+**/android/local.properties
 packages/nexa_http_native_android/android/src/main/jniLibs/*/*.so
 packages/nexa_http_native_ios/ios/Frameworks/*.dylib
 packages/nexa_http_native_linux/linux/Libraries/*.so

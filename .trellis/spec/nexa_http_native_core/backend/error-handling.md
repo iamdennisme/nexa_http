@@ -1,51 +1,27 @@
 # 错误处理
 
-> 记录本项目如何定义、传播、记录和暴露错误。
-
----
-
-## 概览
-
-<!--
-在这里记录项目真实的错误处理约定。
-
-需要回答：
-- 定义哪些 error type？
-- error 如何传播？
-- error 如何记录日志？
-- error 如何返回给调用方或宿主？
--->
-
-（待团队填充）
-
----
+native core 的错误边界分两类：Rust 内部 `Result` / `NativeError`，以及跨 FFI 暴露给 Dart 的 JSON error。
 
 ## 错误类型
 
-<!-- 自定义 error class/type -->
+- `NativeError` 是 Rust 内部构建错误的 helper，字段包括 `code`、`message`、`status_code`、`is_timeout`、`uri`、`details`。
+- `NativeHttpError` 是可序列化结构，使用 `serde(rename_all = "snake_case")`，由 Dart decoder 消费。
+- bootstrap 阶段错误通过 `store_bootstrap_error()` 写入 `LAST_ERROR_JSON`，Dart 侧通过 `nexa_http_take_last_error_json()` 读取。
 
-（待团队填充）
+## 传播模式
 
----
-
-## 错误处理模式
-
-<!-- try/catch、Result、error propagation 等模式 -->
-
-（待团队填充）
-
----
-
-## API 错误响应
-
-<!-- 标准错误响应格式 -->
-
-（待团队填充）
-
----
+- HTTP 执行错误必须转换成结构化 `NativeHttpError`，不要跨 FFI 传播 panic 文本。
+- FFI callback 结果使用 `NexaHttpBinaryResult`；成功和失败都必须让 Dart 侧能释放 owned body、headers、final URL 和 error JSON。
+- `CString::new()` 只可用于内部构造已知无 NUL 的字符串或测试辅助；来自请求/headers 的输入必须走 parser/decoder 并返回错误。
 
 ## 常见错误
 
-<!-- 团队遇到过或必须避免的错误处理问题 -->
+- 不要在 FFI 入口对宿主输入 `unwrap()`，这会把可恢复 SDK 错误变成进程崩溃。
+- 不要新增只有 `message` 的错误；至少要保留 `code`，需要定位宿主问题时放入 `details`。
+- 不要在 platform crate 中重新定义错误 JSON schema；platform crate 应调用 core runtime 或复用 core FFI 类型。
 
-（待团队填充）
+## 真实例子
+
+- `native/nexa_http_native_core/src/api/error.rs`：定义 `NativeError` 和 `NativeHttpError`。
+- `native/nexa_http_native_core/src/api/ffi.rs`：`store_bootstrap_error()` 把 bootstrap 失败包装成稳定 JSON。
+- `native/nexa_http_native_core/src/runtime/executor.rs`：执行、取消和 callback 路径集中转换请求错误。

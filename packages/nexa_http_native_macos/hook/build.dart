@@ -15,26 +15,24 @@ Future<void> main(List<String> args) async {
     }
 
     final packageRoot = Directory.fromUri(input.packageRoot).path;
-    if (_isWorkspacePackage(packageRoot)) {
+    if (shouldBuildNexaHttpNativeFromWorkspaceSource(
+      packageRoot: packageRoot,
+      buildScriptName: 'build_native_macos.sh',
+    )) {
       await _prepareWorkspaceMacosArtifacts(packageRoot);
     } else {
       await materializeNexaHttpNativeReleaseArtifact(
         packageRoot: packageRoot,
         targetOS: 'macos',
-        targetArchitecture: _targetArchitecture(input.config.code.targetArchitecture),
+        targetArchitecture: _targetArchitecture(
+          input.config.code.targetArchitecture,
+        ),
         targetSdk: null,
       );
     }
 
-    output.assets.code.add(
-      await NexaHttpNativeMacosAssetBundle.resolve(input),
-    );
+    output.assets.code.add(await NexaHttpNativeMacosAssetBundle.resolve(input));
   });
-}
-
-bool _isWorkspacePackage(String packageRoot) {
-  final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
-  return Directory(p.join(workspaceRoot, '.git')).existsSync();
 }
 
 Future<void> _prepareWorkspaceMacosArtifacts(String packageRoot) async {
@@ -61,7 +59,7 @@ String _targetArchitecture(Architecture architecture) {
     Architecture.arm64 => 'arm64',
     Architecture.x64 => 'x64',
     _ => throw UnsupportedError(
-        'No macOS target mapping for architecture $architecture.',
-      ),
+      'No macOS target mapping for architecture $architecture.',
+    ),
   };
 }

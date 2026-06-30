@@ -21,12 +21,12 @@ the rest conversationally.
 
 ## Status (update the checkboxes as you complete each item)
 
-- [ ] Fill guidelines for nexa_http_native_core
-- [ ] Fill guidelines for nexa_http_native_macos_ffi
-- [ ] Fill guidelines for nexa_http_native_windows_ffi
-- [ ] Fill guidelines for nexa_http_native_ios_ffi
-- [ ] Fill guidelines for nexa_http_native_android_ffi
-- [ ] Add code examples
+- [x] Fill guidelines for nexa_http_native_core
+- [x] Fill guidelines for nexa_http_native_macos_ffi
+- [x] Fill guidelines for nexa_http_native_windows_ffi
+- [x] Fill guidelines for nexa_http_native_ios_ffi
+- [x] Fill guidelines for nexa_http_native_android_ffi
+- [x] Add code examples
 - [x] Add Flutter SDK Authoring Contract to shared guides and workflow gates
 - [x] Add Chinese documentation language policy and convert Trellis spec rule docs to Chinese
 

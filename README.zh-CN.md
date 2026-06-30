@@ -10,7 +10,7 @@
 
 - 应用侧 API 尽量保持简单
 - 传输层由 Rust 驱动
-- Android / iOS / macOS / Windows 都有明确的 carrier 包
+- Android / iOS / macOS / Windows 都有显式 platform carrier 包
 - 仓库里有一个可直接运行的 demo，可以把 Flutter → FFI → Rust 这条链路跑一遍
 
 ## 支持平台
@@ -22,10 +22,8 @@
 
 ## 安装
 
-普通应用通常只需要两类依赖：
-
-1. `nexa_http`
-2. 你目标平台对应的 carrier package
+普通应用的 runtime 代码只 import `package:nexa_http/nexa_http.dart`，
+但 `pubspec.yaml` 需要同时声明 `nexa_http` 和目标平台对应的 carrier package。
 
 ### Git 依赖
 
@@ -85,7 +83,7 @@ final body = await response.body?.string();
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-然后在 macOS 上运行 demo：
+如果你在维护这个仓库，先准备本地 debug artifact，再运行 workspace demo：
 
 ```bash
 ./scripts/build_native_macos.sh debug

@@ -1,51 +1,9 @@
 # 日志规范
 
-> 记录本项目如何写日志、分级和保护敏感信息。
+Windows FFI crate 默认不写运行时日志。
 
----
+## 规则
 
-## 概览
-
-<!--
-在这里记录项目真实的日志约定。
-
-需要回答：
-- 使用什么 logging library？
-- 各 log level 何时使用？
-- 必须记录什么？
-- 哪些内容禁止记录，例如 PII、secret？
--->
-
-（待团队填充）
-
----
-
-## 日志级别
-
-<!-- debug、info、warn、error 分别何时使用 -->
-
-（待团队填充）
-
----
-
-## 结构化日志
-
-<!-- 日志格式和必填字段 -->
-
-（待团队填充）
-
----
-
-## 应该记录什么
-
-<!-- 重要事件、阶段、上下文 -->
-
-（待团队填充）
-
----
-
-## 禁止记录什么
-
-<!-- 敏感数据、PII、secret、token 等 -->
-
-（待团队填充）
+- 不要在 registry 读取或 ABI export 中新增 `println!` / `eprintln!`。
+- Registry 读取失败时返回默认设置。
+- 不要记录 proxy credential、header value、URL body 或 registry 原始 dump。

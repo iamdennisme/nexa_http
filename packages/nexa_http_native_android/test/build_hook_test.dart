@@ -109,6 +109,68 @@ void main() {
     );
     expect(await file.readAsBytes(), expectedBytes);
   });
+
+  test(
+    'release artifact checksum failures include issue-ready context',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nexa_http_android_release_consumer_checksum_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      final packageRoot = Directory(
+        '${tempDir.path}/packages/nexa_http_native_android',
+      )..createSync(recursive: true);
+
+      await expectLater(
+        materializeNexaHttpNativeReleaseArtifact(
+          packageRoot: packageRoot.path,
+          targetOS: 'android',
+          targetArchitecture: 'arm64',
+          targetSdk: null,
+          resolveReleaseRef: (_) async => const NexaHttpNativeGitReleaseRef(
+            repositorySlug: 'example/nexa_http',
+            tag: 'v0.0.3',
+          ),
+          fetchBytes: (uri) async {
+            if (uri.path.endsWith('nexa_http_native_assets_manifest.json')) {
+              return utf8.encode('''
+{
+  "package": "nexa_http",
+  "assets": [
+    {
+      "target_os": "android",
+      "target_architecture": "arm64",
+      "file_name": "nexa_http-native-android-arm64-v8a.so",
+      "source_url": "nexa_http-native-android-arm64-v8a.so",
+      "sha256": "${sha256OfString('expected-bytes')}"
+    }
+  ]
+}
+''');
+            }
+            return utf8.encode('actual-bytes');
+          },
+        ),
+        throwsA(
+          predicate<Object>((error) {
+            final text = error.toString();
+            return error is NexaHttpNativeArtifactException &&
+                text.contains('stage=artifact verification') &&
+                text.contains('platform=android') &&
+                text.contains('architecture=arm64') &&
+                text.contains('sdk_ref=example/nexa_http@v0.0.3') &&
+                text.contains('expected_action=') &&
+                text.contains('underlying_error=');
+          }),
+        ),
+      );
+    },
+  );
 }
 
 Future<T> _runInPackageRoot<T>(Future<T> Function() action) async {

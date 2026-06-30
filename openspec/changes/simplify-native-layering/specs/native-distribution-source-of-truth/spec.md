@@ -1,13 +1,14 @@
 ## MODIFIED Requirements
 
 ### Requirement: Distribution package SHALL own the authoritative artifact identity model
-The system SHALL define supported target descriptors, artifact naming, artifact location rules, and packaged artifact metadata from a single merged internal native layer consumed by `nexa_http`, and it SHALL NOT define release identity, authoritative tag selection, package-version-derived manifest lookup, or explicit `workspace-dev` versus `release-consumer` source-selection modes.
+The system SHALL define supported target descriptors, artifact naming, artifact location rules, packaged artifact metadata, and explicit `workspace-dev` versus `release-consumer` source-selection rules from the merged internal native layer consumed by `nexa_http`, and it SHALL NOT use a separate `nexa_http_distribution` package or locally declared package versions as native release identity.
 
 #### Scenario: Native artifact metadata is needed
 - **WHEN** `nexa_http`, platform tooling, or carrier build logic needs supported target and artifact metadata
 - **THEN** it MUST obtain that metadata from the merged internal native layer
 - **AND** it MUST NOT reintroduce a separate distribution-owned architecture boundary
-- **AND** it MUST NOT encode tag, version, release identity, or consumer mode semantics
+- **AND** it MUST use the selected Git tag/ref as release-consumer identity
+- **AND** it MUST NOT derive release identity from local package version metadata
 
 #### Scenario: Supported target definitions change
 - **WHEN** a supported platform, architecture, SDK, artifact name, or packaged location changes

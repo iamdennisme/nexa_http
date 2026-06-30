@@ -9,27 +9,30 @@ import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('asks the loader for a library handle without exposing a path parameter', () {
-    var loadCount = 0;
-    late final DynamicLibrary loadedLibrary;
-    final factory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () {
-        loadCount += 1;
-        loadedLibrary = DynamicLibrary.process();
-        return loadedLibrary;
-      },
-      createDataSource: _FakeNexaHttpNativeDataSource.new,
-    );
+  test(
+    'asks the loader for a library handle without exposing a path parameter',
+    () {
+      var loadCount = 0;
+      late final DynamicLibrary loadedLibrary;
+      final factory = NexaHttpNativeDataSourceFactory(
+        loadDynamicLibrary: () {
+          loadCount += 1;
+          loadedLibrary = DynamicLibrary.process();
+          return loadedLibrary;
+        },
+        createDataSource: _FakeNexaHttpNativeDataSource.new,
+      );
 
-    final dataSource = factory.create();
+      final dataSource = factory.create();
 
-    expect(loadCount, 1);
-    expect(dataSource, isA<_FakeNexaHttpNativeDataSource>());
-    expect(
-      (dataSource as _FakeNexaHttpNativeDataSource).library,
-      same(loadedLibrary),
-    );
-  });
+      expect(loadCount, 1);
+      expect(dataSource, isA<_FakeNexaHttpNativeDataSource>());
+      expect(
+        (dataSource as _FakeNexaHttpNativeDataSource).library,
+        same(loadedLibrary),
+      );
+    },
+  );
 
   test('delegates to the registered strategy by default', () {
     var runtimeOpenCount = 0;
@@ -55,25 +58,32 @@ void main() {
     );
   });
 
-  test('surfaces a clear missing-strategy error when nothing is registered', () {
-    final factory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () {
-        return loadNexaHttpDynamicLibraryForTesting();
-      },
-      createDataSource: _FakeNexaHttpNativeDataSource.new,
-    );
+  test(
+    'surfaces a clear missing-strategy error when nothing is registered',
+    () {
+      final factory = NexaHttpNativeDataSourceFactory(
+        loadDynamicLibrary: () {
+          return loadNexaHttpDynamicLibraryForTesting();
+        },
+        createDataSource: _FakeNexaHttpNativeDataSource.new,
+      );
 
-    expect(
-      () => factory.create(),
-      throwsA(
-        predicate<Object>(
-          (error) =>
-              error is StateError &&
-              error.toString().contains('Register a platform strategy first'),
+      expect(
+        () => factory.create(),
+        throwsA(
+          predicate<Object>(
+            (error) =>
+                error is StateError &&
+                error.toString().contains('stage=plugin registration') &&
+                error.toString().contains('platform=') &&
+                error.toString().contains('architecture=') &&
+                error.toString().contains('expected_action=') &&
+                error.toString().contains('Register a platform strategy first'),
+          ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 }
 
 final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
@@ -91,8 +101,11 @@ final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   int createClient(NativeHttpClientConfigDto config) => 1;
 
   @override
-  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
-      {RegisterCancelRequest? onCancelReady}) async {
+  Future<TransportResponse> execute(
+    int clientId,
+    NativeHttpRequestDto request, {
+    RegisterCancelRequest? onCancelReady,
+  }) async {
     throw UnimplementedError();
   }
 }

@@ -28,10 +28,37 @@ final class NexaHttpNativeReleaseAsset {
   final Uri sourceUrl;
 }
 
-typedef NexaHttpNativeReleaseRefResolver = Future<NexaHttpNativeGitReleaseRef> Function(
-  String packageRoot,
-);
+typedef NexaHttpNativeReleaseRefResolver =
+    Future<NexaHttpNativeGitReleaseRef> Function(String packageRoot);
 typedef NexaHttpNativeFetchBytes = Future<List<int>> Function(Uri uri);
+
+final class NexaHttpNativeArtifactException implements Exception {
+  const NexaHttpNativeArtifactException({
+    required this.stage,
+    required this.targetOS,
+    required this.targetArchitecture,
+    required this.targetSdk,
+    required this.sdkRef,
+    required this.expectedAction,
+    required this.underlyingError,
+  });
+
+  final String stage;
+  final String targetOS;
+  final String targetArchitecture;
+  final String? targetSdk;
+  final String sdkRef;
+  final String expectedAction;
+  final Object underlyingError;
+
+  @override
+  String toString() {
+    return 'NexaHttpNativeArtifactException: nexa_http native artifact resolution failed. '
+        'stage=$stage; platform=$targetOS; architecture=$targetArchitecture; '
+        'target_sdk=${targetSdk ?? 'none'}; sdk_ref=$sdkRef; '
+        'expected_action=$expectedAction; underlying_error=$underlyingError';
+  }
+}
 
 Future<File> materializeNexaHttpNativeReleaseArtifact({
   required String packageRoot,
@@ -48,45 +75,200 @@ Future<File> materializeNexaHttpNativeReleaseArtifact({
     targetSdk: targetSdk,
   );
   if (target == null) {
-    throw StateError(
-      'Unsupported native target: os=$targetOS architecture=$targetArchitecture sdk=$targetSdk.',
+    _throwNexaHttpNativeArtifactException(
+      stage: 'native target resolution',
+      targetOS: targetOS,
+      targetArchitecture: targetArchitecture,
+      targetSdk: targetSdk,
+      sdkRef: 'unknown',
+      underlyingError: StateError(
+        'Unsupported native target: os=$targetOS architecture=$targetArchitecture sdk=$targetSdk.',
+      ),
     );
   }
 
-  final releaseRef = await resolveReleaseRef(packageRoot);
+  final releaseRef = await _runNexaHttpNativeArtifactStage(
+    stage: 'release ref resolution',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: 'unknown',
+    action: () => resolveReleaseRef(packageRoot),
+  );
   final manifestUri = buildNexaHttpNativeManifestUri(
     repositorySlug: releaseRef.repositorySlug,
     tag: releaseRef.tag,
   );
-  final manifestJson = utf8.decode(await fetchBytes(manifestUri));
-  final asset = parseNexaHttpNativeReleaseAssetFromManifest(
-    manifestJson: manifestJson,
-    manifestUri: manifestUri,
-    target: target,
+  final sdkRef = '${releaseRef.repositorySlug}@${releaseRef.tag}';
+  final manifestJson = utf8.decode(
+    await _runNexaHttpNativeArtifactStage(
+      stage: 'artifact download',
+      targetOS: targetOS,
+      targetArchitecture: targetArchitecture,
+      targetSdk: targetSdk,
+      sdkRef: sdkRef,
+      action: () => fetchBytes(manifestUri),
+    ),
+  );
+  final asset = _runNexaHttpNativeArtifactStageSync(
+    stage: 'artifact verification',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: sdkRef,
+    action: () => parseNexaHttpNativeReleaseAssetFromManifest(
+      manifestJson: manifestJson,
+      manifestUri: manifestUri,
+      target: target,
+    ),
   );
 
   final destination = File(p.join(packageRoot, target.packagedRelativePath));
   if (destination.existsSync()) {
-    final currentDigest = await sha256OfFile(destination);
+    final currentDigest = await _runNexaHttpNativeArtifactStage(
+      stage: 'artifact verification',
+      targetOS: targetOS,
+      targetArchitecture: targetArchitecture,
+      targetSdk: targetSdk,
+      sdkRef: sdkRef,
+      action: () => sha256OfFile(destination),
+    );
     if (currentDigest == asset.sha256) {
       return destination;
     }
-    await destination.delete();
+    await _runNexaHttpNativeArtifactStage(
+      stage: 'native packaging',
+      targetOS: targetOS,
+      targetArchitecture: targetArchitecture,
+      targetSdk: targetSdk,
+      sdkRef: sdkRef,
+      action: () => destination.delete(),
+    );
   }
 
-  await destination.parent.create(recursive: true);
-  final bytes = await fetchBytes(asset.sourceUrl);
-  await destination.writeAsBytes(bytes, flush: true);
+  await _runNexaHttpNativeArtifactStage(
+    stage: 'native packaging',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: sdkRef,
+    action: () => destination.parent.create(recursive: true),
+  );
+  final bytes = await _runNexaHttpNativeArtifactStage(
+    stage: 'artifact download',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: sdkRef,
+    action: () => fetchBytes(asset.sourceUrl),
+  );
+  await _runNexaHttpNativeArtifactStage(
+    stage: 'native packaging',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: sdkRef,
+    action: () => destination.writeAsBytes(bytes, flush: true),
+  );
 
-  final downloadedDigest = await sha256OfFile(destination);
+  final downloadedDigest = await _runNexaHttpNativeArtifactStage(
+    stage: 'artifact verification',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: sdkRef,
+    action: () => sha256OfFile(destination),
+  );
   if (downloadedDigest != asset.sha256) {
     await destination.delete();
-    throw StateError(
-      'Checksum mismatch for ${asset.fileName}: expected ${asset.sha256}, got $downloadedDigest.',
+    _throwNexaHttpNativeArtifactException(
+      stage: 'artifact verification',
+      targetOS: targetOS,
+      targetArchitecture: targetArchitecture,
+      targetSdk: targetSdk,
+      sdkRef: sdkRef,
+      underlyingError: StateError(
+        'Checksum mismatch for ${asset.fileName}: expected ${asset.sha256}, got $downloadedDigest.',
+      ),
     );
   }
 
   return destination;
+}
+
+Future<T> _runNexaHttpNativeArtifactStage<T>({
+  required String stage,
+  required String targetOS,
+  required String targetArchitecture,
+  required String? targetSdk,
+  required String sdkRef,
+  required Future<T> Function() action,
+}) async {
+  try {
+    return await action();
+  } on NexaHttpNativeArtifactException {
+    rethrow;
+  } catch (error, stackTrace) {
+    _throwNexaHttpNativeArtifactException(
+      stage: stage,
+      targetOS: targetOS,
+      targetArchitecture: targetArchitecture,
+      targetSdk: targetSdk,
+      sdkRef: sdkRef,
+      underlyingError: error,
+      stackTrace: stackTrace,
+    );
+  }
+}
+
+T _runNexaHttpNativeArtifactStageSync<T>({
+  required String stage,
+  required String targetOS,
+  required String targetArchitecture,
+  required String? targetSdk,
+  required String sdkRef,
+  required T Function() action,
+}) {
+  try {
+    return action();
+  } on NexaHttpNativeArtifactException {
+    rethrow;
+  } catch (error, stackTrace) {
+    _throwNexaHttpNativeArtifactException(
+      stage: stage,
+      targetOS: targetOS,
+      targetArchitecture: targetArchitecture,
+      targetSdk: targetSdk,
+      sdkRef: sdkRef,
+      underlyingError: error,
+      stackTrace: stackTrace,
+    );
+  }
+}
+
+Never _throwNexaHttpNativeArtifactException({
+  required String stage,
+  required String targetOS,
+  required String targetArchitecture,
+  required String? targetSdk,
+  required String sdkRef,
+  required Object underlyingError,
+  StackTrace? stackTrace,
+}) {
+  final exception = NexaHttpNativeArtifactException(
+    stage: stage,
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: sdkRef,
+    expectedAction:
+        'Use a nexa_http git tag with published native release assets, then rerun flutter pub get and flutter build/run. If the failure persists, file an issue with this full message.',
+    underlyingError: underlyingError,
+  );
+  if (stackTrace != null) {
+    Error.throwWithStackTrace(exception, stackTrace);
+  }
+  throw exception;
 }
 
 Uri buildNexaHttpNativeManifestUri({
@@ -111,7 +293,9 @@ NexaHttpNativeReleaseAsset parseNexaHttpNativeReleaseAssetFromManifest({
 
   final assets = decoded['assets'];
   if (assets is! List<Object?>) {
-    throw StateError('Native asset manifest missing assets list at $manifestUri.');
+    throw StateError(
+      'Native asset manifest missing assets list at $manifestUri.',
+    );
   }
 
   for (final entry in assets) {
@@ -136,7 +320,9 @@ NexaHttpNativeReleaseAsset parseNexaHttpNativeReleaseAssetFromManifest({
     return NexaHttpNativeReleaseAsset(
       fileName: fileName,
       sha256: sha256,
-      sourceUrl: sourceUrl.hasScheme ? sourceUrl : manifestUri.resolveUri(sourceUrl),
+      sourceUrl: sourceUrl.hasScheme
+          ? sourceUrl
+          : manifestUri.resolveUri(sourceUrl),
     );
   }
 
@@ -199,14 +385,18 @@ String? findAncestorGitRepositoryRoot(String startPath) {
 
 String? parseGitHubRepositorySlug(String remoteUrl) {
   final value = remoteUrl.trim();
-  final sshMatch = RegExp(r'^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$').firstMatch(value);
+  final sshMatch = RegExp(
+    r'^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$',
+  ).firstMatch(value);
   if (sshMatch != null) {
     return '${sshMatch.group(1)}/${sshMatch.group(2)}';
   }
 
   final httpsUri = Uri.tryParse(value);
   if (httpsUri != null && httpsUri.host == 'github.com') {
-    final segments = httpsUri.pathSegments.where((segment) => segment.isNotEmpty).toList();
+    final segments = httpsUri.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList();
     if (segments.length >= 2) {
       final repo = segments[1].endsWith('.git')
           ? segments[1].substring(0, segments[1].length - 4)
@@ -252,7 +442,9 @@ Future<String> _runGitAndReadStdout(
   return '${result.stdout}'.trim();
 }
 
-Future<List<int>> consolidateHttpClientResponseBytes(HttpClientResponse response) async {
+Future<List<int>> consolidateHttpClientResponseBytes(
+  HttpClientResponse response,
+) async {
   final builder = BytesBuilder(copy: false);
   await for (final chunk in response) {
     builder.add(chunk);

@@ -1,54 +1,29 @@
 # 目录结构
 
-> 记录本项目后端代码如何组织。
-
----
-
-## 概览
-
-<!--
-在这里记录项目真实的后端目录结构约定。
-
-需要回答：
-- module/package 如何组织？
-- business logic 放在哪里？
-- API endpoint 在哪里定义？
-- utility/helper 如何组织？
--->
-
-（待团队填充）
-
----
-
 ## 目录布局
 
 ```text
-<!-- 替换为真实结构 -->
-src/
-├── ...
-└── ...
+packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi/
+├── Cargo.toml
+├── src/
+│   ├── lib.rs
+│   └── proxy_source.rs
+└── tests/proxy_settings.rs
 ```
 
----
+## 模块职责
 
-## 模块组织
+- `src/lib.rs` 只做 C ABI export 和 runtime wiring，复用 `nexa_http_native_core::runtime::NexaHttpRuntime`。
+- `src/proxy_source.rs` 实现 `IosProxySource`，通过 Apple SystemConfiguration 字段读取 iOS/macOS family proxy 设置。
+- `tests/proxy_settings.rs` 验证 Apple proxy 字段解析、bypass 去重和 refresh mode。
 
-<!-- 新功能或新模块应该如何组织？ -->
+## 禁止模式
 
-（待团队填充）
+- 不要在 iOS crate 中复制 core request/response/runtime executor。
+- 不要在 Rust FFI crate 中处理 release asset 下载、workspace 查找或 pub-cache 判断。
+- 不要在 iOS crate 中引入宿主 Podfile、Xcode project 或 Flutter plugin registration 逻辑。
 
----
+## 真实例子
 
-## 命名约定
-
-<!-- 文件和目录命名规则 -->
-
-（待团队填充）
-
----
-
-## 示例
-
-<!-- 链接到组织良好的真实模块作为例子 -->
-
-（待团队填充）
+- `packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi/src/lib.rs`：导出统一 `nexa_http_*` ABI。
+- `packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi/src/proxy_source.rs`：实现 `IosProxySource` 和 Apple proxy parser。

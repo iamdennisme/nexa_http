@@ -58,10 +58,6 @@ def nexaHttpRequiredAndroidSymbols = [
     'nexa_http_binary_result_free',
 ]
 
-def latestRustSourceTimestamp = {
-    rustSources.files.collect { it.lastModified() }.max() ?: 0L
-}
-
 def libraryExportsRequiredSymbols = { File library ->
     if (!library.exists()) {
         return false
@@ -93,27 +89,15 @@ def libraryExportsRequiredSymbols = { File library ->
     return false
 }
 
-def collectPrebuiltAndroidLibraryIssues = {
-    def newestSourceTimestamp = latestRustSourceTimestamp()
+def collectPackagedAndroidLibraryIssues = {
     rustAndroidTargets.collectMany { target ->
         def library = new File(nexaHttpAndroidJniLibsDir, "${target.abi}/libnexa_http_native.so")
         def issues = []
         if (!library.exists()) {
-            issues << "${target.abi}: missing jniLib"
-        } else {
-            if (library.lastModified() < newestSourceTimestamp) {
-                issues << "${target.abi}: stale jniLib"
-            }
-            if (!libraryExportsRequiredSymbols(library)) {
-                issues << "${target.abi}: missing required symbols"
-            }
+            issues << "${target.abi}: missing packaged jniLib at ${library.absolutePath}"
         }
         return issues
     }
-}
-
-def hasAllPrebuiltAndroidLibraries = {
-    collectPrebuiltAndroidLibraryIssues().isEmpty()
 }
 
 android {
@@ -243,8 +227,18 @@ def registerRustAndroidTask = { String buildType, String cargoProfile ->
         outputs.dir(nexaHttpAndroidJniLibsDir)
 
         doLast {
-            def prebuiltIssues = collectPrebuiltAndroidLibraryIssues()
-            if (!nexaHttpForceSourceBuild && prebuiltIssues.isEmpty()) {
+            def packagedIssues = collectPackagedAndroidLibraryIssues()
+            if (!nexaHttpForceSourceBuild) {
+                if (!packagedIssues.isEmpty()) {
+                    throw new GradleException(
+                        'nexa_http Android native packaging failed. ' +
+                        'stage=native packaging; platform=android; ' +
+                        "architectures=${rustAndroidTargets.collect { it.abi }.join(',')}; " +
+                        'expected_action=run the standard Flutter build again so the nexa_http build hook can materialize release artifacts. ' +
+                        'Repository maintainers may run ./scripts/build_native_android.sh debug or set NEXA_HTTP_ANDROID_FORCE_SOURCE_BUILD=true for an explicit source build. ' +
+                        "underlying_error=${packagedIssues.join(', ')}",
+                    )
+                }
                 logger.lifecycle(
                     'nexa_http: using prebuilt Android jniLibs from ' +
                     nexaHttpAndroidJniLibsDir.absolutePath,
@@ -252,12 +246,9 @@ def registerRustAndroidTask = { String buildType, String cargoProfile ->
                 return
             }
 
-            if (!prebuiltIssues.isEmpty()) {
-                logger.lifecycle(
-                    'nexa_http: rebuilding Android jniLibs because ' +
-                    prebuiltIssues.join(', '),
-                )
-            }
+            logger.lifecycle(
+                'nexa_http: NEXA_HTTP_ANDROID_FORCE_SOURCE_BUILD=true; rebuilding Android jniLibs from source.',
+            )
 
             def ndkDir = resolveAndroidNdkDir()
             def prebuiltDir = resolveNdkPrebuiltDir(ndkDir)

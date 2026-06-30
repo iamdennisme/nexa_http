@@ -236,14 +236,14 @@ packages:
       path: "../nexa_http"
       relative: true
     source: path
-    version: "1.0.1"
+    version: "2.0.0"
   nexa_http_native_internal:
     dependency: "direct main"
     description:
       path: "../nexa_http_native_internal"
       relative: true
     source: path
-    version: "1.0.1"
+    version: "2.0.0"
   node_preamble:
     dependency: transitive
     description:

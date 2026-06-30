@@ -1,7 +1,7 @@
 name: nexa_http_demo
 description: "Official demo app for the nexa_http workspace."
 publish_to: 'none'
-version: 1.0.1+1
+version: 2.0.0+1
 
 environment:
   sdk: ^3.11.0

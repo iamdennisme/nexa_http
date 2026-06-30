@@ -1,12 +1,6 @@
-# 后端开发规范
+# nexa_http_native_android_ffi 后端规范
 
-> 本目录记录该 包/层 的后端开发约定。
-
----
-
-## 概览
-
-这里存放后端开发规范。填充每个文件时，只记录本项目真实采用的约定，不写空泛理想。
+> Android FFI crate 位于 `packages/nexa_http_native_android/native/nexa_http_native_android_ffi`，负责产出 Android 动态库并把共享 core runtime 绑定到 Android proxy source。
 
 ---
 
@@ -14,25 +8,20 @@
 
 | 规范 | 说明 | 状态 |
 |------|------|------|
-| [目录结构](./directory-structure.md) | 模块组织和文件布局 | 待填充 |
-| [数据库规范](./database-guidelines.md) | ORM、查询、迁移约定 | 待填充 |
-| [错误处理](./error-handling.md) | 错误类型和传播策略 | 待填充 |
-| [质量规范](./quality-guidelines.md) | 代码标准和禁止模式 | 待填充 |
-| [日志规范](./logging-guidelines.md) | 结构化日志和日志级别 | 待填充 |
+| [目录结构](./directory-structure.md) | 平台 FFI crate 布局和职责边界 | 已填充 |
+| [数据库规范](./database-guidelines.md) | 本 crate 无数据库和持久化 | 已填充 |
+| [错误处理](./error-handling.md) | 平台 FFI 错误委托 core，`getprop` 读取失败降级规则 | 已填充 |
+| [质量规范](./quality-guidelines.md) | ABI、proxy tests、禁止重复 core 逻辑 | 已填充 |
+| [日志规范](./logging-guidelines.md) | 不在平台库写运行时日志 | 已填充 |
 
----
+## Pre-Development Checklist
 
-## 填写要求
+- [ ] 修改 `src/lib.rs` C ABI export 时同步 core FFI 和 Dart bindings。
+- [ ] 修改 `src/proxy_source.rs` 时补充或更新 `tests/proxy_settings.rs`。
+- [ ] 修改构建产物名称、crate type 或 Android target triple 时同步 Dart build hook、Gradle 和 workspace verification。
 
-每个规范文件都要：
+## Quality Check
 
-1. 记录项目实际约定，不写尚未采用的理想方案。
-2. 引用代码库中的真实例子。
-3. 列出禁止模式，并说明原因。
-4. 记录团队踩过或容易踩的常见错误。
-
-目标是让 AI 助手 和新成员能按本项目方式工作，而不是写通用模板代码。
-
----
-
-**语言**：所有 `.trellis/spec/` 规则文档必须使用中文；代码标识符、命令、包名和外部工具术语可以保留英文原文。
+- [ ] `cargo fmt --all --check` 通过。
+- [ ] `cargo test -p nexa_http_native_android_ffi` 通过。
+- [ ] `packages/nexa_http_native_android/test/build_hook_test.dart` 仍能解析和 materialize Android artifact。

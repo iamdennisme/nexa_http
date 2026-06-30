@@ -9,7 +9,7 @@ If you are integrating the project into an app, this is the package your applica
 - An app-facing HTTP API in Dart
 - A request-building style that feels familiar if you have used OkHttp before
 - A Rust-powered transport layer behind the scenes
-- Platform carrier packages for Android, iOS, macOS, and Windows
+- Explicit platform carrier packages for Android, iOS, macOS, and Windows
 
 Entrypoint:
 
@@ -19,10 +19,9 @@ import 'package:nexa_http/nexa_http.dart';
 
 ## Dependency model
 
-A normal app uses:
-
-1. `nexa_http`
-2. the carrier packages for the platforms it ships
+A normal app imports only `package:nexa_http/nexa_http.dart` in runtime code,
+but its `pubspec.yaml` declares both `nexa_http` and the platform package for
+each target it ships.
 
 ### Local path setup
 
@@ -50,7 +49,7 @@ dependencies:
       path: packages/nexa_http_native_macos
 ```
 
-When consuming a Git tag, the native carrier package resolves its binary from the GitHub Release assets published for that same tag.
+When consuming a Git tag, the platform carrier package resolves its native binaries from the GitHub Release assets published for that same tag.
 
 ## Example
 
@@ -96,7 +95,7 @@ Application code should not need to handle:
 - runtime registration
 - dynamic-library loading details
 - platform-specific startup logic
-- artifact layout inside the carrier packages
+- artifact layout inside the platform packages
 
 Those concerns live behind `nexa_http` and the platform carriers.
 

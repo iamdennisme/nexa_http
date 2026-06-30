@@ -1,51 +1,15 @@
 # 日志规范
 
-> 记录本项目如何写日志、分级和保护敏感信息。
+Android FFI crate 默认不写运行时日志。
 
----
+## 规则
 
-## 概览
+- 不要在 proxy 读取或 ABI export 中新增 `println!` / `eprintln!`。
+- `getprop` 读取失败时返回默认或部分 proxy 设置，由请求行为和 Dart error 负责暴露可见问题。
+- 不要记录 proxy credential、header value、URL body、系统属性原始 dump 或命令输出。
+- 如果未来确实需要诊断日志，必须先在 shared core 或 Dart 层设计统一开关，不能在单个平台 crate 私自输出。
 
-<!--
-在这里记录项目真实的日志约定。
+## 真实例子
 
-需要回答：
-- 使用什么 logging library？
-- 各 log level 何时使用？
-- 必须记录什么？
-- 哪些内容禁止记录，例如 PII、secret？
--->
-
-（待团队填充）
-
----
-
-## 日志级别
-
-<!-- debug、info、warn、error 分别何时使用 -->
-
-（待团队填充）
-
----
-
-## 结构化日志
-
-<!-- 日志格式和必填字段 -->
-
-（待团队填充）
-
----
-
-## 应该记录什么
-
-<!-- 重要事件、阶段、上下文 -->
-
-（待团队填充）
-
----
-
-## 禁止记录什么
-
-<!-- 敏感数据、PII、secret、token 等 -->
-
-（待团队填充）
+- `src/proxy_source.rs` 只返回 `ProxySettings`，不输出诊断文本。
+- `src/lib.rs` 只暴露 ABI 并委托 `NexaHttpRuntime`，不打印请求或错误内容。

@@ -4,11 +4,11 @@
 - [x] 1.2 删除 `nexa_http_runtime` 与 `nexa_http_distribution` 作为独立对外 package surface 的入口、文档与边界测试
 - [x] 1.3 更新 `packages/nexa_http` 依赖结构，使其直接集成合并后的内部 native layer
 
-## 2. 清理版本与发布语义
+## 2. 清理错误的版本语义
 
-- [x] 2.1 删除 native artifact resolver、manifest 与相关代码中的 version / release / tag / release identity / consumer 逻辑
-- [x] 2.2 删除 `scripts/workspace_tools.dart` 中的 package version 对齐、release-train、tag 校验与 consumer 验证逻辑
-- [x] 2.3 删除或重写依赖上述发布语义的仓库文档与说明
+- [x] 2.1 删除 native artifact resolver、manifest 与相关代码中依赖本地 package version 的发布身份逻辑
+- [x] 2.2 保留 release-consumer 验证作为发布门禁，但删除 package version 对齐和 release-train 作为发布身份来源的逻辑
+- [x] 2.3 删除或重写把 package version 当作 native artifact release identity 的仓库文档与说明
 
 ## 3. 去除兼容与历史路径
 
@@ -20,7 +20,7 @@
 
 - [x] 4.1 将各平台 carrier 收缩为仅负责平台产物生成与最小宿主集成
 - [x] 4.2 删除 carrier 中残留的 runtime/distribution 策略、版本语义与兼容逻辑
-- [x] 4.3 去除 `default_package` 式隐式平台选择，改为符合新规范的显式产物选择模型
+- [x] 4.3 去除 `default_package` 式隐式平台选择，改为消费者显式声明 platform carrier package
 
 ## 5. 对齐验证与文档
 

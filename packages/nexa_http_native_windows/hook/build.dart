@@ -15,13 +15,18 @@ Future<void> main(List<String> args) async {
     }
 
     final packageRoot = Directory.fromUri(input.packageRoot).path;
-    if (_isWorkspacePackage(packageRoot)) {
+    if (shouldBuildNexaHttpNativeFromWorkspaceSource(
+      packageRoot: packageRoot,
+      buildScriptName: 'build_native_windows.sh',
+    )) {
       await _prepareWorkspaceWindowsArtifacts(packageRoot);
     } else {
       await materializeNexaHttpNativeReleaseArtifact(
         packageRoot: packageRoot,
         targetOS: 'windows',
-        targetArchitecture: _targetArchitecture(input.config.code.targetArchitecture),
+        targetArchitecture: _targetArchitecture(
+          input.config.code.targetArchitecture,
+        ),
         targetSdk: null,
       );
     }
@@ -30,11 +35,6 @@ Future<void> main(List<String> args) async {
       await NexaHttpNativeWindowsAssetBundle.resolve(input),
     );
   });
-}
-
-bool _isWorkspacePackage(String packageRoot) {
-  final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
-  return Directory(p.join(workspaceRoot, '.git')).existsSync();
 }
 
 Future<void> _prepareWorkspaceWindowsArtifacts(String packageRoot) async {
@@ -60,7 +60,7 @@ String _targetArchitecture(Architecture architecture) {
   return switch (architecture) {
     Architecture.x64 => 'x64',
     _ => throw UnsupportedError(
-        'No Windows target mapping for architecture $architecture.',
-      ),
+      'No Windows target mapping for architecture $architecture.',
+    ),
   };
 }

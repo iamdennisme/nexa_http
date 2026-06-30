@@ -11,18 +11,9 @@ void main() {
       workspaceVerificationCommands,
       contains('verify-artifact-consistency'),
     );
-    expect(
-      workspaceVerificationCommands,
-      contains('verify-development-path'),
-    );
-    expect(
-      workspaceVerificationCommands,
-      contains('verify-external-consumer'),
-    );
-    expect(
-      workspaceVerificationCommands,
-      contains('verify-release-consumer'),
-    );
+    expect(workspaceVerificationCommands, contains('verify-development-path'));
+    expect(workspaceVerificationCommands, contains('verify-external-consumer'));
+    expect(workspaceVerificationCommands, contains('verify-release-consumer'));
     expect(
       workspaceVerificationCommands,
       isNot(contains('check-release-train')),
@@ -45,70 +36,74 @@ void main() {
     expect(copiedAssets, containsAll(expectedAssets));
     expect(expectedAssets, containsAll(copiedAssets));
     expect(workflow, contains('verify-artifact-consistency'));
-    expect(workflow, isNot(contains('verify-release-consumer')));
+    expect(workflow, contains('verify-release-consumer'));
   });
 
-  test('pr CI workflow blocks on development-path and artifact-consistency verification', () {
-    final workflow = File(
-      p.join('.github', 'workflows', 'ci.yml'),
-    ).readAsStringSync();
+  test(
+    'pr CI workflow blocks on development-path and artifact-consistency verification',
+    () {
+      final workflow = File(
+        p.join('.github', 'workflows', 'ci.yml'),
+      ).readAsStringSync();
 
-    expect(workflow, contains('ubuntu-latest'));
-    expect(workflow, contains('macos-14'));
-    expect(workflow, contains('windows-latest'));
-    expect(workflow, contains('verify-artifact-consistency'));
-    expect(workflow, contains('verify-development-path'));
-    expect(workflow, isNot(contains('verify-release-consumer')));
-  });
+      expect(workflow, contains('ubuntu-latest'));
+      expect(workflow, contains('macos-14'));
+      expect(workflow, contains('windows-latest'));
+      expect(workflow, contains('verify-artifact-consistency'));
+      expect(workflow, contains('verify-development-path'));
+      expect(workflow, contains('verify-external-consumer'));
+    },
+  );
 
-  test('root hook test entrypoint keeps package resolution for workspace hook self imports', () {
-    final rootPubspec = File('pubspec.yaml').readAsStringSync();
-    expect(rootPubspec, contains('code_assets: ^1.0.0'));
-    expect(rootPubspec, contains('hooks: ^1.0.2'));
+  test(
+    'root hook test entrypoint keeps package resolution for workspace hook self imports',
+    () {
+      final rootPubspec = File('pubspec.yaml').readAsStringSync();
+      expect(rootPubspec, contains('code_assets: ^1.0.0'));
+      expect(rootPubspec, contains('hooks: ^1.0.2'));
 
-    final androidHook = File(
-      p.join('packages', 'nexa_http_native_android', 'hook', 'build.dart'),
-    ).readAsStringSync();
-    expect(
-      androidHook,
-      contains(
-        "import '../lib/src/nexa_http_native_android_asset_bundle.dart';",
-      ),
-    );
+      final androidHook = File(
+        p.join('packages', 'nexa_http_native_android', 'hook', 'build.dart'),
+      ).readAsStringSync();
+      expect(
+        androidHook,
+        contains(
+          "import '../lib/src/nexa_http_native_android_asset_bundle.dart';",
+        ),
+      );
 
-    final iosHook = File(
-      p.join('packages', 'nexa_http_native_ios', 'hook', 'build.dart'),
-    ).readAsStringSync();
-    expect(
-      iosHook,
-      contains("import '../lib/src/nexa_http_native_ios_asset_bundle.dart';"),
-    );
+      final iosHook = File(
+        p.join('packages', 'nexa_http_native_ios', 'hook', 'build.dart'),
+      ).readAsStringSync();
+      expect(
+        iosHook,
+        contains("import '../lib/src/nexa_http_native_ios_asset_bundle.dart';"),
+      );
 
-    final macosHook = File(
-      p.join('packages', 'nexa_http_native_macos', 'hook', 'build.dart'),
-    ).readAsStringSync();
-    expect(
-      macosHook,
-      contains(
-        "import '../lib/src/nexa_http_native_macos_asset_bundle.dart';",
-      ),
-    );
+      final macosHook = File(
+        p.join('packages', 'nexa_http_native_macos', 'hook', 'build.dart'),
+      ).readAsStringSync();
+      expect(
+        macosHook,
+        contains(
+          "import '../lib/src/nexa_http_native_macos_asset_bundle.dart';",
+        ),
+      );
 
-    final windowsHook = File(
-      p.join('packages', 'nexa_http_native_windows', 'hook', 'build.dart'),
-    ).readAsStringSync();
-    expect(
-      windowsHook,
-      contains(
-        "import '../lib/src/nexa_http_native_windows_asset_bundle.dart';",
-      ),
-    );
-  });
+      final windowsHook = File(
+        p.join('packages', 'nexa_http_native_windows', 'hook', 'build.dart'),
+      ).readAsStringSync();
+      expect(
+        windowsHook,
+        contains(
+          "import '../lib/src/nexa_http_native_windows_asset_bundle.dart';",
+        ),
+      );
+    },
+  );
 
   test('example README documents all supported platform run targets', () {
-    final readme = File(
-      p.join('app', 'demo', 'README.md'),
-    ).readAsStringSync();
+    final readme = File(p.join('app', 'demo', 'README.md')).readAsStringSync();
 
     expect(readme, contains('flutter run -d macos'));
     expect(readme, contains('flutter run -d windows'));
@@ -116,46 +111,32 @@ void main() {
     expect(readme, contains('flutter run -d ios'));
   });
 
-  test('official demo contains platform projects for every supported demo target', () {
-    expect(
-      Directory(
-        p.join('app', 'demo', 'android'),
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      Directory(
-        p.join('app', 'demo', 'ios'),
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      Directory(
-        p.join('app', 'demo', 'macos'),
-      ).existsSync(),
-      isTrue,
-    );
-    expect(
-      Directory(
-        p.join('app', 'demo', 'windows'),
-      ).existsSync(),
-      isTrue,
-    );
-  });
+  test(
+    'official demo contains platform projects for every supported demo target',
+    () {
+      expect(Directory(p.join('app', 'demo', 'android')).existsSync(), isTrue);
+      expect(Directory(p.join('app', 'demo', 'ios')).existsSync(), isTrue);
+      expect(Directory(p.join('app', 'demo', 'macos')).existsSync(), isTrue);
+      expect(Directory(p.join('app', 'demo', 'windows')).existsSync(), isTrue);
+    },
+  );
 
-  test('public package README presents nexa_http as the API package and platform packages as explicit dependencies', () {
-    final readme = File(
-      p.join('packages', 'nexa_http', 'README.md'),
-    ).readAsStringSync();
+  test(
+    'public package README separates API surface from platform dependencies',
+    () {
+      final readme = File(
+        p.join('packages', 'nexa_http', 'README.md'),
+      ).readAsStringSync();
 
-    expect(readme, isNot(contains('nexa_http_runtime:')));
-    expect(readme, isNot(contains('nexa_http_distribution:')));
-    expect(readme, contains('nexa_http:'));
-    expect(readme, contains('nexa_http_native_macos:'));
-    expect(readme, contains('git:'));
-  });
+      expect(readme, isNot(contains('nexa_http_runtime:')));
+      expect(readme, isNot(contains('nexa_http_distribution:')));
+      expect(readme, contains('nexa_http:'));
+      expect(readme, contains('nexa_http_native_macos:'));
+      expect(readme, contains('git:'));
+    },
+  );
 
-  test('official demo app layer declares platform carrier packages explicitly', () {
+  test('official demo app layer declares public API and platform packages', () {
     final pubspec = File(
       p.join('app', 'demo', 'pubspec.yaml'),
     ).readAsStringSync();
@@ -168,14 +149,15 @@ void main() {
     expect(pubspec, isNot(contains('nexa_http_native_internal:')));
   });
 
-  test('external consumer fixture declares the host platform carrier explicitly', () {
+  test('external consumer fixture declares the host platform package', () {
     final macosPubspec = buildExternalConsumerPubspecForHost(
       'https://example.invalid/repo.git',
       WorkspaceHostPlatform.macos,
+      ref: 'v0.0.3',
     );
     expect(macosPubspec, contains('nexa_http:'));
     expect(macosPubspec, contains('nexa_http_native_macos:'));
-    expect(macosPubspec, contains('ref: vX.Y.Z'));
+    expect(macosPubspec, contains('ref: v0.0.3'));
     expect(macosPubspec, isNot(contains('nexa_http_native_windows:')));
     expect(macosPubspec, isNot(contains('nexa_http_native_internal:')));
 
@@ -189,20 +171,49 @@ void main() {
     final windowsPubspec = buildExternalConsumerPubspecForHost(
       'https://example.invalid/repo.git',
       WorkspaceHostPlatform.windows,
+      ref: 'v0.0.3',
     );
+    expect(windowsPubspec, contains('nexa_http:'));
     expect(windowsPubspec, contains('nexa_http_native_windows:'));
-    expect(windowsPubspec, contains('ref: vX.Y.Z'));
+    expect(windowsPubspec, contains('ref: v0.0.3'));
     expect(windowsPubspec, isNot(contains('nexa_http_native_macos:')));
+
+    final androidPubspec = buildExternalConsumerPubspecForHost(
+      'https://example.invalid/repo.git',
+      WorkspaceHostPlatform.linux,
+      ref: 'v0.0.3',
+    );
+    expect(androidPubspec, contains('nexa_http:'));
+    expect(androidPubspec, contains('nexa_http_native_android:'));
   });
 
-  test('nexa_http pubspec no longer defines federated default packages', () {
+  test('external consumer fixture imports and compiles the public SDK API', () {
+    final mainDart = buildExternalConsumerMainDart();
+
+    expect(mainDart, contains("import 'package:nexa_http/nexa_http.dart';"));
+    expect(mainDart, isNot(contains('package:nexa_http_native_')));
+    expect(mainDart, contains('NexaHttpClientBuilder()'));
+    expect(mainDart, contains('RequestBuilder()'));
+  });
+
+  test('nexa_http pubspec does not hide platform package selection', () {
     final pubspec = File(
       p.join('packages', 'nexa_http', 'pubspec.yaml'),
     ).readAsStringSync();
 
-    expect(pubspec, isNot(contains('default_package: nexa_http_native_android')));
+    expect(pubspec, isNot(contains('nexa_http_native_android:')));
+    expect(pubspec, isNot(contains('nexa_http_native_ios:')));
+    expect(pubspec, isNot(contains('nexa_http_native_macos:')));
+    expect(pubspec, isNot(contains('nexa_http_native_windows:')));
+    expect(
+      pubspec,
+      isNot(contains('default_package: nexa_http_native_android')),
+    );
     expect(pubspec, isNot(contains('default_package: nexa_http_native_ios')));
     expect(pubspec, isNot(contains('default_package: nexa_http_native_macos')));
-    expect(pubspec, isNot(contains('default_package: nexa_http_native_windows')));
+    expect(
+      pubspec,
+      isNot(contains('default_package: nexa_http_native_windows')),
+    );
   });
 }

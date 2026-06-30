@@ -2,7 +2,7 @@
 
 The repository currently models native integration through separate `nexa_http_runtime` and `nexa_http_distribution` packages. That split is reinforced by package boundaries, tests, verification scripts, and release-oriented documentation. At the same time, `nexa_http` is already the app-facing package, but it still depends directly on the split runtime/distribution model and on federated carrier wiring that automatically selects platform implementations.
 
-The target architecture is simpler: `nexa_http` is the only public surface for `Flutter` / `Kino` / `app`; runtime and distribution are a single inseparable internal concern; platform/carrier packages exist only to produce platform artifacts; and the codebase must stop encoding version numbers, tags, release identities, consumer modes, or historical fallback behavior.
+The target architecture is simpler: `nexa_http` is the only public Dart API surface for `Flutter` / `Kino` / `app`; runtime and distribution are a single inseparable internal concern; platform/carrier packages are explicit dependency artifacts selected by consumers; and the codebase must stop using local package versions, legacy paths, or historical fallback behavior as native artifact policy.
 
 This is a cross-cutting change because it affects package structure, native artifact resolution, loader behavior, platform integration, verification, and repository documentation.
 
@@ -11,13 +11,13 @@ This is a cross-cutting change because it affects package structure, native arti
 **Goals:**
 - Make `nexa_http` the only public integration surface.
 - Collapse runtime and distribution into one internal native layer.
-- Remove all version-, release-, tag-, and release-identity-driven source logic from the native stack.
+- Remove local-package-version-driven release identity and split runtime/distribution policy from the native stack.
 - Remove all legacy/fallback path probing and historical compatibility behavior.
 - Restrict platform/carrier responsibilities to producing supported platform artifacts.
 - Align verification and docs with the simplified architecture.
 
 **Non-Goals:**
-- Preserving compatibility with existing release-consumer, tag-consumer, or workspace-dev contracts.
+- Preserving legacy fallback paths or local-package-version release identity.
 - Maintaining current federated automatic platform selection behavior if it conflicts with explicit artifact selection.
 - Minimizing change scope; large removals are acceptable.
 - Introducing new public app-facing APIs beyond what is required to preserve `nexa_http` as the single public surface.
@@ -41,13 +41,13 @@ Platform packages will be reduced to platform-specific artifact production and n
 **Alternatives considered:**
 - Continue using carriers as semi-smart integration packages. Rejected because that keeps boundary logic fragmented and hard to reason about.
 
-### 3. Remove version, tag, release identity, and consumer mode logic entirely
-The merged native layer, verification scripts, and documentation will no longer model release identity, package version alignment, tag-authoritative resolution, `workspace-dev`, or `release-consumer` source selection.
+### 3. Remove local package versions as release identity
+The merged native layer, verification scripts, and documentation will no longer use local package versions or release-train alignment as native artifact release identity. `workspace-dev` and `release-consumer` remain explicit source-selection modes because repository development and tagged Git consumers have different artifact sources.
 
-**Why:** The desired architecture explicitly rejects version-aware modules. Keeping any of these concepts would preserve a second architecture hidden inside tooling and manifests.
+**Why:** The desired architecture rejects package-version-aware native modules. Keeping local package versions as artifact identity would preserve a second architecture hidden inside tooling and manifests.
 
 **Alternatives considered:**
-- Keep release/tag logic in scripts only. Rejected because the architecture rule is that modules do not care about versions.
+- Keep package-version fallback logic in scripts only. Rejected because the architecture rule is that modules do not treat package metadata as native artifact identity.
 
 ### 4. Replace fallback discovery with explicit target and path rules
 Native loading and artifact resolution will use explicit supported-target definitions and fixed artifact locations. If a required artifact is not available, bootstrap/build fails directly instead of searching legacy names or historical paths.
@@ -66,7 +66,7 @@ The architecture will stop depending on hidden `default_package`-style automatic
 - Keep current federation wiring and reinterpret it as selection. Rejected because it preserves implicit selection and hides product decisions in package metadata.
 
 ### 6. Rewrite verification around simplified structural invariants
-Repository verification will validate only the new structure: `nexa_http` as the sole public surface, merged internal native layer, supported target agreement, absence of version/release logic, and absence of legacy probing.
+Repository verification will validate the new structure: `nexa_http` as the sole public Dart API surface, explicit platform carrier dependencies, merged internal native layer, supported target agreement, absence of package-version release identity, and absence of legacy probing.
 
 **Why:** Existing checks enforce the architecture being removed.
 
@@ -82,8 +82,8 @@ Repository verification will validate only the new structure: `nexa_http` as the
 
 ## Migration Plan
 
-1. Update specs to remove release/tag/version/consumer governance and define the merged native-layer contract.
-2. Remove or rewrite verification artifacts so they enforce only the new structural rules.
+1. Update specs to remove package-version release governance and define the merged native-layer contract.
+2. Remove or rewrite verification artifacts so they enforce the explicit dependency and native artifact rules.
 3. Consolidate surviving runtime/distribution logic into `nexa_http` (or a single private helper package if mechanically necessary).
 4. Delete obsolete runtime/distribution package surfaces and release-oriented tooling.
 5. Simplify platform carriers to artifact-only responsibilities and replace implicit platform selection with the explicit model required by the new spec.

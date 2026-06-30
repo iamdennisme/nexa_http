@@ -1,11 +1,11 @@
 ## MODIFIED Requirements
 
 ### Requirement: Repository verification SHALL enforce platform target agreement
-The system SHALL verify that `nexa_http`, the merged internal native layer, and platform/carrier artifact producers agree on the same supported platform targets and fixed artifact mappings, and it SHALL NOT verify release identities, manifest version alignment, consumer modes, or historical compatibility paths.
+The system SHALL verify that `nexa_http`, the merged internal native layer, platform/carrier artifact producers, workspace-dev preparation, and release-consumer resolution agree on the same supported platform targets and fixed artifact mappings, while rejecting manifest version alignment and historical compatibility paths.
 
 #### Scenario: supported target matrix is evaluated
 - **WHEN** repository verification inspects the supported platform targets
-- **THEN** it SHALL detect drift between `nexa_http`, merged native-layer artifact definitions, and carrier-produced platform artifacts
+- **THEN** it SHALL detect drift between `nexa_http`, merged native-layer artifact definitions, carrier-produced platform artifacts, and release-consumer artifact resolution
 - **AND** it SHALL fail with a message identifying the mismatched target definitions or fixed artifact mappings
 
 #### Scenario: unsupported target is not declared accidentally

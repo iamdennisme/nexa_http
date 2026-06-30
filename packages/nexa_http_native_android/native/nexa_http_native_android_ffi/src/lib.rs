@@ -6,8 +6,8 @@ use nexa_http_native_core::api::ffi::{
 };
 use nexa_http_native_core::runtime::{ManagedProxyState, NexaHttpRuntime};
 use once_cell::sync::Lazy;
-use std::ffi::c_char;
 use proxy_source::ANDROID_PROXY_REFRESH_INTERVAL;
+use std::ffi::c_char;
 
 pub use proxy_source::{AndroidProxySource, current_proxy_settings_for_test};
 

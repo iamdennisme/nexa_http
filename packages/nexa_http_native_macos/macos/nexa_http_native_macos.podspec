@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'nexa_http_native_macos'
-  s.version          = '0.0.1'
+  s.version          = '2.0.0'
   s.summary          = 'macOS carrier package for nexa_http native artifacts.'
   s.description      = <<-DESC
 macOS carrier package for nexa_http native artifacts.

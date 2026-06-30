@@ -5,14 +5,17 @@ import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
-typedef PackageCommandRunner = Future<void> Function(
-  Directory packageDir,
-  String executable,
-  List<String> arguments, {
-  Map<String, String>? environment,
-});
+typedef PackageCommandRunner =
+    Future<void> Function(
+      Directory packageDir,
+      String executable,
+      List<String> arguments, {
+      Map<String, String>? environment,
+    });
 
 enum WorkspaceHostPlatform { macos, windows, linux, other }
+
+enum ConsumerDependencySource { git, path }
 
 const List<String> workspaceVerificationCommands = <String>[
   'bootstrap',
@@ -58,7 +61,11 @@ Future<void> main(List<String> args) async {
       await verifyExternalConsumer(workspaceRoot);
       return;
     case 'verify-release-consumer':
-      await verifyReleaseConsumer(workspaceRoot);
+      await verifyReleaseConsumer(
+        workspaceRoot,
+        repoUrl: Platform.environment['NEXA_HTTP_RELEASE_REPO_URL'],
+        ref: Platform.environment['NEXA_HTTP_RELEASE_REF'],
+      );
       return;
     default:
       stderr.writeln('Unknown workspace command: $command');
@@ -86,10 +93,11 @@ List<Directory> discoverWorkspacePackageDirs(String workspaceRoot) {
   }
 
   final result = directories.toList()
-    ..sort((left, right) =>
-        p.relative(left.path, from: workspaceRoot).compareTo(
-              p.relative(right.path, from: workspaceRoot),
-            ));
+    ..sort(
+      (left, right) => p
+          .relative(left.path, from: workspaceRoot)
+          .compareTo(p.relative(right.path, from: workspaceRoot)),
+    );
   return result;
 }
 
@@ -139,10 +147,18 @@ Future<void> verifyWorkspacePackages(
   String workspaceRoot, {
   PackageCommandRunner runPackageCommand = _runPackageCommand,
 }) async {
-  await verifyArtifactConsistency(workspaceRoot, runPackageCommand: runPackageCommand);
-  await verifyDevelopmentPath(workspaceRoot, runPackageCommand: runPackageCommand);
-  await verifyExternalConsumer(workspaceRoot, runPackageCommand: runPackageCommand);
-  await verifyReleaseConsumer(workspaceRoot, runPackageCommand: runPackageCommand);
+  await verifyArtifactConsistency(
+    workspaceRoot,
+    runPackageCommand: runPackageCommand,
+  );
+  await verifyDevelopmentPath(
+    workspaceRoot,
+    runPackageCommand: runPackageCommand,
+  );
+  await verifyExternalConsumer(
+    workspaceRoot,
+    runPackageCommand: runPackageCommand,
+  );
   for (final packageDir in discoverWorkspacePackageDirs(workspaceRoot)) {
     await runPackageCommand(
       packageDir,
@@ -181,7 +197,9 @@ Future<void> verifyArtifactConsistency(
   final expectedAssets = releaseTrainNativeAssetFileNames();
   for (final asset in expectedAssets) {
     if (!workflow.contains('dist/native-assets/$asset')) {
-      throw StateError('Release workflow is missing expected native asset staging for $asset.');
+      throw StateError(
+        'Release workflow is missing expected native asset staging for $asset.',
+      );
     }
   }
 
@@ -189,11 +207,7 @@ Future<void> verifyArtifactConsistency(
     p.join(workspaceRoot, 'packages', 'nexa_http_native_internal'),
   );
   if (Directory(p.join(internalDir.path, 'test')).existsSync()) {
-    await runPackageCommand(
-      internalDir,
-      'dart',
-      const <String>['test'],
-    );
+    await runPackageCommand(internalDir, 'dart', const <String>['test']);
   }
 }
 
@@ -214,9 +228,15 @@ Future<void> verifyDevelopmentPath(
 }) async {
   final resolvedHostPlatform = hostPlatform ?? currentWorkspaceHostPlatform();
   final demoDir = Directory(p.join(workspaceRoot, 'app', 'demo'));
-  stdout.writeln('[verify-development-path] Running flutter pub get for demo app.');
+  stdout.writeln('[verify-development-path] Cleaning demo app.');
+  await runPackageCommand(demoDir, 'flutter', const <String>['clean']);
+  stdout.writeln(
+    '[verify-development-path] Running flutter pub get for demo app.',
+  );
   await runPackageCommand(demoDir, 'flutter', const <String>['pub', 'get']);
-  stdout.writeln('[verify-development-path] Running flutter test for demo app.');
+  stdout.writeln(
+    '[verify-development-path] Running flutter test for demo app.',
+  );
   await runPackageCommand(demoDir, 'flutter', const <String>['test']);
 
   for (final buildArguments in demoBuildCommandsForHost(
@@ -231,7 +251,7 @@ Future<void> verifyDevelopmentPath(
     } on ProcessException catch (error) {
       if (isSkippableDemoBuildPrerequisiteFailure(error)) {
         stderr.writeln(
-          'Skipping demo build `${buildArguments.join(' ' )}` because a local platform prerequisite is missing:\n${error.message}',
+          'Skipping demo build `${buildArguments.join(' ')}` because a local platform prerequisite is missing:\n${error.message}',
         );
         continue;
       }
@@ -263,12 +283,19 @@ Future<void> verifyExternalConsumer(
   stdout.writeln(
     '[verify-external-consumer] Preparing external consumer fixture for $resolvedHostPlatform.',
   );
-  final tempRoot = await Directory.systemTemp.createTemp('nexa_http_external_consumer_');
+  final tempRoot = await Directory.systemTemp.createTemp(
+    'nexa_http_external_consumer_',
+  );
   try {
     final snapshotDir = Directory(p.join(tempRoot.path, 'repo'));
-    await _copyWorkspaceForConsumerSnapshot(Directory(workspaceRoot), snapshotDir);
+    await _copyWorkspaceForConsumerSnapshot(
+      Directory(workspaceRoot),
+      snapshotDir,
+    );
     if (initializeGitRepository) {
-      stdout.writeln('[verify-external-consumer] Initializing temporary git snapshot.');
+      stdout.writeln(
+        '[verify-external-consumer] Initializing temporary git snapshot.',
+      );
       await _initializeTemporaryGitRepository(snapshotDir);
     }
 
@@ -280,6 +307,7 @@ Future<void> verifyExternalConsumer(
       pubspecContents: buildExternalConsumerPubspecForHost(
         repoUri,
         resolvedHostPlatform,
+        dependencySource: ConsumerDependencySource.path,
         includeRef: false,
       ),
       logPrefix: 'verify-external-consumer',
@@ -299,8 +327,9 @@ Future<void> verifyReleaseConsumer(
   String? ref,
 }) async {
   final resolvedHostPlatform = hostPlatform ?? currentWorkspaceHostPlatform();
-  final resolvedRepoUrl = repoUrl ?? 'https://github.com/iamdennisme/nexa_http.git';
-  final resolvedRef = ref ?? _gitHeadTagOrDefault(workspaceRoot);
+  final resolvedRepoUrl =
+      repoUrl ?? 'https://github.com/iamdennisme/nexa_http.git';
+  final resolvedRef = _resolveReleaseConsumerRef(workspaceRoot, ref);
   await _runConsumerFixturePipeline(
     fixtureDir: Directory(
       p.join(workspaceRoot, '.claude', 'tmp', 'release_consumer_fixture'),
@@ -337,10 +366,14 @@ Future<void> _runConsumerFixturePipeline({
     consumerCreateArgumentsForHost(hostPlatform),
   );
 
-  await File(p.join(fixtureDir.path, 'pubspec.yaml')).writeAsString(pubspecContents);
+  await File(
+    p.join(fixtureDir.path, 'pubspec.yaml'),
+  ).writeAsString(pubspecContents);
   final libDir = Directory(p.join(fixtureDir.path, 'lib'));
   await libDir.create(recursive: true);
-  await File(p.join(libDir.path, 'main.dart')).writeAsString('void main() {}\n');
+  await File(
+    p.join(libDir.path, 'main.dart'),
+  ).writeAsString(buildExternalConsumerMainDart());
 
   stdout.writeln('[$logPrefix] Running flutter pub get for consumer.');
   await runPackageCommand(fixtureDir, 'flutter', const <String>['pub', 'get']);
@@ -348,7 +381,9 @@ Future<void> _runConsumerFixturePipeline({
     fixtureDir,
     hostPlatform,
   )) {
-    stdout.writeln('[$logPrefix] Running `flutter ${buildArguments.join(' ')}`.');
+    stdout.writeln(
+      '[$logPrefix] Running `flutter ${buildArguments.join(' ')}`.',
+    );
     await runPackageCommand(fixtureDir, 'flutter', buildArguments);
   }
   stdout.writeln('[$logPrefix] Passed.');
@@ -406,9 +441,15 @@ Future<void> _copyWorkspaceForConsumerSnapshot(
   Directory destination,
 ) async {
   await destination.create(recursive: true);
-  await for (final entity in source.list(recursive: false, followLinks: false)) {
+  await for (final entity in source.list(
+    recursive: false,
+    followLinks: false,
+  )) {
     final name = p.basename(entity.path);
-    if (name == '.git' || name == 'build' || name == '.dart_tool' || name == 'target') {
+    if (name == '.git' ||
+        name == 'build' ||
+        name == '.dart_tool' ||
+        name == 'target') {
       continue;
     }
     final targetPath = p.join(destination.path, name);
@@ -423,7 +464,10 @@ Future<void> _copyWorkspaceForConsumerSnapshot(
 
 Future<void> _copyDirectory(Directory source, Directory destination) async {
   await destination.create(recursive: true);
-  await for (final entity in source.list(recursive: false, followLinks: false)) {
+  await for (final entity in source.list(
+    recursive: false,
+    followLinks: false,
+  )) {
     final name = p.basename(entity.path);
     if (name == '.dart_tool' || name == 'build' || name == 'target') {
       continue;
@@ -454,7 +498,12 @@ Future<void> _initializeTemporaryGitRepository(Directory repository) async {
       runInShell: true,
     );
     if (result.exitCode != 0) {
-      throw ProcessException('git', command, '${result.stdout}${result.stderr}', result.exitCode);
+      throw ProcessException(
+        'git',
+        command,
+        '${result.stdout}${result.stderr}',
+        result.exitCode,
+      );
     }
   }
 }
@@ -476,19 +525,21 @@ List<List<String>> demoBuildCommandsForHost(
   Directory exampleDir,
   WorkspaceHostPlatform hostPlatform,
 ) {
-  bool hasPlatform(String name) => Directory(p.join(exampleDir.path, name)).existsSync();
+  bool hasPlatform(String name) =>
+      Directory(p.join(exampleDir.path, name)).existsSync();
 
   return switch (hostPlatform) {
     WorkspaceHostPlatform.macos => <List<String>>[
-        if (hasPlatform('macos')) <String>['build', 'macos', '--debug'],
-        if (hasPlatform('ios')) <String>['build', 'ios', '--simulator', '--debug', '--no-codesign'],
-      ],
+      if (hasPlatform('macos')) <String>['build', 'macos', '--debug'],
+      if (hasPlatform('ios'))
+        <String>['build', 'ios', '--simulator', '--debug', '--no-codesign'],
+    ],
     WorkspaceHostPlatform.windows => <List<String>>[
-        if (hasPlatform('windows')) <String>['build', 'windows', '--debug'],
-      ],
+      if (hasPlatform('windows')) <String>['build', 'windows', '--debug'],
+    ],
     WorkspaceHostPlatform.linux => <List<String>>[
-        if (hasPlatform('android')) <String>['build', 'apk', '--debug'],
-      ],
+      if (hasPlatform('android')) <String>['build', 'apk', '--debug'],
+    ],
     WorkspaceHostPlatform.other => const <List<String>>[],
   };
 }
@@ -497,23 +548,26 @@ List<List<String>> consumerBuildCommandsForHost(
   Directory consumerDir,
   WorkspaceHostPlatform hostPlatform,
 ) {
-  bool hasPlatform(String name) => Directory(p.join(consumerDir.path, name)).existsSync();
+  bool hasPlatform(String name) =>
+      Directory(p.join(consumerDir.path, name)).existsSync();
 
   return switch (hostPlatform) {
     WorkspaceHostPlatform.macos => <List<String>>[
-        if (hasPlatform('macos')) <String>['build', 'macos', '--debug'],
-      ],
+      if (hasPlatform('macos')) <String>['build', 'macos', '--debug'],
+    ],
     WorkspaceHostPlatform.windows => <List<String>>[
-        if (hasPlatform('windows')) <String>['build', 'windows', '--debug'],
-      ],
+      if (hasPlatform('windows')) <String>['build', 'windows', '--debug'],
+    ],
     WorkspaceHostPlatform.linux => <List<String>>[
-        if (hasPlatform('android')) <String>['build', 'apk', '--debug'],
-      ],
+      if (hasPlatform('android')) <String>['build', 'apk', '--debug'],
+    ],
     WorkspaceHostPlatform.other => const <List<String>>[],
   };
 }
 
-List<String> consumerCreateArgumentsForHost(WorkspaceHostPlatform hostPlatform) {
+List<String> consumerCreateArgumentsForHost(
+  WorkspaceHostPlatform hostPlatform,
+) {
   final platforms = switch (hostPlatform) {
     WorkspaceHostPlatform.macos => 'macos',
     WorkspaceHostPlatform.windows => 'windows',
@@ -532,31 +586,33 @@ List<String> consumerCreateArgumentsForHost(WorkspaceHostPlatform hostPlatform) 
 bool isSkippableDemoBuildPrerequisiteFailure(ProcessException error) {
   final message = '${error.message}'.toLowerCase();
   return message.contains('platform:ios simulator') &&
-      (message.contains('is not installed') || message.contains('unable to find a destination'));
+      (message.contains('is not installed') ||
+          message.contains('unable to find a destination'));
 }
 
 String buildExternalConsumerPubspecForHost(
   String repoUrl,
   WorkspaceHostPlatform hostPlatform, {
-  String ref = 'vX.Y.Z',
+  String? ref,
   bool includeRef = true,
+  ConsumerDependencySource dependencySource = ConsumerDependencySource.git,
 }) {
-  final refBlock = includeRef ? '      ref: $ref\n' : '';
-  final platformDependency = switch (hostPlatform) {
-    WorkspaceHostPlatform.macos => '''  nexa_http_native_macos:
-    git:
-      url: $repoUrl
-$refBlock      path: packages/nexa_http_native_macos
-''',
-    WorkspaceHostPlatform.windows => '''  nexa_http_native_windows:
-    git:
-      url: $repoUrl
-$refBlock      path: packages/nexa_http_native_windows
-''',
-    WorkspaceHostPlatform.linux || WorkspaceHostPlatform.other =>
-      throw StateError(
-        'No supported external consumer platform package is defined for $hostPlatform.',
-      ),
+  if (hostPlatform == WorkspaceHostPlatform.other) {
+    throw StateError(
+      'No supported external consumer platform is defined for $hostPlatform.',
+    );
+  }
+  final refBlock = includeRef ? '      ref: ${_requireGitRef(ref)}\n' : '';
+  final dependencyBlock = switch (dependencySource) {
+    ConsumerDependencySource.git => _gitConsumerDependencies(
+      repoUrl,
+      refBlock,
+      hostPlatform,
+    ),
+    ConsumerDependencySource.path => _pathConsumerDependencies(
+      repoUrl,
+      hostPlatform,
+    ),
   };
 
   return '''
@@ -569,17 +625,109 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  nexa_http:
-    git:
-      url: $repoUrl
-$refBlock      path: packages/nexa_http
-$platformDependency
+$dependencyBlock
 flutter:
   uses-material-design: true
 ''';
 }
 
-String _gitHeadTagOrDefault(String workspaceRoot) {
+String _gitConsumerDependencies(
+  String repoUrl,
+  String refBlock,
+  WorkspaceHostPlatform hostPlatform,
+) {
+  final platformPackage = platformPackageForHost(hostPlatform);
+  return '''  nexa_http:
+    git:
+      url: $repoUrl
+$refBlock      path: packages/nexa_http
+  $platformPackage:
+    git:
+      url: $repoUrl
+$refBlock      path: packages/$platformPackage''';
+}
+
+String _pathConsumerDependencies(
+  String repoRoot,
+  WorkspaceHostPlatform hostPlatform,
+) {
+  final platformPackage = platformPackageForHost(hostPlatform);
+  final isFileUri = Uri.tryParse(repoRoot)?.isScheme('file') ?? false;
+  final rootPath = isFileUri ? p.fromUri(Uri.parse(repoRoot)) : repoRoot;
+  return '''  nexa_http:
+    path: ${p.join(rootPath, 'packages', 'nexa_http')}
+  $platformPackage:
+    path: ${p.join(rootPath, 'packages', platformPackage)}''';
+}
+
+String platformPackageForHost(WorkspaceHostPlatform hostPlatform) {
+  return switch (hostPlatform) {
+    WorkspaceHostPlatform.macos => 'nexa_http_native_macos',
+    WorkspaceHostPlatform.windows => 'nexa_http_native_windows',
+    WorkspaceHostPlatform.linux => 'nexa_http_native_android',
+    WorkspaceHostPlatform.other => throw StateError(
+      'No supported external consumer platform package is defined for $hostPlatform.',
+    ),
+  };
+}
+
+String buildExternalConsumerMainDart() {
+  return '''
+import 'package:flutter/widgets.dart';
+import 'package:nexa_http/nexa_http.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final client = NexaHttpClientBuilder()
+      .callTimeout(const Duration(seconds: 5))
+      .userAgent('nexa-http-clean-host/1.0')
+      .build();
+  final request = RequestBuilder()
+      .url(Uri.parse('https://example.invalid/healthz'))
+      .get()
+      .build();
+
+  runApp(
+    Directionality(
+      textDirection: TextDirection.ltr,
+      child: Text('\${client.userAgent}:\${request.method}'),
+    ),
+  );
+}
+''';
+}
+
+String _requireGitRef(String? ref) {
+  final trimmed = ref?.trim();
+  if (trimmed == null || trimmed.isEmpty || trimmed == 'vX.Y.Z') {
+    throw StateError(
+      'A real git ref is required for git consumer verification. '
+      'Use a release tag such as v2.0.0, not the vX.Y.Z placeholder.',
+    );
+  }
+  return trimmed;
+}
+
+String _resolveReleaseConsumerRef(String workspaceRoot, String? explicitRef) {
+  final trimmed = explicitRef?.trim();
+  if (trimmed != null && trimmed.isNotEmpty) {
+    return _requireGitRef(trimmed);
+  }
+
+  final headTag = _gitHeadTag(workspaceRoot);
+  if (headTag != null) {
+    return headTag;
+  }
+
+  throw StateError(
+    'verify-release-consumer requires a real release git ref. '
+    'Set NEXA_HTTP_RELEASE_REF to the release tag/ref, or run the command '
+    'from a commit that is exactly tagged.',
+  );
+}
+
+String? _gitHeadTag(String workspaceRoot) {
   try {
     final result = Process.runSync(
       'git',
@@ -596,7 +744,7 @@ String _gitHeadTagOrDefault(String workspaceRoot) {
   } catch (_) {
     // fall through
   }
-  return 'vX.Y.Z';
+  return null;
 }
 
 String currentMacOsArchitecture() {
@@ -610,6 +758,9 @@ String currentMacOsArchitecture() {
 Never _printUsageAndExit({int exitCode = 64}) {
   stderr.writeln(
     'Usage: dart run scripts/workspace_tools.dart <bootstrap|analyze|test|verify|verify-artifact-consistency|verify-development-path|verify-external-consumer|verify-release-consumer>',
+  );
+  stderr.writeln(
+    'For verify-release-consumer, set NEXA_HTTP_RELEASE_REF=<tag-or-ref> when HEAD is not exactly tagged.',
   );
   exit(exitCode);
 }

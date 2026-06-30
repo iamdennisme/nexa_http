@@ -1,51 +1,13 @@
 # 错误处理
 
-> 记录本项目如何定义、传播、记录和暴露错误。
+Windows FFI crate 不定义新的 public error schema。错误 JSON、bootstrap error 和 result ownership 都来自 `nexa_http_native_core`。
 
----
+## 规则
 
-## 概览
+- C ABI 函数直接委托 `NexaHttpRuntime`。
+- Registry key 不存在、`ProxyEnable` 关闭或 `ProxyServer` 缺失时返回默认 proxy 设置。
+- 无效 proxy URL 被忽略，不应导致 client 创建失败。
 
-<!--
-在这里记录项目真实的错误处理约定。
+## 真实例子
 
-需要回答：
-- 定义哪些 error type？
-- error 如何传播？
-- error 如何记录日志？
-- error 如何返回给调用方或宿主？
--->
-
-（待团队填充）
-
----
-
-## 错误类型
-
-<!-- 自定义 error class/type -->
-
-（待团队填充）
-
----
-
-## 错误处理模式
-
-<!-- try/catch、Result、error propagation 等模式 -->
-
-（待团队填充）
-
----
-
-## API 错误响应
-
-<!-- 标准错误响应格式 -->
-
-（待团队填充）
-
----
-
-## 常见错误
-
-<!-- 团队遇到过或必须避免的错误处理问题 -->
-
-（待团队填充）
+- `src/proxy_source.rs` 中 `open_subkey_with_flags` 失败时返回 `ProxySettings::default()`。

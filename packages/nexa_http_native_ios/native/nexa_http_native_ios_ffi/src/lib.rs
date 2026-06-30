@@ -4,9 +4,9 @@ use nexa_http_native_core::api::ffi::{
     NexaHttpBinaryResult, NexaHttpClientConfigArgs, NexaHttpExecuteCallback, NexaHttpRequestArgs,
     string_free, take_last_error_json,
 };
-use std::ffi::c_char;
 use nexa_http_native_core::runtime::{ManagedProxyState, NexaHttpRuntime};
 use once_cell::sync::Lazy;
+use std::ffi::c_char;
 
 pub use proxy_source::{IosProxySource, current_proxy_settings_for_test};
 

@@ -22,10 +22,9 @@ It is built for apps that want a straightforward Dart request API while keeping 
 
 ## Installation
 
-A normal app depends on:
-
-1. `nexa_http`
-2. the carrier packages for the platforms it ships
+A normal app imports only `package:nexa_http/nexa_http.dart` in runtime code,
+but its `pubspec.yaml` declares both `nexa_http` and the platform package for
+each target it ships.
 
 ### Git dependency
 
@@ -85,7 +84,8 @@ Start the local fixture server from the repository root:
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-Then run the demo on macOS:
+For repository development, prepare local debug artifacts before running the
+workspace demo:
 
 ```bash
 ./scripts/build_native_macos.sh debug

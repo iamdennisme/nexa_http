@@ -13,6 +13,7 @@ if [[ "${OSTYPE:-}" != darwin* ]]; then
 fi
 
 require_command cargo
+configure_macos_sdk_env
 
 log "Building macOS native library (${PROFILE})"
 

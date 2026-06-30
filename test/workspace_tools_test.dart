@@ -54,28 +54,40 @@ void main() {
 
     await verifyArtifacts(
       workspace.path,
-      runPackageCommand: (packageDir, executable, arguments, {environment}) async {
-        commands.add('${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
-      },
+      runPackageCommand:
+          (packageDir, executable, arguments, {environment}) async {
+            commands.add(
+              '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}',
+            );
+          },
     );
     await verifyDemo(
       workspace.path,
-      runPackageCommand: (packageDir, executable, arguments, {environment}) async {
-        commands.add('${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
-      },
+      runPackageCommand:
+          (packageDir, executable, arguments, {environment}) async {
+            commands.add(
+              '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}',
+            );
+          },
     );
     await verifyExternalConsumer(
       workspace.path,
-      runPackageCommand: (packageDir, executable, arguments, {environment}) async {
-        commands.add('${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
-      },
+      runPackageCommand:
+          (packageDir, executable, arguments, {environment}) async {
+            commands.add(
+              '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}',
+            );
+          },
       initializeGitRepository: false,
     );
     await verifyReleaseConsumer(
       workspace.path,
-      runPackageCommand: (packageDir, executable, arguments, {environment}) async {
-        commands.add('${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
-      },
+      runPackageCommand:
+          (packageDir, executable, arguments, {environment}) async {
+            commands.add(
+              '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}',
+            );
+          },
       repoUrl: 'https://example.invalid/repo.git',
       ref: 'v0.0.3',
     );
@@ -83,62 +95,130 @@ void main() {
     expect(commands, isNotEmpty);
   });
 
-  test('verify-demo schedules host-specific builds when platform projects exist', () async {
-    final workspace = await Directory.systemTemp.createTemp(
-      'nexa_http_workspace_verify_demo_',
-    );
-    addTearDown(() async {
-      if (workspace.existsSync()) {
-        await workspace.delete(recursive: true);
-      }
-    });
+  test(
+    'verify-demo schedules host-specific builds when platform projects exist',
+    () async {
+      final workspace = await Directory.systemTemp.createTemp(
+        'nexa_http_workspace_verify_demo_',
+      );
+      addTearDown(() async {
+        if (workspace.existsSync()) {
+          await workspace.delete(recursive: true);
+        }
+      });
 
-    await _writeFile(
-      workspace,
-      'app/demo/pubspec.yaml',
-      'name: nexa_http_demo\ndependencies:\n  flutter:\n    sdk: flutter\n',
-    );
-    await _writeFile(
-      workspace,
-      'app/demo/test/widget_test.dart',
-      'void main() {}\n',
-    );
-    await _writeFile(workspace, 'app/demo/macos/.keep', '');
-    await _writeFile(workspace, 'app/demo/ios/.keep', '');
+      await _writeFile(
+        workspace,
+        'app/demo/pubspec.yaml',
+        'name: nexa_http_demo\ndependencies:\n  flutter:\n    sdk: flutter\n',
+      );
+      await _writeFile(
+        workspace,
+        'app/demo/test/widget_test.dart',
+        'void main() {}\n',
+      );
+      await _writeFile(workspace, 'app/demo/macos/.keep', '');
+      await _writeFile(workspace, 'app/demo/ios/.keep', '');
 
-    final commands = <String>[];
+      final commands = <String>[];
 
-    await verifyDemo(
-      workspace.path,
-      hostPlatform: WorkspaceHostPlatform.macos,
-      runPackageCommand: (packageDir, executable, arguments, {environment}) async {
-        commands.add('${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}');
-      },
+      await verifyDemo(
+        workspace.path,
+        hostPlatform: WorkspaceHostPlatform.macos,
+        runPackageCommand:
+            (packageDir, executable, arguments, {environment}) async {
+              commands.add(
+                '${p.basename(packageDir.path)}:$executable ${arguments.join(' ')}',
+              );
+            },
+      );
+
+      expect(
+        commands,
+        containsAll(<String>[
+          'demo:flutter clean',
+          'demo:flutter pub get',
+          'demo:flutter test',
+          'demo:flutter build macos --debug',
+          'demo:flutter build ios --simulator --debug --no-codesign',
+        ]),
+      );
+    },
+  );
+
+  test('external consumer pubspec declares the host platform package', () {
+    final pubspec = buildExternalConsumerPubspecForHost(
+      'https://example.invalid/repo.git',
+      WorkspaceHostPlatform.macos,
+      ref: 'v0.0.3',
+    );
+
+    expect(pubspec, contains('nexa_http:'));
+    expect(pubspec, contains('nexa_http_native_macos:'));
+    expect(pubspec, isNot(contains('nexa_http_native_internal:')));
+  });
+
+  test('external consumer local snapshot uses path dependencies', () {
+    final pubspec = buildExternalConsumerPubspecForHost(
+      '/tmp/nexa_http_snapshot',
+      WorkspaceHostPlatform.windows,
+      dependencySource: ConsumerDependencySource.path,
+      includeRef: false,
     );
 
     expect(
-      commands,
-      containsAll(<String>[
-        'demo:flutter pub get',
-        'demo:flutter test',
-        'demo:flutter build macos --debug',
-        'demo:flutter build ios --simulator --debug --no-codesign',
-      ]),
+      pubspec,
+      contains('path: /tmp/nexa_http_snapshot/packages/nexa_http'),
+    );
+    expect(
+      pubspec,
+      contains(
+        'path: /tmp/nexa_http_snapshot/packages/nexa_http_native_windows',
+      ),
+    );
+    expect(pubspec, isNot(contains('git:')));
+    expect(pubspec, isNot(contains('ref:')));
+  });
+
+  test('git consumer pubspec requires a real release ref', () {
+    expect(
+      () => buildExternalConsumerPubspecForHost(
+        'https://example.invalid/repo.git',
+        WorkspaceHostPlatform.macos,
+      ),
+      throwsStateError,
+    );
+    expect(
+      () => buildExternalConsumerPubspecForHost(
+        'https://example.invalid/repo.git',
+        WorkspaceHostPlatform.macos,
+        ref: 'vX.Y.Z',
+      ),
+      throwsStateError,
     );
   });
 
-  test('ios simulator build failures can be classified as missing local prerequisites', () {
-    final error = ProcessException(
-      'flutter',
-      const <String>['build', 'ios', '--simulator', '--debug', '--no-codesign'],
-      'Unable to find a destination matching the provided destination specifier:\n'
-          '{ generic:1, platform:iOS Simulator }\n'
-          'iOS 26.2 is not installed.',
-      1,
-    );
+  test(
+    'ios simulator build failures can be classified as missing local prerequisites',
+    () {
+      final error = ProcessException(
+        'flutter',
+        const <String>[
+          'build',
+          'ios',
+          '--simulator',
+          '--debug',
+          '--no-codesign',
+        ],
+        'Unable to find a destination matching the provided destination specifier:\n'
+            '{ generic:1, platform:iOS Simulator }\n'
+            'iOS 26.2 is not installed.',
+        1,
+      );
 
-    expect(isSkippableDemoBuildPrerequisiteFailure(error), isTrue);
-  });
+      expect(isSkippableDemoBuildPrerequisiteFailure(error), isTrue);
+    },
+  );
 
   test('discovers workspace packages recursively under packages/', () async {
     final workspace = await Directory.systemTemp.createTemp(

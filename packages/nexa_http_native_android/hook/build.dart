@@ -15,13 +15,18 @@ Future<void> main(List<String> args) async {
     }
 
     final packageRoot = Directory.fromUri(input.packageRoot).path;
-    if (_isWorkspacePackage(packageRoot)) {
+    if (shouldBuildNexaHttpNativeFromWorkspaceSource(
+      packageRoot: packageRoot,
+      buildScriptName: 'build_native_android.sh',
+    )) {
       await _prepareWorkspaceAndroidArtifacts(packageRoot);
     } else {
       await materializeNexaHttpNativeReleaseArtifact(
         packageRoot: packageRoot,
         targetOS: 'android',
-        targetArchitecture: _targetArchitecture(input.config.code.targetArchitecture),
+        targetArchitecture: _targetArchitecture(
+          input.config.code.targetArchitecture,
+        ),
         targetSdk: null,
       );
     }
@@ -32,13 +37,10 @@ Future<void> main(List<String> args) async {
   });
 }
 
-bool _isWorkspacePackage(String packageRoot) {
-  final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
-  return Directory(p.join(workspaceRoot, '.git')).existsSync();
-}
-
 Future<void> _prepareWorkspaceAndroidArtifacts(String packageRoot) async {
-  final artifactsDir = Directory(p.join(packageRoot, 'android', 'src', 'main', 'jniLibs'));
+  final artifactsDir = Directory(
+    p.join(packageRoot, 'android', 'src', 'main', 'jniLibs'),
+  );
   if (artifactsDir.existsSync()) {
     await artifactsDir.delete(recursive: true);
   }
@@ -62,7 +64,7 @@ String _targetArchitecture(Architecture architecture) {
     Architecture.arm => 'arm',
     Architecture.x64 => 'x64',
     _ => throw UnsupportedError(
-        'No Android target mapping for architecture $architecture.',
-      ),
+      'No Android target mapping for architecture $architecture.',
+    ),
   };
 }

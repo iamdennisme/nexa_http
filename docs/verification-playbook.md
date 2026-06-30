@@ -128,9 +128,9 @@ fvm flutter run -d <android-device-id> --dart-define=NEXA_HTTP_DEMO_BASE_URL=htt
 
 Create a temporary Flutter app outside the workspace and depend on a released tag.
 
-Current tag under test:
+Set the tag under test:
 
-- `v1.0.2`
+- `vX.Y.Z`
 
 Example `pubspec.yaml` dependencies for macOS:
 
@@ -141,12 +141,12 @@ dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
+      ref: vX.Y.Z
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
+      ref: vX.Y.Z
       path: packages/nexa_http_native_macos
 ```
 
@@ -192,12 +192,12 @@ dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
+      ref: vX.Y.Z
       path: packages/nexa_http
   nexa_http_native_windows:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
+      ref: vX.Y.Z
       path: packages/nexa_http_native_windows
 ```
 
@@ -235,6 +235,11 @@ After pushing a release tag, verify:
 - release assets exist for Android / iOS / macOS / Windows
 - `nexa_http_native_assets_manifest.json` exists
 - `SHA256SUMS` exists
+- clean release consumers pass from an exact tag checkout, or with an explicit real ref:
+  ```bash
+  NEXA_HTTP_RELEASE_REF=vX.Y.Z \
+  fvm dart run scripts/workspace_tools.dart verify-release-consumer
+  ```
 
 ## Current known-good evidence
 

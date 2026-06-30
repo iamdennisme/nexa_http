@@ -14,26 +14,24 @@ Future<void> main(List<String> args) async {
     }
 
     final packageRoot = Directory.fromUri(input.packageRoot).path;
-    if (_isWorkspacePackage(packageRoot)) {
+    if (shouldBuildNexaHttpNativeFromWorkspaceSource(
+      packageRoot: packageRoot,
+      buildScriptName: 'build_native_ios.sh',
+    )) {
       await _prepareWorkspaceIosArtifacts(packageRoot);
     } else {
       await materializeNexaHttpNativeReleaseArtifact(
         packageRoot: packageRoot,
         targetOS: 'ios',
-        targetArchitecture: _targetArchitecture(input.config.code.targetArchitecture),
+        targetArchitecture: _targetArchitecture(
+          input.config.code.targetArchitecture,
+        ),
         targetSdk: _targetSdk(input.config.code.iOS.targetSdk),
       );
     }
 
-    output.assets.code.add(
-      await NexaHttpNativeIosAssetBundle.resolve(input),
-    );
+    output.assets.code.add(await NexaHttpNativeIosAssetBundle.resolve(input));
   });
-}
-
-bool _isWorkspacePackage(String packageRoot) {
-  final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
-  return Directory(p.join(workspaceRoot, '.git')).existsSync();
 }
 
 Future<void> _prepareWorkspaceIosArtifacts(String packageRoot) async {
@@ -60,8 +58,8 @@ String _targetArchitecture(Architecture architecture) {
     Architecture.arm64 => 'arm64',
     Architecture.x64 => 'x64',
     _ => throw UnsupportedError(
-        'No iOS target mapping for architecture $architecture.',
-      ),
+      'No iOS target mapping for architecture $architecture.',
+    ),
   };
 }
 

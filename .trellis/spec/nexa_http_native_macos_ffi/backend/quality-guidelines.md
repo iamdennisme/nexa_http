@@ -1,51 +1,17 @@
 # 质量规范
 
-> 记录后端开发的代码质量标准。
+## 必需模式
 
----
-
-## 概览
-
-<!--
-在这里记录项目真实的质量标准。
-
-需要回答：
-- 禁止哪些模式？
-- 强制哪些 lint rule？
-- 测试要求是什么？
-- code review 必须检查什么？
--->
-
-（待团队填充）
-
----
+- `Cargo.toml` 同时声明 `cdylib` 和 `rlib`，保证动态库产物和 Rust tests 都可用。
+- 所有 C ABI export 使用和其他平台一致的 `nexa_http_*` 函数名。
+- Proxy 解析 helper 必须可测试；平台系统调用包在 `#[cfg(target_os = "macos")]` 模块中。
 
 ## 禁止模式
 
-<!-- 禁止使用的模式及原因 -->
+- 不要把 macOS build artifact 路径写死进 Rust crate；路径由 Dart hook 和 CocoaPods 管理。
+- 不要新增平台专属 request/response 行为；HTTP 行为属于 shared core。
 
-（待团队填充）
+## 检查
 
----
-
-## 必需模式
-
-<!-- 必须采用的模式 -->
-
-（待团队填充）
-
----
-
-## 测试要求
-
-<!-- 期望的测试层级和覆盖范围 -->
-
-（待团队填充）
-
----
-
-## 代码评审 检查清单
-
-<!-- reviewer 必须检查的事项 -->
-
-（待团队填充）
+- `cargo test -p nexa_http_native_macos_ffi`
+- `fvm dart test packages/nexa_http_native_macos/test/build_hook_test.dart`
