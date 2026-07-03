@@ -107,3 +107,37 @@ Synced clarify-public-api-vs-platform-dependencies delta specs into main OpenSpe
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Archive OpenSpec simplified native layering
+
+**Date**: 2026-07-03
+**Task**: Archive OpenSpec simplified native layering
+**Package**: nexa_http_native_core
+**Branch**: `main`
+
+### Summary
+
+Synced simplify-native-layering delta specs into main OpenSpec specs, removed obsolete release/version governance specs, and archived the completed OpenSpec change.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e91af2d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
