@@ -73,3 +73,37 @@ Rechecked Flutter SDK integration principles, package/runtime boundaries, native
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Archive OpenSpec public API dependency boundary
+
+**Date**: 2026-07-03
+**Task**: Archive OpenSpec public API dependency boundary
+**Package**: nexa_http_native_core
+**Branch**: `main`
+
+### Summary
+
+Synced clarify-public-api-vs-platform-dependencies delta specs into main OpenSpec specs and archived the completed change.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `2ededde` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
