@@ -1,15 +1,17 @@
+## MODIFIED Requirements
+
 ### Requirement: Repository verification SHALL enforce platform target agreement
-The system SHALL verify that shared runtime loading, carrier-package build hooks, workspace-dev preparation, release-consumer resolution, distribution descriptors, and release artifact generation agree on the same supported platform targets and artifact identities.
+The system SHALL verify that `nexa_http`, the merged internal native layer, platform/carrier artifact producers, workspace-dev preparation, and release-consumer resolution agree on the same supported platform targets and fixed artifact mappings, while rejecting manifest version alignment and historical compatibility paths.
 
 #### Scenario: supported target matrix is evaluated
 - **WHEN** repository verification inspects the supported platform targets
-- **THEN** it SHALL detect drift between carrier build-hook target coverage, workspace-dev artifact preparation, release-consumer artifact resolution, distribution target descriptors, and release manifest descriptors
-- **AND** it SHALL fail with a message identifying the mismatched target definitions or artifact identities
+- **THEN** it SHALL detect drift between `nexa_http`, merged native-layer artifact definitions, carrier-produced platform artifacts, and release-consumer artifact resolution
+- **AND** it SHALL fail with a message identifying the mismatched target definitions or fixed artifact mappings
 
 #### Scenario: unsupported target is not declared accidentally
-- **WHEN** a platform, architecture, or SDK combination is not supported by the workspace
-- **THEN** repository verification SHALL require that it is absent from runtime, carrier, workspace-dev, and release-consumer declarations
-- **AND** the system SHALL NOT imply support for that target through stray loader registrations, artifact descriptors, or build-hook rules
+- **WHEN** a platform, architecture, or SDK combination is not supported by the repository
+- **THEN** repository verification SHALL require that it is absent from `nexa_http`, merged native-layer definitions, and carrier artifact-production logic
+- **AND** the system SHALL NOT imply support through stray loader branches, release descriptors, or compatibility-only mappings
 
 ### Requirement: Platform runtime verification SHALL reflect explicit consumer platform selection
 Repository verification SHALL treat platform package declaration as part of the supported public dependency contract.
@@ -20,17 +22,18 @@ Repository verification SHALL treat platform package declaration as part of the 
 - **AND** it MUST NOT model platform support as fully implied by `nexa_http` alone
 
 ### Requirement: Repository verification SHALL enforce shared-loader and carrier boundaries
-The system SHALL verify that the shared runtime loader only consumes explicit runtime inputs or registered runtime delegation, and that carrier packages do not reintroduce generic loader policy that belongs outside the shared loader boundary.
+The system SHALL verify that native loading happens through the merged internal native layer and that carrier packages remain artifact producers only, and it SHALL reject separate runtime/distribution package boundaries, generic probing behavior, version-aware logic, release-aware logic, and legacy compatibility search.
 
-#### Scenario: shared loader contract is reviewed
-- **WHEN** repository verification inspects the shared loader integration contract
-- **THEN** it SHALL allow explicit-path loading and registered-runtime delegation
-- **AND** it SHALL reject generic packaged, workspace, or environment-driven probing behavior in the shared loader layer
+#### Scenario: merged loader contract is reviewed
+- **WHEN** repository verification inspects the native loading contract
+- **THEN** it SHALL allow only explicit supported-artifact loading through the merged internal layer
+- **AND** it SHALL reject generic packaged, workspace, environment-driven, or legacy probing behavior
+- **AND** it SHALL reject remaining imports or package boundaries that preserve `nexa_http_runtime` or `nexa_http_distribution` as architectural layers
 
-#### Scenario: carrier package runtime integration is reviewed
-- **WHEN** repository verification inspects a carrier package's runtime integration
-- **THEN** it SHALL allow host-specific preparation, registration, and explicit loading hooks
-- **AND** it SHALL reject overlapping candidate-walking or boundary-blurring logic that assumes the shared loader will probe workspace or packaged locations implicitly
+#### Scenario: carrier package responsibility is reviewed
+- **WHEN** repository verification inspects a carrier package
+- **THEN** it SHALL allow platform-specific artifact production and narrowly-scoped host integration only
+- **AND** it SHALL reject overlapping runtime/distribution policy, version or release logic, and historical compatibility code
 
 ### Requirement: Verification SHALL preserve internal/native boundary isolation
 Repository verification SHALL ensure internal runtime and native core layers remain outside the supported consumer dependency contract.

@@ -1,21 +1,15 @@
 ## ADDED Requirements
 
-### Requirement: `nexa_http` SHALL remain the only public Dart API surface
-The supported integration contract SHALL expose `nexa_http` as the only public Dart API surface for application code.
+### Requirement: External consumers SHALL declare `nexa_http` and target platform packages
+The supported integration contract SHALL expose only `nexa_http` as the public Dart API surface for `Flutter` / `Kino` / `app`, while requiring consumers to declare the target platform carrier packages they ship.
 
-#### Scenario: App imports and uses the SDK
-- **WHEN** a supported app integration uses the SDK API
-- **THEN** application code MUST import and call `nexa_http`
-- **AND** application code MUST NOT be required to use `nexa_http_native_internal` APIs directly
-
-### Requirement: Consumers SHALL declare platform native packages explicitly
-The supported integration contract SHALL require consumers to declare the platform native packages needed for their target platforms.
-
-#### Scenario: App declares supported platform integration
-- **WHEN** a supported app integration defines its supported target platforms
-- **THEN** it MUST declare `nexa_http`
-- **AND** it MUST declare every corresponding `nexa_http_native_<platform>` package required by that target set
+#### Scenario: External app integrates the SDK
+- **WHEN** a supported app integration consumes the SDK
+- **THEN** application code MUST import `package:nexa_http/nexa_http.dart`
+- **AND** its dependency declaration MUST include `nexa_http`
+- **AND** its dependency declaration MUST include each required `nexa_http_native_<platform>` package
 - **AND** it MUST NOT treat `nexa_http` alone as sufficient native-platform dependency declaration
+- **AND** it MUST NOT be necessary to declare `nexa_http_runtime` or `nexa_http_distribution`
 
 ### Requirement: Internal native packages SHALL remain outside the consumer contract
 Internal native runtime packages and native core implementation layers SHALL NOT be part of the supported public consumer dependency contract.
@@ -25,14 +19,22 @@ Internal native runtime packages and native core implementation layers SHALL NOT
 - **THEN** it MUST NOT instruct consumers to declare `nexa_http_native_internal`
 - **AND** it MUST describe internal runtime/core layers as non-public implementation details
 
-### Requirement: External consumers SHALL use release-consumer artifact resolution
-The supported external integration path SHALL use release-consumer native artifact resolution, and it SHALL NOT implicitly depend on workspace-local paths, repository checkout layout, or Rust source compilation behavior.
+### Requirement: Platform implementations SHALL remain internal to the public contract
+Platform/carrier implementations SHALL remain outside the runtime API contract while acting as explicit public dependency artifacts selected by `Flutter` / `Kino` / `app`, and public integration guidance SHALL NOT rely on hidden federation defaults to choose those artifacts implicitly.
 
-#### Scenario: Consumer resolves native assets from a pinned git ref
-- **WHEN** an external app runs dependency resolution and platform build steps from a supported git/ssh setup
-- **THEN** native artifact resolution MUST execute in `release-consumer`
-- **AND** it MUST use packaged or release-published assets looked up from that same pinned tag or selected git ref
-- **AND** it MUST fail with a structured setup/bootstrap error if required assets are unavailable instead of attempting hidden local Rust compilation
+#### Scenario: Public integration describes platform choice
+- **WHEN** repository or package documentation explains how platform support is chosen
+- **THEN** it MUST present `nexa_http` as the only public Dart API surface
+- **AND** it MUST describe platform/carrier packages as consumer-selected dependency artifacts
+- **AND** it MUST NOT describe `default_package`-style implicit selection as the public contract
+
+### Requirement: External consumers SHALL use release-consumer artifact resolution
+The supported external Git ref integration path SHALL use release-consumer native artifact resolution and SHALL NOT implicitly compile Rust from local source.
+
+#### Scenario: Git consumer resolves native assets
+- **WHEN** a consumer depends on a Git tag/ref
+- **THEN** native artifact resolution MUST use the selected Git tag/ref
+- **AND** it MUST fail with a structured artifact error if release assets are unavailable
 - **AND** it MUST NOT derive the release URL or manifest lookup path from a locally declared package version
 
 #### Scenario: External consumer runs near a workspace checkout

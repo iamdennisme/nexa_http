@@ -4,9 +4,10 @@
 CI consumer verification SHALL validate that supported consumer integrations declare `nexa_http` together with every platform native package required by the integration's supported target platforms.
 
 #### Scenario: CI validates a supported consumer app
-- **WHEN** CI verifies a supported consumer integration
-- **THEN** the integration MUST declare `nexa_http`
-- **AND** it MUST declare the relevant `nexa_http_native_<platform>` package(s)
+- **WHEN** CI verifies a consumer fixture for macOS, Windows, or Android
+- **THEN** the fixture MUST declare `nexa_http`
+- **AND** it MUST declare the matching `nexa_http_native_<platform>` package
+- **AND** application code MUST still import only `package:nexa_http/nexa_http.dart`
 - **AND** it MUST NOT depend on `nexa_http_native_internal`
 
 ### Requirement: CI SHALL distinguish API surface from dependency artifacts
@@ -15,23 +16,19 @@ CI validation SHALL not treat "only public API surface" as equivalent to "only d
 #### Scenario: CI checks integration contract terminology
 - **WHEN** CI or structural verification validates repository expectations
 - **THEN** it MUST preserve the distinction between:
-  - `nexa_http` as the public API surface
+  - `nexa_http` as the public Dart API surface
   - platform native packages as public dependency artifacts
 
 ### Requirement: Release publication SHALL reuse release-consumer verification
-The release workflow SHALL run the same release-consumer and artifact-consistency checks that protect external users before publishing assets, and tag-triggered publication SHALL be governed by tag validity plus those contract checks rather than aligned workspace package versions.
+The simplified architecture SHALL keep release-consumer verification as the publishing gate that proves Git-ref consumers can resolve native artifacts, while rejecting package-version alignment as a release identity source.
 
 #### Scenario: Release workflow prepares native assets
-- **WHEN** the release workflow is about to publish manifests or native assets for a release tag
-- **THEN** it MUST execute the repository verification that protects the release-consumer path
-- **AND** it MUST NOT rely on a separate unpublished rule set
-
-#### Scenario: Maintainer validates a published test tag
-- **WHEN** a maintainer publishes a governed test tag such as `v1.0.2`
-- **THEN** the repository MUST define the required tag-triggered GitHub Actions workflows that determine whether that tag is considered successful
-- **AND** the test-tag validation flow MUST NOT proceed to external consumer verification until those required workflows have completed successfully
+- **WHEN** the release workflow is about to publish manifests or native assets for a tag or selected release ref
+- **THEN** it MUST execute artifact-consistency verification and release-consumer verification
+- **AND** release-consumer verification MUST use the consumer's selected Git tag/ref, not a locally declared package version
+- **AND** publication MUST NOT rely on a separate unpublished rule set
 
 #### Scenario: Release publication evaluates metadata drift
-- **WHEN** artifact-consistency and release-consumer verification succeed for a valid release tag
-- **THEN** publication MUST continue even if aligned workspace package versions differ from that tag
+- **WHEN** artifact-consistency and release-consumer verification succeed for a selected release ref
+- **THEN** publication MUST continue even if aligned workspace package versions differ from that ref
 - **AND** package-version drift MUST NOT be treated as a release-blocking publish failure

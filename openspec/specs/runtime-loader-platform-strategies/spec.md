@@ -1,32 +1,24 @@
+## MODIFIED Requirements
+
 ### Requirement: Shared runtime loader SHALL rely on explicit runtime inputs
-The shared runtime loader SHALL accept an explicit native library path from higher-level tooling and SHALL delegate to a registered host runtime when no explicit path is supplied, and it SHALL NOT implement generic packaged, workspace, or environment-driven candidate probing on its own.
+The merged native loader SHALL load only explicitly selected supported platform artifacts from the merged internal native layer, and it SHALL NOT delegate to a separate distribution layer, registered runtime fallback boundary, generic packaged/workspace probing, environment-driven candidate discovery, or historical path search.
 
-#### Scenario: explicit runtime path is provided
-- **WHEN** platform tooling, demo bootstrap, or another supported caller provides an explicit native library path to the shared loader
-- **THEN** the loader SHALL attempt to load that exact path
-- **AND** it SHALL NOT broaden the request into generic candidate discovery
+#### Scenario: Explicit supported artifact is selected
+- **WHEN** `nexa_http` or supported platform integration selects a supported native artifact
+- **THEN** the loader MUST load that exact artifact location
+- **AND** it MUST NOT broaden the request into candidate discovery or fallback probing
 
-#### Scenario: no explicit path is provided but a registered runtime exists
-- **WHEN** no explicit native library path is provided
-- **AND** a host runtime has been registered for the current platform
-- **THEN** the shared loader SHALL delegate runtime acquisition to that registered runtime boundary
-- **AND** it SHALL NOT walk packaged or workspace directories on its own
-
-#### Scenario: no explicit path or registered runtime is available
-- **WHEN** the shared loader receives no explicit native library path
-- **AND** no host runtime has been registered for the current platform
-- **THEN** it SHALL fail with a structured bootstrap error
-- **AND** the failure SHALL identify the missing explicit runtime input or runtime registration
+#### Scenario: No supported artifact is selected
+- **WHEN** runtime bootstrap starts without an explicit supported artifact selection
+- **THEN** bootstrap MUST fail with a structured error
+- **AND** it MUST identify the missing platform artifact selection
+- **AND** it MUST NOT search packaged directories, workspace paths, legacy names, or environment hints
 
 ### Requirement: Platform integrations SHALL own platform-specific runtime sourcing
-Carrier packages and other platform integrations SHALL own host-specific runtime preparation and registration behavior while consuming the shared loader boundary, and they SHALL NOT rely on shared generic probing behavior in `nexa_http_runtime`.
+Platform integrations and carrier packages SHALL provide only the narrowly-scoped host-specific work required to expose supported artifacts to the merged native loader, and they SHALL NOT implement a separate runtime/distribution boundary, generic probing policy, or historical compatibility search.
 
-#### Scenario: carrier runtime integrates with the shared loader boundary
-- **WHEN** a carrier package registers a host runtime implementation
-- **THEN** that implementation SHALL provide only clearly-scoped host integration behavior such as explicit runtime preparation, runtime registration, or direct loading hooks
-- **AND** it SHALL NOT reintroduce generic packaged/workspace candidate-walking logic through the shared loader contract
-
-#### Scenario: supported platform startup is implemented
-- **WHEN** a supported platform needs to start the native runtime
-- **THEN** platform-specific tooling SHALL provide the explicit path or registered runtime behavior required for that platform
-- **AND** the shared loader SHALL remain unaware of workspace layout or packaged artifact search policy
+#### Scenario: Platform integration prepares a runtime artifact
+- **WHEN** a platform integration exposes a supported artifact to the merged native loader
+- **THEN** it MUST provide only the explicit host-specific path or binding required for that artifact
+- **AND** it MUST NOT reintroduce generic packaged/workspace candidate walking
+- **AND** it MUST NOT depend on a separate `nexa_http_runtime` package surface
