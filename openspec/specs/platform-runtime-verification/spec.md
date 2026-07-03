@@ -11,6 +11,14 @@ The system SHALL verify that shared runtime loading, carrier-package build hooks
 - **THEN** repository verification SHALL require that it is absent from runtime, carrier, workspace-dev, and release-consumer declarations
 - **AND** the system SHALL NOT imply support for that target through stray loader registrations, artifact descriptors, or build-hook rules
 
+### Requirement: Platform runtime verification SHALL reflect explicit consumer platform selection
+Repository verification SHALL treat platform package declaration as part of the supported public dependency contract.
+
+#### Scenario: Verification checks public integration structure
+- **WHEN** repository verification evaluates the supported integration model
+- **THEN** it MUST model platform support as explicitly selected through consumer-declared `nexa_http_native_<platform>` dependencies
+- **AND** it MUST NOT model platform support as fully implied by `nexa_http` alone
+
 ### Requirement: Repository verification SHALL enforce shared-loader and carrier boundaries
 The system SHALL verify that the shared runtime loader only consumes explicit runtime inputs or registered runtime delegation, and that carrier packages do not reintroduce generic loader policy that belongs outside the shared loader boundary.
 
@@ -23,3 +31,10 @@ The system SHALL verify that the shared runtime loader only consumes explicit ru
 - **WHEN** repository verification inspects a carrier package's runtime integration
 - **THEN** it SHALL allow host-specific preparation, registration, and explicit loading hooks
 - **AND** it SHALL reject overlapping candidate-walking or boundary-blurring logic that assumes the shared loader will probe workspace or packaged locations implicitly
+
+### Requirement: Verification SHALL preserve internal/native boundary isolation
+Repository verification SHALL ensure internal runtime and native core layers remain outside the supported consumer dependency contract.
+
+#### Scenario: Verification checks internal package usage
+- **WHEN** repository verification inspects public integration examples or guidance
+- **THEN** it MUST reject direct dependence on `nexa_http_native_internal` as a supported consumer contract

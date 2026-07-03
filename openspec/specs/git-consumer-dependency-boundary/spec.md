@@ -1,26 +1,29 @@
 ## ADDED Requirements
 
-### Requirement: External consumers SHALL declare only `nexa_http`
-The supported external integration contract SHALL require app consumers to declare only `nexa_http` as a dependency input, and repository/package documentation MUST present that public integration path clearly and accurately, including the current git+ssh tag-based consumption shape.
+### Requirement: `nexa_http` SHALL remain the only public Dart API surface
+The supported integration contract SHALL expose `nexa_http` as the only public Dart API surface for application code.
 
-#### Scenario: External app integrates the SDK through git
-- **WHEN** a Flutter app outside the repository consumes the SDK through git/ssh
-- **THEN** it MUST be sufficient to declare `nexa_http`
-- **AND** it MUST NOT be necessary to declare platform carrier packages manually
-- **AND** it MUST NOT be necessary to declare `nexa_http_runtime` or `nexa_http_distribution`
+#### Scenario: App imports and uses the SDK
+- **WHEN** a supported app integration uses the SDK API
+- **THEN** application code MUST import and call `nexa_http`
+- **AND** application code MUST NOT be required to use `nexa_http_native_internal` APIs directly
 
-#### Scenario: Documentation explains external tag consumption
-- **WHEN** repository or package documentation shows how to consume the SDK from git/ssh
-- **THEN** it MUST use the public `nexa_http` package surface
-- **AND** it MUST describe the current tag-based `ref` and `path: packages/nexa_http` contract accurately
+### Requirement: Consumers SHALL declare platform native packages explicitly
+The supported integration contract SHALL require consumers to declare the platform native packages needed for their target platforms.
 
-### Requirement: Platform implementations SHALL remain internal to the public contract
-Platform carrier packages SHALL be selected through the plugin/federation wiring owned by `nexa_http`, not through public setup instructions.
+#### Scenario: App declares supported platform integration
+- **WHEN** a supported app integration defines its supported target platforms
+- **THEN** it MUST declare `nexa_http`
+- **AND** it MUST declare every corresponding `nexa_http_native_<platform>` package required by that target set
+- **AND** it MUST NOT treat `nexa_http` alone as sufficient native-platform dependency declaration
 
-#### Scenario: Public documentation describes platform integration
-- **WHEN** README or package documentation explains how to integrate the SDK
-- **THEN** it MUST present `nexa_http` as the public package surface
-- **AND** it MUST NOT instruct users to add platform carrier packages as public dependencies
+### Requirement: Internal native packages SHALL remain outside the consumer contract
+Internal native runtime packages and native core implementation layers SHALL NOT be part of the supported public consumer dependency contract.
+
+#### Scenario: Consumer dependency guidance
+- **WHEN** repository or package documentation explains supported dependencies
+- **THEN** it MUST NOT instruct consumers to declare `nexa_http_native_internal`
+- **AND** it MUST describe internal runtime/core layers as non-public implementation details
 
 ### Requirement: External consumers SHALL use release-consumer artifact resolution
 The supported external integration path SHALL use release-consumer native artifact resolution, and it SHALL NOT implicitly depend on workspace-local paths, repository checkout layout, or Rust source compilation behavior.
