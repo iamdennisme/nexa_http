@@ -141,3 +141,37 @@ Synced simplify-native-layering delta specs into main OpenSpec specs, removed ob
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Formalize domain architecture baseline
+
+**Date**: 2026-07-07
+**Task**: Formalize domain architecture baseline
+**Package**: nexa_http_native_core
+**Branch**: `main`
+
+### Summary
+
+Created CONTEXT.md, added four ADRs for public SDK, carrier dependencies, unified async FFI transport, and platform-owned proxy state; removed superseded historical design specs and regenerated the architecture review report.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `35fb9d4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
