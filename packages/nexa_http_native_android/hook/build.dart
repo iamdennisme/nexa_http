@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
-import 'package:path/path.dart' as p;
 
 import '../lib/src/nexa_http_native_android_asset_bundle.dart';
 
@@ -15,47 +14,19 @@ Future<void> main(List<String> args) async {
     }
 
     final packageRoot = Directory.fromUri(input.packageRoot).path;
-    if (shouldBuildNexaHttpNativeFromWorkspaceSource(
+    await prepareNexaHttpNativeCarrierArtifact(
       packageRoot: packageRoot,
-      buildScriptName: 'build_native_android.sh',
-    )) {
-      await _prepareWorkspaceAndroidArtifacts(packageRoot);
-    } else {
-      await materializeNexaHttpNativeReleaseArtifact(
-        packageRoot: packageRoot,
-        targetOS: 'android',
-        targetArchitecture: _targetArchitecture(
-          input.config.code.targetArchitecture,
-        ),
-        targetSdk: null,
-      );
-    }
+      targetOS: 'android',
+      targetArchitecture: _targetArchitecture(
+        input.config.code.targetArchitecture,
+      ),
+      targetSdk: null,
+    );
 
     output.assets.code.add(
       await NexaHttpNativeAndroidAssetBundle.resolve(input),
     );
   });
-}
-
-Future<void> _prepareWorkspaceAndroidArtifacts(String packageRoot) async {
-  final artifactsDir = Directory(
-    p.join(packageRoot, 'android', 'src', 'main', 'jniLibs'),
-  );
-  if (artifactsDir.existsSync()) {
-    await artifactsDir.delete(recursive: true);
-  }
-
-  final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
-  final script = p.join(workspaceRoot, 'scripts', 'build_native_android.sh');
-  final result = await Process.run('bash', <String>[script, 'debug']);
-  if (result.exitCode != 0) {
-    throw ProcessException(
-      'bash',
-      <String>[script, 'debug'],
-      '${result.stdout}${result.stderr}',
-      result.exitCode,
-    );
-  }
 }
 
 String _targetArchitecture(Architecture architecture) {

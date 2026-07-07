@@ -1,4 +1,5 @@
 export 'src/native/nexa_http_dynamic_library_loader.dart';
+export 'src/native/nexa_http_native_carrier_artifact.dart';
 export 'src/native/nexa_http_native_runtime.dart';
 export 'src/native/nexa_http_platform_registry.dart';
 export 'src/native/nexa_http_native_target_matrix.dart';

@@ -38,7 +38,7 @@ void main() {
   );
 
   test(
-    'platform build hooks do not classify tagged pub-cache git dependencies as workspace packages',
+    'platform build hooks delegate artifact preparation to internal module',
     () {
       for (final path in <String>[
         'packages/nexa_http_native_android/hook/build.dart',
@@ -49,12 +49,18 @@ void main() {
         final hook = File(path).readAsStringSync();
         expect(
           hook,
-          contains('shouldBuildNexaHttpNativeFromWorkspaceSource'),
+          contains('prepareNexaHttpNativeCarrierArtifact'),
           reason: path,
         );
         expect(
           hook,
           isNot(contains('Directory(p.join(workspaceRoot, \'.git\'))')),
+        );
+        expect(hook, isNot(contains('Process.run')), reason: path);
+        expect(
+          hook,
+          isNot(contains('materializeNexaHttpNativeReleaseArtifact')),
+          reason: path,
         );
       }
     },

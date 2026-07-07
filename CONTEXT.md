@@ -292,7 +292,7 @@ Evidence:
 
 状态：confirmed
 
-内部 Dart 协作包，承载 runtime/loading、platform registry、native target matrix、release artifact materialization 和 consumer verification helpers。
+内部 Dart 协作包，承载 runtime/loading、platform registry、native target matrix、carrier artifact preparation、release artifact materialization 和 consumer verification helpers。
 
 Owns:
 
@@ -301,21 +301,25 @@ Owns:
 - Native target matrix。
 - Release artifact manifest parsing、download、checksum verification、packaging destination。
 - Workspace package/source-build detection helpers。
+- Carrier artifact preparation：把 target matrix、workspace/release 选择、packaging directory cleanup 和 release materialization 集中在一个内部 module。
 
 Does not own:
 
 - App-facing HTTP API。
 - Platform-specific Rust proxy discovery。
 - Rust HTTP execution runtime。
+- Flutter hook adapter types，例如 `BuildInput` 和 `CodeAsset`。
 
 Relationships:
 
 - 被 `public Dart SDK` 和 `platform carrier` 内部使用。
 - 不应被宿主 App runtime 示例直接 import。
+- `platform carrier` 把 Flutter hook 输入映射成 target OS / architecture / SDK tuple，再调用 carrier artifact preparation；`CodeAsset` 仍由 carrier asset bundle 产生。
 
 Evidence:
 
 - `packages/nexa_http_native_internal/lib/src/native/`
+- `packages/nexa_http_native_internal/lib/src/native/nexa_http_native_carrier_artifact.dart`
 - `.trellis/spec/guides/flutter-sdk-authoring-contract.md`
 
 ## native transport

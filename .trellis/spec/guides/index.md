@@ -8,7 +8,8 @@
 
 | 指南 | 目的 | 何时使用 |
 |------|------|----------|
-| [文档语言规范](./documentation-language-policy.md) | 规定 `.trellis/spec/` 规则文档必须使用中文 | 新增或修改任何 spec 规则文档时 |
+| [文档语言规范](./documentation-language-policy.md) | 规定 `.trellis/spec/` 规则文档和 AI 协作沟通默认使用中文 | 新增或修改任何 spec 规则文档，或需要确认会话语言时 |
+| [TDD 开发准则](./tdd-development-policy.md) | 规定所有有行为变化的开发默认按测试驱动推进 | 开始任何代码实现、bug 修复、重构或跨层行为变更时 |
 | [项目分层契约](./project-layering-contract.md) | 固定 monorepo 两层主架构、外部 App 集成方式和 native 下载/物化边界 | 修改 SDK/package/native/build/release 架构、context、README 或 verification 文档时 |
 | [代码复用思考指南](./code-reuse-thinking-guide.md) | 识别重复模式，避免同一逻辑散落多处 | 新增工具函数、常量、解析逻辑或看到相似代码时 |
 | [跨层思考指南](./cross-layer-thinking-guide.md) | 梳理跨 API、数据、构建、平台边界的数据流和职责 | 变更触达多个层或多个消费者时 |
@@ -23,8 +24,18 @@
 - [ ] 你正在新增或修改 `.trellis/spec/**/*.md`
 - [ ] 你发现模板里仍有英文规则说明
 - [ ] 你需要新增项目约定、质量标准、检查清单或反模式
+- [ ] 用户要求 AI 后续沟通使用中文或把语言偏好写入 spec
 
 → 阅读 [文档语言规范](./documentation-language-policy.md)
+
+### 开始代码开发时
+
+- [ ] 你将新增或修改 product code、tooling code、build hook、runtime 或 release workflow
+- [ ] 你将修 bug、做重构或调整跨层行为
+- [ ] 你准备新增错误处理、fallback、timeout、cache 或 platform-specific 分支
+- [ ] 用户要求所有开发按 TDD、test-first、red-green-refactor 或先写测试
+
+→ 阅读 [TDD 开发准则](./tdd-development-policy.md)
 
 ### 思考跨层问题时
 

@@ -51,7 +51,9 @@ SDK 必须自己处理：
 
 Carrier package 和 build hook 可以在内部协作，但正常集成路径不得要求宿主修改 `Podfile`、Xcode build phase、Gradle 文件、CMake 文件或 native 源码路径。宿主选择平台 package 是依赖声明，不是 native 工程改造。
 
-编译后的动态库下载和集成发生在 Flutter SDK 层：platform carrier 的 `hook/build.dart` 调用 `nexa_http_native_internal` 的 release artifact materialization 逻辑，下载 manifest、选择目标平台文件、校验 checksum，并把动态库写入 target matrix 定义的 package-internal `packagedRelativePath`。`native/nexa_http_native_core` 不负责下载、缓存、pub-cache/workspace 判断或 Flutter App 打包。
+编译后的动态库下载和集成发生在 Flutter SDK 层：platform carrier 的 `hook/build.dart` 把 Flutter hook 输入映射成 target OS / architecture / SDK tuple，然后调用 `nexa_http_native_internal` 的 carrier artifact preparation。该内部 module 负责 workspace/release 判断、packaging directory cleanup、workspace source build script 调用、release artifact materialization、manifest 下载、目标平台文件选择、checksum 校验，并把动态库写入 target matrix 定义的 package-internal `packagedRelativePath`。
+
+`nexa_http_native_internal` 不得依赖 `hooks` 或 `code_assets`，也不得接收 `BuildInput` 或产生 `CodeAsset`；这些 Flutter build hook adapter 类型保留在 platform carrier package。`native/nexa_http_native_core` 不负责下载、缓存、pub-cache/workspace 判断或 Flutter App 打包。
 
 ## 正式配置面
 
@@ -240,4 +242,76 @@ ref: vX.Y.Z
 ```bash
 NEXA_HTTP_RELEASE_REF=v1.0.8 \
 fvm dart run scripts/workspace_tools.dart verify-release-consumer
+```
+
+## Scenario: Carrier artifact preparation 保持 hook adapter-free
+
+### 1. Scope / Trigger
+
+- Trigger: 修改 `packages/nexa_http_native_internal/lib/src/native/`、platform carrier `hook/build.dart`、target matrix、release materialization 或 native asset packaging。
+
+### 2. Signatures
+
+- `prepareNexaHttpNativeCarrierArtifact({required String packageRoot, required String targetOS, required String targetArchitecture, required String? targetSdk})`
+- `prepareNexaHttpNativeWorkspaceArtifact({required String packageRoot, required NexaHttpNativeTarget target})`
+- `NexaHttpNativeTarget.packagedRelativePath`
+- `NexaHttpNativeTarget.packagedDirectoryRelativePath`
+- `NexaHttpNativeTarget.buildScriptName`
+
+### 3. Contracts
+
+- platform carrier hook 负责读取 `BuildInput`，只把它映射为 target OS / architecture / SDK tuple。
+- `nexa_http_native_internal` 负责 target resolution、workspace/release 判断、packaging directory cleanup、workspace source build script 调用、release artifact materialization 和 checksum verification。
+- `nexa_http_native_internal` 不得依赖 `hooks` 或 `code_assets`，不得接收 `BuildInput`，不得返回 `CodeAsset`。
+- carrier asset bundle 负责把已物化的动态库文件包装成 `CodeAsset`。
+- target matrix 是 build script name、packaged directory、packaged file path、release asset file name 和 source artifact file name 的单一事实来源。
+
+### 4. Validation & Error Matrix
+
+- Unsupported target tuple -> `NexaHttpNativeArtifactException`，stage 为 `native target resolution`。
+- Workspace package 且 build script 存在 -> 删除 `packagedDirectoryRelativePath` 后运行 `bash scripts/build_native_<platform>.sh debug`。
+- Workspace build script 非 0 退出 -> `ProcessException`，message 包含 stdout 和 stderr。
+- Pub-cache 或非 workspace package -> 走 release artifact materialization。
+- Release asset checksum mismatch -> 删除已下载文件并抛出 `NexaHttpNativeArtifactException`，stage 为 `artifact verification`。
+
+### 5. Good/Base/Bad Cases
+
+- Good: carrier hook 调用 `prepareNexaHttpNativeCarrierArtifact`，然后用 carrier asset bundle 生成 `CodeAsset`。
+- Base: release consumer 从 manifest 下载目标 artifact，写入 target matrix 的 `packagedRelativePath`。
+- Bad: carrier hook 自己调用 `shouldBuildNexaHttpNativeFromWorkspaceSource`、`Process.run` 或 `materializeNexaHttpNativeReleaseArtifact`。
+- Bad: `nexa_http_native_internal` import `package:hooks` 或 `package:code_assets`。
+
+### 6. Tests Required
+
+- `fvm dart test packages/nexa_http_native_internal/test`
+- `fvm dart test packages/nexa_http_native_<platform>/test/build_hook_test.dart`，平台文件分开跑，避免测试内修改 `Directory.current` 互相影响。
+- `fvm dart test test/workspace_release_consistency_test.dart`
+- `fvm dart run scripts/workspace_tools.dart verify-artifact-consistency`
+- `fvm dart run scripts/workspace_tools.dart verify-development-path`
+- `fvm dart run scripts/workspace_tools.dart verify-external-consumer`
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```dart
+// carrier hook 同时拥有 workspace/release 判断、脚本执行和下载。
+if (shouldBuildNexaHttpNativeFromWorkspaceSource(...)) {
+  await Process.run('bash', <String>[script, 'debug']);
+} else {
+  await materializeNexaHttpNativeReleaseArtifact(...);
+}
+```
+
+#### Correct
+
+```dart
+// carrier hook 只做 Flutter hook adapter。
+await prepareNexaHttpNativeCarrierArtifact(
+  packageRoot: packageRoot,
+  targetOS: 'macos',
+  targetArchitecture: targetArchitecture,
+  targetSdk: null,
+);
+output.assets.code.add(await NexaHttpNativeMacosAssetBundle.resolve(input));
 ```

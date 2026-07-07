@@ -48,9 +48,10 @@ Flutter SDK 层负责：
 
 `packages/nexa_http_native_internal` 是内部 native helper：
 
-- 拥有 dynamic library loader、runtime registry、target matrix、release manifest parsing、artifact materialization、checksum verification 和 workspace/release 判断。
+- 拥有 dynamic library loader、runtime registry、target matrix、carrier artifact preparation、release manifest parsing、artifact materialization、checksum verification 和 workspace/release 判断。
 - 被 `nexa_http`、platform carrier package 和 workspace scripts 内部使用。
 - 不得作为宿主 App runtime API 文档化。
+- 不得依赖 `hooks` / `code_assets`，不得接收 `BuildInput` 或产生 `CodeAsset`。这些类型属于 platform carrier 的 adapter。
 
 `packages/nexa_http_native_<platform>` 是 platform carrier package：
 
@@ -170,6 +171,8 @@ Materialized native library 不是独立对外产物。它是 build 时由 carri
 ## Native 下载与集成位置
 
 下载触发点在 platform carrier 的 `hook/build.dart`。
+
+carrier hook 只负责把 `BuildInput` 映射成 target OS / architecture / SDK tuple，并调用 `nexa_http_native_internal` 的 carrier artifact preparation。workspace/release 判断、packaging directory cleanup、workspace source build script 调用和 release materialization 必须集中在 `nexa_http_native_internal`。
 
 下载和校验逻辑在 `packages/nexa_http_native_internal/lib/src/native/nexa_http_native_release_consumer.dart`。
 

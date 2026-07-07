@@ -9,7 +9,9 @@ final class NexaHttpNativeTarget {
     required this.targetArchitecture,
     required this.releaseAssetFileName,
     required this.packagedRelativePath,
+    required this.packagedDirectoryRelativePath,
     required this.sourceArtifactFileName,
+    required this.buildScriptName,
     this.targetSdk,
     this.rustTargetTriple,
   });
@@ -19,7 +21,9 @@ final class NexaHttpNativeTarget {
   final String? targetSdk;
   final String releaseAssetFileName;
   final String packagedRelativePath;
+  final String packagedDirectoryRelativePath;
   final String sourceArtifactFileName;
+  final String buildScriptName;
   final String? rustTargetTriple;
 }
 
@@ -54,8 +58,10 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     releaseAssetFileName: 'nexa_http-native-android-arm64-v8a.so',
     packagedRelativePath:
         'android/src/main/jniLibs/arm64-v8a/libnexa_http_native.so',
+    packagedDirectoryRelativePath: 'android/src/main/jniLibs',
     rustTargetTriple: 'aarch64-linux-android',
     sourceArtifactFileName: 'libnexa_http_native_android_ffi.so',
+    buildScriptName: 'build_native_android.sh',
   ),
   NexaHttpNativeTarget(
     targetOS: 'android',
@@ -63,8 +69,10 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     releaseAssetFileName: 'nexa_http-native-android-armeabi-v7a.so',
     packagedRelativePath:
         'android/src/main/jniLibs/armeabi-v7a/libnexa_http_native.so',
+    packagedDirectoryRelativePath: 'android/src/main/jniLibs',
     rustTargetTriple: 'armv7-linux-androideabi',
     sourceArtifactFileName: 'libnexa_http_native_android_ffi.so',
+    buildScriptName: 'build_native_android.sh',
   ),
   NexaHttpNativeTarget(
     targetOS: 'android',
@@ -72,8 +80,10 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     releaseAssetFileName: 'nexa_http-native-android-x86_64.so',
     packagedRelativePath:
         'android/src/main/jniLibs/x86_64/libnexa_http_native.so',
+    packagedDirectoryRelativePath: 'android/src/main/jniLibs',
     rustTargetTriple: 'x86_64-linux-android',
     sourceArtifactFileName: 'libnexa_http_native_android_ffi.so',
+    buildScriptName: 'build_native_android.sh',
   ),
   NexaHttpNativeTarget(
     targetOS: 'ios',
@@ -81,8 +91,10 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     targetSdk: 'iphoneos',
     releaseAssetFileName: 'nexa_http-native-ios-arm64.dylib',
     packagedRelativePath: 'ios/Frameworks/libnexa_http_native-ios-arm64.dylib',
+    packagedDirectoryRelativePath: 'ios/Frameworks',
     rustTargetTriple: 'aarch64-apple-ios',
     sourceArtifactFileName: 'libnexa_http_native_ios_ffi.dylib',
+    buildScriptName: 'build_native_ios.sh',
   ),
   NexaHttpNativeTarget(
     targetOS: 'ios',
@@ -91,8 +103,10 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     releaseAssetFileName: 'nexa_http-native-ios-sim-arm64.dylib',
     packagedRelativePath:
         'ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib',
+    packagedDirectoryRelativePath: 'ios/Frameworks',
     rustTargetTriple: 'aarch64-apple-ios-sim',
     sourceArtifactFileName: 'libnexa_http_native_ios_ffi.dylib',
+    buildScriptName: 'build_native_ios.sh',
   ),
   NexaHttpNativeTarget(
     targetOS: 'ios',
@@ -101,32 +115,40 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     releaseAssetFileName: 'nexa_http-native-ios-sim-x64.dylib',
     packagedRelativePath:
         'ios/Frameworks/libnexa_http_native-ios-sim-x64.dylib',
+    packagedDirectoryRelativePath: 'ios/Frameworks',
     rustTargetTriple: 'x86_64-apple-ios',
     sourceArtifactFileName: 'libnexa_http_native_ios_ffi.dylib',
+    buildScriptName: 'build_native_ios.sh',
   ),
   NexaHttpNativeTarget(
     targetOS: 'macos',
     targetArchitecture: 'arm64',
     releaseAssetFileName: 'nexa_http-native-macos-arm64.dylib',
     packagedRelativePath: 'macos/Libraries/libnexa_http_native.dylib',
+    packagedDirectoryRelativePath: 'macos/Libraries',
     rustTargetTriple: 'aarch64-apple-darwin',
     sourceArtifactFileName: 'libnexa_http_native_macos_ffi.dylib',
+    buildScriptName: 'build_native_macos.sh',
   ),
   NexaHttpNativeTarget(
     targetOS: 'macos',
     targetArchitecture: 'x64',
     releaseAssetFileName: 'nexa_http-native-macos-x64.dylib',
     packagedRelativePath: 'macos/Libraries/libnexa_http_native.dylib',
+    packagedDirectoryRelativePath: 'macos/Libraries',
     rustTargetTriple: 'x86_64-apple-darwin',
     sourceArtifactFileName: 'libnexa_http_native_macos_ffi.dylib',
+    buildScriptName: 'build_native_macos.sh',
   ),
   NexaHttpNativeTarget(
     targetOS: 'windows',
     targetArchitecture: 'x64',
     releaseAssetFileName: 'nexa_http-native-windows-x64.dll',
     packagedRelativePath: 'windows/Libraries/nexa_http_native.dll',
+    packagedDirectoryRelativePath: 'windows/Libraries',
     rustTargetTriple: 'x86_64-pc-windows-msvc',
     sourceArtifactFileName: 'nexa_http_native_windows_ffi.dll',
+    buildScriptName: 'build_native_windows.sh',
   ),
 ];
 
@@ -174,7 +196,9 @@ String sha256OfString(String value) {
 
 Future<String> sha256OfFile(File file) async {
   final digest = await sha256.bind(file.openRead()).first;
-  return digest.bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  return digest.bytes
+      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+      .join();
 }
 
 Future<NexaHttpNativeReleaseManifestBundle> buildNexaHttpNativeReleaseManifest({
@@ -205,10 +229,7 @@ Future<NexaHttpNativeReleaseManifestBundle> buildNexaHttpNativeReleaseManifest({
   }
 
   return NexaHttpNativeReleaseManifestBundle(
-    manifest: <String, Object?>{
-      'package': 'nexa_http',
-      'assets': assets,
-    },
+    manifest: <String, Object?>{'package': 'nexa_http', 'assets': assets},
     sha256Lines: shaLines,
   );
 }
