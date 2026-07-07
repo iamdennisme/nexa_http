@@ -187,3 +187,37 @@ Created CONTEXT.md, added four ADRs for public SDK, carrier dependencies, unifie
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Deepen carrier artifact preparation
+
+**Date**: 2026-07-07
+**Task**: Deepen carrier artifact preparation
+**Package**: nexa_http_native_core
+**Branch**: `main`
+
+### Summary
+
+Deepened platform carrier artifact preparation in nexa_http_native_internal, narrowed carrier hooks to Flutter adapters, added TDD and language specs, and verified Flutter SDK integration gates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `16c9fe3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
+- **Total Sessions**: 6
 - **Last Active**: 2026-07-07
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~177 | Active |
+| `journal-1.md` | ~223 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-07-07 | Deepen carrier artifact preparation | `16c9fe3` | `main` |
 | 5 | 2026-07-07 | Formalize domain architecture baseline | `35fb9d4` | `main` |
 | 4 | 2026-07-03 | Archive OpenSpec simplified native layering | `e91af2d` | `main` |
 | 3 | 2026-07-03 | Archive OpenSpec public API dependency boundary | `2ededde` | `main` |
