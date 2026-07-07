@@ -20,6 +20,15 @@
 - macOS
 - Windows
 
+## 架构
+
+这个 monorepo 只有两个主层：
+
+- **Flutter SDK 层**：`packages/nexa_http`、`packages/nexa_http_native_internal`、各平台 carrier package、build hook 和验证工具。
+- **原生 native 层**：共享 Rust core、各平台 FFI crate 和 native build scripts。
+
+Platform carrier、build hook、release asset 和 clean-host verification 都是连接这两层的机制，不是宿主 App 直接使用的独立 API。
+
 ## 安装
 
 普通应用的 runtime 代码只 import `package:nexa_http/nexa_http.dart`，
@@ -27,17 +36,19 @@
 
 ### Git 依赖
 
+必须使用真实已发布 release tag。下面示例使用 `v1.0.2`。
+
 ```yaml
 dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http_native_macos
 ```
 
@@ -102,13 +113,21 @@ demo 里有两部分：
 
 ## 包结构
 
+Flutter SDK 层：
+
 - `packages/nexa_http` —— 公开 Dart SDK
-- `packages/nexa_http_native_internal` —— 内部 runtime/loading 层
+- `packages/nexa_http_native_internal` —— 内部 runtime/loading 与 artifact materialization helper
 - `packages/nexa_http_native_android` —— Android carrier
 - `packages/nexa_http_native_ios` —— iOS carrier
 - `packages/nexa_http_native_macos` —— macOS carrier
 - `packages/nexa_http_native_windows` —— Windows carrier
+
+原生 native 层：
+
 - `native/nexa_http_native_core` —— 共享 Rust transport core
+- `packages/nexa_http_native_*/native/*_ffi` —— 平台 FFI crate
+
+发布时 GitHub Release 会包含 native 下载产物。Carrier build hook 会下载、校验这些产物，并把对应平台动态库物化到 carrier/App 的构建布局中。
 
 ## 开发与验证
 

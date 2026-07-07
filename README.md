@@ -20,6 +20,15 @@ It is built for apps that want a straightforward Dart request API while keeping 
 - macOS
 - Windows
 
+## Architecture
+
+The monorepo has two main layers:
+
+- **Flutter SDK layer**: `packages/nexa_http`, `packages/nexa_http_native_internal`, platform carrier packages, build hooks, and verification tooling.
+- **Native layer**: the shared Rust core, platform FFI crates, and native build scripts.
+
+Platform carriers, build hooks, release assets, and clean-host verification are mechanisms that connect those two layers. They are not separate app-facing APIs.
+
 ## Installation
 
 A normal app imports only `package:nexa_http/nexa_http.dart` in runtime code,
@@ -28,17 +37,19 @@ each target it ships.
 
 ### Git dependency
 
+Use a real published release tag. The example below uses `v1.0.2`.
+
 ```yaml
 dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http_native_macos
 ```
 
@@ -104,13 +115,21 @@ More run details are in [`app/demo/README.md`](./app/demo/README.md).
 
 ## Packages
 
+Flutter SDK layer:
+
 - `packages/nexa_http` — public Dart SDK
-- `packages/nexa_http_native_internal` — internal runtime/loading layer
+- `packages/nexa_http_native_internal` — internal runtime/loading and artifact materialization helper
 - `packages/nexa_http_native_android` — Android carrier
 - `packages/nexa_http_native_ios` — iOS carrier
 - `packages/nexa_http_native_macos` — macOS carrier
 - `packages/nexa_http_native_windows` — Windows carrier
+
+Native layer:
+
 - `native/nexa_http_native_core` — shared Rust transport core
+- `packages/nexa_http_native_*/native/*_ffi` — platform FFI crates
+
+Release builds publish native download assets on GitHub Releases. Carrier build hooks download and verify those assets, then materialize the platform library inside the carrier/App build layout.
 
 ## Development
 

@@ -6,15 +6,24 @@ It is written so another AI agent or developer can run the same checks on anothe
 
 ## Core rule
 
-Runtime integration should consume prepared native artifacts only.
+The monorepo has two main project layers:
+
+- Flutter SDK layer: packages, carrier hooks, artifact materialization, runtime loading, and consumer verification.
+- Native layer: shared Rust core, platform FFI crates, and native build scripts.
+
+Release assets, materialized native libraries, build hooks, and clean-host consumers are mechanisms connecting those two layers. They are not separate app-facing APIs.
+
+Flutter runtime integration should load the native library packaged by the carrier hook. App code does not consume native artifacts directly.
 
 Source compilation is still useful, but only as an explicit preparation step for repository maintainers.
 
 That means:
 
-- app/demo and external apps consume packaged binaries
-- hooks resolve packaged binaries
+- app/demo and external apps use normal Flutter package dependencies
+- carrier hooks resolve or materialize packaged binaries
 - Rust / NDK / platform toolchains are for preparing artifacts, not for normal app integration
+
+External apps declare both `nexa_http` and the target platform carrier package in `pubspec.yaml`, but runtime Dart code imports only `package:nexa_http/nexa_http.dart`.
 
 ## Preparing local artifacts for repository development
 
@@ -48,9 +57,34 @@ Platform-specific commands:
 
 After that, run the Flutter app normally. The app should consume the prepared binaries instead of rebuilding Rust during app integration.
 
+## Where native binaries are materialized
+
+Carrier build hooks are the integration point between published native download assets and Flutter build outputs.
+
+For a release consumer:
+
+1. The target platform carrier hook runs during `flutter build`.
+2. The hook calls `materializeNexaHttpNativeReleaseArtifact` from `nexa_http_native_internal`.
+3. The internal helper downloads `nexa_http_native_assets_manifest.json`.
+4. It selects the current target's `.so`, `.dylib`, or `.dll`.
+5. It downloads and verifies the native file.
+6. It writes the file to the carrier package layout from the target matrix.
+7. The carrier asset bundle returns a `CodeAsset` so Flutter can package the file.
+8. The carrier plugin registers the runtime loader used by `nexa_http`.
+
+Example macOS materialization:
+
+```text
+release asset: nexa_http-native-macos-arm64.dylib
+carrier layout: packages/nexa_http_native_macos/macos/Libraries/libnexa_http_native.dylib
+runtime loader: packages/nexa_http_native_macos/lib/src/nexa_http_native_macos_plugin.dart
+```
+
+External apps should not create or copy these files manually.
+
 ## What this playbook verifies
 
-There are three different integration layers to verify:
+There are three different verification paths:
 
 1. **Workspace demo path**
    - Uses the repository demo in `app/demo`
@@ -130,7 +164,8 @@ Create a temporary Flutter app outside the workspace and depend on a released ta
 
 Set the tag under test:
 
-- `vX.Y.Z`
+- Pick a real published release tag before creating the consumer app.
+- The examples below use `v1.0.2`, which is recorded in this playbook as known-good evidence.
 
 Example `pubspec.yaml` dependencies for macOS:
 
@@ -141,12 +176,12 @@ dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http_native_macos
 ```
 
@@ -192,12 +227,12 @@ dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http
   nexa_http_native_windows:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http_native_windows
 ```
 
@@ -237,7 +272,7 @@ After pushing a release tag, verify:
 - `SHA256SUMS` exists
 - clean release consumers pass from an exact tag checkout, or with an explicit real ref:
   ```bash
-  NEXA_HTTP_RELEASE_REF=vX.Y.Z \
+  NEXA_HTTP_RELEASE_REF=v1.0.2 \
   fvm dart run scripts/workspace_tools.dart verify-release-consumer
   ```
 

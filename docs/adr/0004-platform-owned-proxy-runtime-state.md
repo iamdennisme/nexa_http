@@ -8,7 +8,7 @@ Accepted
 
 系统 proxy settings 是平台相关能力。Android 从 properties 读取，Apple 平台从 SystemConfiguration 读取，Windows 从 registry 读取。`Rust transport core` 应专注 HTTP runtime、FFI data structures、shared proxy matching 和 request execution，不应读取 OS-specific configuration。
 
-历史设计文档 `docs/superpowers/specs/2026-03-29-proxy-runtime-state-design.md` 记录了 proxy/runtime state 的方向：平台 runtime 拥有 proxy discovery、snapshot、generation 和 refresh policy；core 只消费抽象 state。
+历史设计文档中的 proxy/runtime state 方向已经提炼到本 ADR：平台 runtime 拥有 proxy discovery、snapshot、generation 和 refresh policy；core 只消费抽象 state。原历史文档已在 ADR 提取后删除。
 
 当前 Trellis specs 也规定 platform FFI crate 的 `src/proxy_source.rs` 实现平台 proxy source，core `platform/` 只定义跨平台抽象和 shared proxy matching logic。
 
@@ -38,10 +38,8 @@ Accepted
 - 在 Dart 层读取平台 proxy settings：拒绝作为当前方向。它会把 platform capability 放到 public/native bridge 上方。
 - 为 proxy 建独立 cross-platform plugin system：不作为当前方向。当前 seam 是 platform FFI crate 到 Rust core 的 abstract state。
 
-## 提炼来源
+## 当前来源
 
-- `docs/superpowers/specs/2026-03-29-proxy-runtime-state-design.md`
-- `docs/superpowers/specs/2026-03-27-platform-features-design.md`
 - `native/nexa_http_native_core/src/platform/source.rs`
 - `native/nexa_http_native_core/src/runtime/managed_proxy_state.rs`
 - `.trellis/spec/nexa_http_native_core/backend/directory-structure.md`
@@ -49,3 +47,4 @@ Accepted
 - `.trellis/spec/nexa_http_native_ios_ffi/backend/directory-structure.md`
 - `.trellis/spec/nexa_http_native_macos_ffi/backend/directory-structure.md`
 - `.trellis/spec/nexa_http_native_windows_ffi/backend/directory-structure.md`
+- `.trellis/tasks/archive/2026-07/07-06-domain-model-architecture-review/design.md`

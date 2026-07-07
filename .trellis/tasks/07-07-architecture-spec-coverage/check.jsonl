@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/project-layering-contract.md", "reason": "Check docs against confirmed two-layer architecture and output shape"}
+{"file": ".trellis/spec/guides/flutter-sdk-authoring-contract.md", "reason": "Check SDK integration examples and release ref rules"}
+{"file": ".trellis/spec/guides/documentation-language-policy.md", "reason": "Check Trellis spec language policy"}
+{"file": "CONTEXT.md", "reason": "Check terminology consistency"}

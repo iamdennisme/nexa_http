@@ -20,7 +20,10 @@ Reworked Flutter SDK consumer dependency boundaries, clean-host verification, na
 
 ### Main Changes
 
-(Add details)
+- Tightened Flutter SDK package/runtime boundaries and explicit carrier dependency examples.
+- Added release/native asset verification coverage and clean-host consumer checks.
+- Updated native build scripts and carrier hooks so SDK-owned setup does not require host native-project edits.
+- Populated Trellis native core and platform FFI specs with concrete validation rules.
 
 ### Git Commits
 
@@ -30,7 +33,7 @@ Reworked Flutter SDK consumer dependency boundaries, clean-host verification, na
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Commit recorded workspace verification, native hook tests, Rust/Dart test updates, and release consistency coverage.
 
 ### Status
 
@@ -54,7 +57,9 @@ Rechecked Flutter SDK integration principles, package/runtime boundaries, native
 
 ### Main Changes
 
-(Add details)
+- Rechecked README, package metadata, demo dependencies, generated external consumer pubspec, carrier hooks, and native build scripts.
+- Identified one documentation mismatch: release consumer examples must use a real ref, not `vX.Y.Z`.
+- Confirmed clean-host dependency shape remains `nexa_http` plus target carrier package while runtime code imports only the public SDK.
 
 ### Git Commits
 
@@ -64,7 +69,8 @@ Rechecked Flutter SDK integration principles, package/runtime boundaries, native
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `fvm dart run scripts/workspace_tools.dart verify-artifact-consistency`
+- [OK] `NEXA_HTTP_RELEASE_REPO_URL=file://$(pwd) NEXA_HTTP_RELEASE_REF=v1.0.8 fvm dart run scripts/workspace_tools.dart verify-release-consumer` reached release asset download; remote download was limited by network timeout.
 
 ### Status
 
@@ -88,7 +94,9 @@ Synced clarify-public-api-vs-platform-dependencies delta specs into main OpenSpe
 
 ### Main Changes
 
-(Add details)
+- Archived `clarify-public-api-vs-platform-dependencies` into OpenSpec archive.
+- Synced public API/dependency boundary requirements into the then-current main OpenSpec specs.
+- Recorded the archival work in Trellis task artifacts.
 
 ### Git Commits
 
@@ -98,7 +106,7 @@ Synced clarify-public-api-vs-platform-dependencies delta specs into main OpenSpe
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Filesystem sync/archive checks recorded in task artifacts.
 
 ### Status
 
@@ -122,7 +130,9 @@ Synced simplify-native-layering delta specs into main OpenSpec specs, removed ob
 
 ### Main Changes
 
-(Add details)
+- Archived `simplify-native-layering` into OpenSpec archive.
+- Synced simplified native layering requirements into main OpenSpec specs.
+- Removed obsolete release/version governance specs from the then-current OpenSpec tree.
 
 ### Git Commits
 
@@ -132,7 +142,7 @@ Synced simplify-native-layering delta specs into main OpenSpec specs, removed ob
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] OpenSpec archive/spec-sync file checks recorded in task artifacts.
 
 ### Status
 
@@ -156,7 +166,9 @@ Created CONTEXT.md, added four ADRs for public SDK, carrier dependencies, unifie
 
 ### Main Changes
 
-(Add details)
+- Added `CONTEXT.md` as the current domain glossary and architecture vocabulary.
+- Added accepted ADRs for public Dart SDK API, explicit platform carrier dependencies, unified async FFI transport, and platform-owned proxy runtime state.
+- Removed superseded `docs/superpowers/specs/` historical design docs after extracting load-bearing decisions.
 
 ### Git Commits
 
@@ -166,7 +178,7 @@ Created CONTEXT.md, added four ADRs for public SDK, carrier dependencies, unifie
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Verified `docs/superpowers/specs/` removal after ADR extraction.
 
 ### Status
 

@@ -4,6 +4,8 @@
 
 ## 核心原则
 
+`nexa_http` 的 monorepo 主架构以 [项目分层契约](./project-layering-contract.md) 为准：顶层只有 Flutter SDK 层和原生 native 层。`carrier package`、`build hook`、`release asset`、`clean-host consumer` 和 materialized native library 是两层内部或两层之间的机制，不是独立主层。
+
 合格的 Flutter SDK 必须让宿主 App 只做这些事：
 
 - 在 `pubspec.yaml` 声明依赖
@@ -22,6 +24,8 @@ import 'package:nexa_http/nexa_http.dart';
 ```
 
 宿主文档的标准依赖示例必须区分两件事：应用代码只 import `nexa_http` 主包 API；依赖声明必须同时包含 `nexa_http` 和目标平台需要的 `nexa_http_native_<platform>` carrier package。Runtime 示例不得 import carrier package、`nexa_http_native_internal`、plugin registrar、artifact resolver 或 FFI runtime helper。
+
+标准 Git 依赖示例必须使用真实 release tag，或明确写成 `<real-release-tag>` 并说明需要替换。不得把 `vX.Y.Z` 当作可复制执行的 ref。
 
 以下包可以作为内部协作包存在：
 
@@ -46,6 +50,8 @@ SDK 必须自己处理：
 - 最终 App 打包
 
 Carrier package 和 build hook 可以在内部协作，但正常集成路径不得要求宿主修改 `Podfile`、Xcode build phase、Gradle 文件、CMake 文件或 native 源码路径。宿主选择平台 package 是依赖声明，不是 native 工程改造。
+
+编译后的动态库下载和集成发生在 Flutter SDK 层：platform carrier 的 `hook/build.dart` 调用 `nexa_http_native_internal` 的 release artifact materialization 逻辑，下载 manifest、选择目标平台文件、校验 checksum，并把动态库写入 target matrix 定义的 package-internal `packagedRelativePath`。`native/nexa_http_native_core` 不负责下载、缓存、pub-cache/workspace 判断或 Flutter App 打包。
 
 ## 正式配置面
 

@@ -8,6 +8,191 @@
 - inferred：从多个来源推断，当前可用但后续可能细化。
 - needs-owner-decision：需要项目 owner 后续确认。
 
+## monorepo project layers
+
+状态：confirmed
+
+`nexa_http` 的 monorepo 主架构只有两层：Flutter SDK layer 和 Native layer。`platform carrier`、`nexa_http_native_internal`、`build hook`、`release artifact`、`clean-host consumer`、materialized native library 都是两层内部或两层之间的机制，不是独立主层。
+
+```text
+nexa_http monorepo
+├── Flutter SDK layer
+└── Native layer
+```
+
+Owns:
+
+- 项目级职责边界。
+- AI spec、README、verification docs 和架构 review 的默认分层语言。
+- 判断某个规则应该归属 Flutter SDK 集成、原生 runtime，还是两层之间的 contract。
+
+Does not own:
+
+- 具体 public API shape。
+- 具体 FFI ABI 字段。
+- 具体 release workflow 实现。
+
+Relationships:
+
+- Flutter SDK layer 对宿主 App 暴露 Dart API，并负责标准 Flutter 集成、artifact materialization、plugin registration 和 native library loading。
+- Native layer 提供 Rust runtime、platform FFI adapter、统一 C ABI、平台系统能力读取和可被打包的动态库。
+- 两层通过 public SDK contract、FFI ABI contract 和 artifact packaging contract 结合。
+
+Evidence:
+
+- `.trellis/spec/guides/project-layering-contract.md`
+- `.trellis/spec/guides/flutter-sdk-authoring-contract.md`
+- `packages/nexa_http/pubspec.yaml`
+- `packages/nexa_http_native_*/pubspec.yaml`
+- `packages/nexa_http_native_*/hook/build.dart`
+- `native/nexa_http_native_core/src/`
+
+## Flutter SDK layer
+
+状态：confirmed
+
+面向 Flutter/Dart 世界的项目层，包含主 SDK、内部 native helper、platform carrier packages、carrier build hooks、workspace/release verification tooling 和宿主可见文档。
+
+Includes:
+
+- `packages/nexa_http`
+- `packages/nexa_http_native_internal`
+- `packages/nexa_http_native_android`
+- `packages/nexa_http_native_ios`
+- `packages/nexa_http_native_macos`
+- `packages/nexa_http_native_windows`
+- `packages/nexa_http_native_*/hook/build.dart`
+- `scripts/workspace_tools.dart`
+- README 和 verification docs
+
+Owns:
+
+- Public Dart HTTP SDK。
+- 外部 App 的 package dependency contract。
+- 宿主 runtime import contract：只 import `package:nexa_http/nexa_http.dart`。
+- Dart request/config/error 到 FFI 的映射。
+- Flutter plugin identity 和 platform implementation selection。
+- Platform carrier registration。
+- Release manifest parsing、artifact download、checksum verification 和 materialization。
+- Native dynamic library packaging 和 runtime loading。
+- Clean-host consumer verification。
+
+Does not own:
+
+- Rust HTTP execution runtime。
+- OS-specific proxy discovery。
+- `nexa_http_*` C ABI implementation。
+- Native memory ownership implementation。
+
+Relationships:
+
+- 通过 `uniform C ABI` 调用 Native layer。
+- 通过 platform carrier package 把 Native layer 动态库接入 Flutter build/run。
+- 通过 `nexa_http_native_internal` 共享 loader、registry、target matrix 和 release artifact materialization。
+
+Evidence:
+
+- `packages/nexa_http/lib/nexa_http.dart`
+- `packages/nexa_http_native_internal/lib/src/native/`
+- `packages/nexa_http_native_*/lib/src/*_plugin.dart`
+- `packages/nexa_http_native_*/hook/build.dart`
+- `scripts/workspace_tools.dart`
+
+## Native layer
+
+状态：confirmed
+
+面向 Rust 和平台 native 世界的项目层，包含共享 Rust core、platform FFI crates 和 native build scripts。
+
+Includes:
+
+- `native/nexa_http_native_core`
+- `packages/nexa_http_native_android/native/nexa_http_native_android_ffi`
+- `packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi`
+- `packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi`
+- `packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi`
+- `scripts/build_native_*.sh`
+
+Owns:
+
+- Rust HTTP runtime。
+- `nexa_http_*` C ABI implementation。
+- FFI request/response/error data structures。
+- Native memory ownership 和 free functions。
+- Client registry、async execution、cancellation、callback 和 result free。
+- Native error JSON。
+- Shared proxy model 和 proxy matching。
+- OS-specific proxy/system capability discovery in platform FFI crates。
+- 编译平台动态库。
+
+Does not own:
+
+- `pubspec.yaml` dependency composition。
+- Flutter plugin registration。
+- Carrier build hooks。
+- Release asset download、checksum verification 或 materialization。
+- Host App integration documentation。
+
+Relationships:
+
+- 被 Flutter SDK layer 通过统一 C ABI 调用。
+- Platform FFI crates 把 shared Rust core 包装成目标平台动态库。
+- Native build scripts 为 workspace/release tooling 准备动态库，但不是外部 App 的标准集成步骤。
+
+Evidence:
+
+- `native/nexa_http_native_core/src/`
+- `packages/nexa_http_native_*/native/*_ffi/src/lib.rs`
+- `packages/nexa_http_native_*/native/*_ffi/src/proxy_source.rs`
+- `scripts/build_native_*.sh`
+
+## external app integration contract
+
+状态：confirmed
+
+外部 Flutter App 的标准集成方式：`pubspec.yaml` 同时声明主 SDK 和目标平台 carrier package，runtime code 只 import 主 SDK。
+
+Dependency declaration example:
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+
+  nexa_http:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: v1.0.2
+      path: packages/nexa_http
+
+  nexa_http_native_macos:
+    git:
+      url: git@github.com:iamdennisme/nexa_http.git
+      ref: v1.0.2
+      path: packages/nexa_http_native_macos
+```
+
+Runtime import:
+
+```dart
+import 'package:nexa_http/nexa_http.dart';
+```
+
+Rules:
+
+- 宿主不直接依赖或 import `nexa_http_native_internal`。
+- 宿主 runtime code 不 import `nexa_http_native_<platform>` carrier package。
+- 宿主不手动复制 `.so`、`.dylib` 或 `.dll`。
+- 宿主不手动注册 plugin。
+- 宿主不修改 native project 来完成标准集成。
+- 宿主正常集成不运行 `scripts/build_native_*.sh`。
+
+Evidence:
+
+- `.trellis/spec/guides/project-layering-contract.md`
+- `.trellis/spec/guides/flutter-sdk-authoring-contract.md`
+- `scripts/workspace_tools.dart`
+
 ## public Dart SDK
 
 状态：confirmed
@@ -324,34 +509,41 @@ Evidence:
 
 状态：confirmed
 
-最终被 Flutter build/run 打包或加载的平台 native binary，例如 Android `.so`、iOS/macOS `.dylib`、Windows `.dll`。
+构建阶段被物化到 carrier/App 内部路径、最终被 Flutter build/run 打包或加载的平台 native binary，例如 Android `.so`、iOS/macOS `.dylib`、Windows `.dll`。
+
+它不是独立对外最终产物。它来自 workspace build output 或 GitHub Release 上的 published native download asset，由 Flutter SDK layer 的 carrier hook / internal helper 物化到目标路径。
 
 Owns:
 
-- Platform-specific compiled Rust output。
+- 被 Flutter build 打包或 App runtime loading 使用的动态库文件。
+- Carrier package 内部 layout 路径，例如 `macos/Libraries/libnexa_http_native.dylib`。
 - Runtime native library loaded by `platform carrier`。
 
 Does not own:
 
 - Release manifest metadata。
 - Host app configuration policy。
+- Release asset naming policy。
 
 Relationships:
 
 - 由 `platform FFI crate` build。
-- 由 `platform carrier` package/build hook materialize and package。
-- 作为 `release artifact` 发布或作为 workspace debug artifact 使用。
+- 由 `platform carrier` package/build hook materialize 到 carrier layout。
+- workspace 开发时来自 `scripts/build_native_<platform>.sh debug`。
+- release consumer 路径中来自 published native download asset。
 
 Evidence:
 
 - `packages/nexa_http_native_internal/lib/src/native/nexa_http_native_target_matrix.dart`
 - `docs/verification-playbook.md`
 
-## release artifact
+## published native download asset
 
 状态：confirmed
 
-发布到 release assets、供 git/tag consumer 或 release consumer 路径下载和校验的 native artifact 文件及 manifest entry。
+发布到 GitHub Release、供 git/tag consumer 或 release consumer 路径下载和校验的 native 文件及 manifest/checksum 条目。
+
+它是对外有意义的 native 发布产物；build hook 会根据 manifest 选择当前 target 对应文件，下载并物化成 carrier/App 内部的 `native artifact`。
 
 Owns:
 
@@ -367,8 +559,8 @@ Does not own:
 
 Relationships:
 
-- 对应一个 `native artifact`。
-- 由 `nexa_http_native_internal` materialize 到 `platform carrier` package layout。
+- 对应一个可物化成 `native artifact` 的下载文件。
+- 由 `nexa_http_native_internal` 下载、校验并 materialize 到 `platform carrier` package layout。
 - 由 clean release consumer verification 验证。
 
 Evidence:
@@ -376,6 +568,25 @@ Evidence:
 - `packages/nexa_http_native_internal/lib/src/native/nexa_http_native_target_matrix.dart`
 - `packages/nexa_http_native_internal/lib/src/native/nexa_http_native_release_consumer.dart`
 - `.trellis/spec/guides/flutter-sdk-authoring-contract.md`
+
+## final output shape
+
+状态：confirmed
+
+对外有意义的产物只有两类：Flutter SDK packages 和 published native download assets。
+
+Output categories:
+
+- Flutter SDK packages：`nexa_http` 和各平台 `nexa_http_native_<platform>` carrier package。`nexa_http_native_internal` 是内部传递依赖，不是宿主 runtime API。
+- Published native download assets：GitHub Release 上的 `.so` / `.dylib` / `.dll`、`nexa_http_native_assets_manifest.json` 和 `SHA256SUMS`。
+
+Materialized native library 不是独立对外产物。它是 build 时由 carrier hook 从 workspace build output 或 published native download asset 物化到 carrier/App 内部路径的动态库。
+
+Evidence:
+
+- `.trellis/spec/guides/project-layering-contract.md`
+- `packages/nexa_http_native_internal/lib/src/native/nexa_http_native_target_matrix.dart`
+- `packages/nexa_http_native_internal/lib/src/native/nexa_http_native_release_consumer.dart`
 
 ## clean-host consumer
 

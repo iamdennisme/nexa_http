@@ -8,7 +8,7 @@ Accepted
 
 `nexa_http` 的宿主 runtime 入口是 `package:nexa_http/nexa_http.dart`。宿主业务代码需要处理 HTTP 概念，而不是 native runtime setup、FFI lifecycle、platform carrier registration 或 artifact resolver。
 
-仓库 README、`packages/nexa_http/README.md` 和 Flutter SDK 编写契约都要求宿主 runtime 示例只 import `nexa_http` 主包 API。历史设计文档 `docs/superpowers/specs/2026-03-31-nexa-http-okhttp-api-alignment-design.md` 记录了 OkHttp-style public surface 的方向，并说明 root API 不应暴露 worker/runtime/FFI initialization。
+仓库 README、`packages/nexa_http/README.md`、Flutter SDK 编写契约和当前代码都要求宿主 runtime 示例只 import `nexa_http` 主包 API。历史设计文档中的 OkHttp-style public surface 方向已经提炼到本 ADR，原历史文档已在 ADR 提取后删除。
 
 ## 决策
 
@@ -42,10 +42,11 @@ Runtime lifecycle、dynamic-library loading、platform registration、native art
 - 让宿主直接 import carrier package runtime helper：拒绝。carrier dependency 是 package composition，不是 app-facing runtime API。
 - 保留多个 public execution facade，例如 Dio adapter 或其他并行入口：不作为当前 ADR baseline。未来如果重新引入，需要新的 ADR。
 
-## 提炼来源
+## 当前来源
 
-- `docs/superpowers/specs/2026-03-31-nexa-http-okhttp-api-alignment-design.md`
 - `README.md`
 - `README.zh-CN.md`
 - `packages/nexa_http/README.md`
+- `packages/nexa_http/lib/nexa_http.dart`
 - `.trellis/spec/guides/flutter-sdk-authoring-contract.md`
+- `.trellis/tasks/archive/2026-07/07-06-domain-model-architecture-review/design.md`

@@ -7,7 +7,7 @@
 - 不要在 `native/nexa_http_native_core` 中引入 SQLite、文件数据库、ORM、migration 目录或后台持久化缓存。
 - runtime 状态保持进程内存模型：client registry、in-flight request、proxy snapshot 和 Tokio runtime 均由 `runtime/` 管理。
 - 如果需要跨请求共享状态，优先放在明确的 runtime struct 中，例如 `ClientRegistry`、`ManagedProxyState`，并用测试证明生命周期。
-- 如果未来确实需要持久化，必须先走 OpenSpec/Trellis 规划，定义数据所有权、清理策略、隐私影响和跨平台路径。
+- 如果未来确实需要持久化，必须先创建 Trellis 任务并同步 ADR/spec，定义数据所有权、清理策略、隐私影响和跨平台路径。
 
 ## 真实例子
 

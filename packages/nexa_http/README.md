@@ -23,6 +23,9 @@ A normal app imports only `package:nexa_http/nexa_http.dart` in runtime code,
 but its `pubspec.yaml` declares both `nexa_http` and the platform package for
 each target it ships.
 
+`nexa_http_native_internal` is an internal helper dependency. Application code
+should not depend on it directly or import it.
+
 ### Local path setup
 
 ```yaml
@@ -35,17 +38,19 @@ dependencies:
 
 ### Git setup
 
+Use a real published release tag. The example below uses `v1.0.2`.
+
 ```yaml
 dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http_native_macos
 ```
 
@@ -96,6 +101,7 @@ Application code should not need to handle:
 - dynamic-library loading details
 - platform-specific startup logic
 - artifact layout inside the platform packages
+- release asset download or checksum verification
 
 Those concerns live behind `nexa_http` and the platform carriers.
 
