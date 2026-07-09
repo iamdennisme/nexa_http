@@ -1,13 +1,10 @@
-import '../api/api.dart';
-import '../internal/transport/transport_response.dart';
+import '../../api/api.dart';
+import 'transport_response.dart';
 
 final class NexaHttpResponseMapper {
   const NexaHttpResponseMapper();
 
-  Response map({
-    required Request request,
-    required TransportResponse payload,
-  }) {
+  Response map({required Request request, required TransportResponse payload}) {
     final finalUrl = payload.finalUri;
     final responseRequest = finalUrl == null
         ? request

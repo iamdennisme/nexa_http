@@ -1,38 +1,24 @@
-import '../api/request.dart';
-import '../api/response.dart';
-import '../api/nexa_http_exception.dart';
-import '../data/dto/native_http_client_config_dto.dart';
-import '../data/dto/native_http_request_dto.dart';
-import '../data/sources/nexa_http_native_data_source.dart';
-import '../internal/config/client_options.dart';
-import '../native_bridge/nexa_http_native_data_source_factory.dart';
+import '../../api/nexa_http_exception.dart';
+import '../../api/request.dart';
+import '../../api/response.dart';
+import '../../data/mappers/native_http_client_config_mapper.dart';
+import '../../data/mappers/native_http_request_mapper.dart';
+import '../../data/sources/nexa_http_native_data_source.dart';
+import '../../native_bridge/nexa_http_native_data_source_factory.dart';
+import '../config/client_options.dart';
 import 'nexa_http_response_mapper.dart';
 
-typedef NexaHttpRequestMapper =
-    NativeHttpRequestDto Function({
-      required ClientOptions clientConfig,
-      required Request request,
-    });
-typedef NexaHttpClientConfigMapper =
-    NativeHttpClientConfigDto Function(ClientOptions config);
-
-final class NexaHttpTransportSession {
-  NexaHttpTransportSession({
+final class NexaHttpNativeTransport {
+  NexaHttpNativeTransport({
     required ClientOptions options,
     required NexaHttpNativeDataSourceFactory dataSourceFactory,
-    required NexaHttpRequestMapper requestMapper,
-    required NexaHttpClientConfigMapper configMapper,
-    required NexaHttpResponseMapper responseMapper,
+    NexaHttpResponseMapper responseMapper = const NexaHttpResponseMapper(),
   }) : _options = options,
        _dataSourceFactory = dataSourceFactory,
-       _requestMapper = requestMapper,
-       _configMapper = configMapper,
        _responseMapper = responseMapper;
 
   final ClientOptions _options;
   final NexaHttpNativeDataSourceFactory _dataSourceFactory;
-  final NexaHttpRequestMapper _requestMapper;
-  final NexaHttpClientConfigMapper _configMapper;
   final NexaHttpResponseMapper _responseMapper;
 
   NexaHttpNativeDataSource? _dataSource;
@@ -48,7 +34,7 @@ final class NexaHttpTransportSession {
     _throwIfCanceled(request, isCanceled);
     final leaseId = await _ensureLease();
     _throwIfCanceled(request, isCanceled);
-    final requestDto = _requestMapper(
+    final requestDto = NativeHttpRequestMapper.toDto(
       clientConfig: _options,
       request: request,
     );
@@ -89,7 +75,9 @@ final class NexaHttpTransportSession {
 
   Future<int> _openLease() async {
     try {
-      return _ensureDataSource().createClient(_configMapper(_options));
+      return _ensureDataSource().createClient(
+        NativeHttpClientConfigMapper.toDto(_options),
+      );
     } catch (error) {
       _leaseFuture = null;
       rethrow;

@@ -1,11 +1,8 @@
 import 'api/api.dart';
-import 'client/nexa_http_response_mapper.dart';
-import 'client/nexa_http_transport_session.dart';
 import 'client/real_call.dart';
-import 'data/mappers/native_http_client_config_mapper.dart';
-import 'data/mappers/native_http_request_mapper.dart';
 import 'internal/config/client_options.dart';
 import 'internal/testing/nexa_http_testing_overrides.dart';
+import 'internal/transport/nexa_http_native_transport.dart';
 import 'native_bridge/nexa_http_native_data_source_factory.dart';
 
 final class NexaHttpClient {
@@ -26,18 +23,15 @@ final class NexaHttpClient {
   }
 
   NexaHttpClient._(this._options)
-    : _session = NexaHttpTransportSession(
+    : _transport = NexaHttpNativeTransport(
         options: _options,
         dataSourceFactory:
             NexaHttpTestingOverrides.nativeDataSourceFactory ??
             const NexaHttpNativeDataSourceFactory(),
-        requestMapper: NativeHttpRequestMapper.toDto,
-        configMapper: NativeHttpClientConfigMapper.toDto,
-        responseMapper: const NexaHttpResponseMapper(),
       );
 
   final ClientOptions _options;
-  final NexaHttpTransportSession _session;
+  final NexaHttpNativeTransport _transport;
   Headers? _defaultHeadersView;
 
   Uri? get baseUrl => _options.baseUrl;
@@ -54,7 +48,7 @@ final class NexaHttpClient {
   }
 
   Future<void> close() {
-    return _session.close();
+    return _transport.close();
   }
 
   Future<Response> _execute(
@@ -62,7 +56,7 @@ final class NexaHttpClient {
     void Function(void Function() cancelRequest)? onCancelReady,
     bool Function()? isCanceled,
   }) async {
-    return _session.execute(
+    return _transport.execute(
       request,
       onCancelReady: onCancelReady,
       isCanceled: isCanceled,
