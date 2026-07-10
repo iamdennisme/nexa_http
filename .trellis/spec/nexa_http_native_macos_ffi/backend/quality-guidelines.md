@@ -3,7 +3,7 @@
 ## 必需模式
 
 - `Cargo.toml` 同时声明 `cdylib` 和 `rlib`，保证动态库产物和 Rust tests 都可用。
-- 所有 C ABI export 使用和其他平台一致的 `nexa_http_*` 函数名。
+- 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，并由 Apple runner 检查最终 Mach-O symbols。
 - 平台系统调用包在 `#[cfg(target_os = "macos")]` 模块中；纯 proxy parser 必须使用 `nexa_http_native_apple_proxy` 并由其 tests 覆盖。
 
 ## 禁止模式

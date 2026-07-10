@@ -5,6 +5,8 @@ import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import 'native_abi_verifier.dart';
+
 typedef PackageCommandRunner =
     Future<void> Function(
       Directory packageDir,
@@ -23,6 +25,7 @@ const List<String> workspaceVerificationCommands = <String>[
   'test',
   'verify',
   'verify-artifact-consistency',
+  'verify-native-abi',
   'verify-development-path',
   'verify-external-consumer',
   'verify-release-consumer',
@@ -52,6 +55,12 @@ Future<void> main(List<String> args) async {
     case 'verify-artifact-consistency':
     case 'verify-artifacts':
       await verifyArtifactConsistency(workspaceRoot);
+      return;
+    case 'verify-native-abi':
+      await verifyNexaHttpNativeAbi(
+        workspaceRoot,
+        host: currentNexaHttpNativeAbiHost(),
+      );
       return;
     case 'verify-development-path':
     case 'verify-demo':
@@ -757,7 +766,7 @@ String currentMacOsArchitecture() {
 
 Never _printUsageAndExit({int exitCode = 64}) {
   stderr.writeln(
-    'Usage: dart run scripts/workspace_tools.dart <bootstrap|analyze|test|verify|verify-artifact-consistency|verify-development-path|verify-external-consumer|verify-release-consumer>',
+    'Usage: dart run scripts/workspace_tools.dart <bootstrap|analyze|test|verify|verify-artifact-consistency|verify-native-abi|verify-development-path|verify-external-consumer|verify-release-consumer>',
   );
   stderr.writeln(
     'For verify-release-consumer, set NEXA_HTTP_RELEASE_REF=<tag-or-ref> when HEAD is not exactly tagged.',

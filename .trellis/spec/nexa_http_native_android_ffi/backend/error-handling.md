@@ -14,4 +14,4 @@
 
 - `src/proxy_source.rs` 中 `current_proxy_settings()` 在 `#[cfg(not(target_os = "android"))]` 下返回默认设置。
 - `src/proxy_source.rs` 中 `getprop()` 使用 `Command::new("getprop").arg(key).output().ok()?`，失败直接返回 `None`。
-- `src/lib.rs` 中 `nexa_http_take_last_error_json()` 直接调用 core `take_last_error_json()`。
+- `export_nexa_http_ffi!` 展开的 `nexa_http_take_last_error_json()` 直接调用 core `take_last_error_json()`。

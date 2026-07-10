@@ -27,6 +27,20 @@ jobs:
           echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
       - name: Prepare Android native artifacts
         run: ./scripts/build_native_android.sh debug
+      - name: Generated FFI binding verification
+        working-directory: packages/nexa_http
+        run: |
+          flutter pub get
+          dart run ffigen --config ffigen.yaml
+          git diff --ignore-all-space --exit-code -- lib/nexa_http_bindings_generated.dart
+      - name: Native ABI contract tests
+        run: |
+          dart pub get
+          dart test test/native_ffi_abi_contract_test.dart \
+            test/native_abi_verifier_test.dart \
+            test/workspace_demo_and_consumer_verification_test.dart
+      - name: Native ABI verification
+        run: dart run scripts/workspace_tools.dart verify-native-abi
       - name: Workspace artifact verification
         run: dart run scripts/workspace_tools.dart verify-artifact-consistency
       - name: Development path verification
@@ -48,6 +62,8 @@ jobs:
         run: |
           ./scripts/build_native_macos.sh debug
           ./scripts/build_native_ios.sh debug
+      - name: Native ABI verification
+        run: dart run scripts/workspace_tools.dart verify-native-abi
       - name: Workspace artifact verification
         run: dart run scripts/workspace_tools.dart verify-artifact-consistency
       - name: Development path verification
@@ -70,6 +86,8 @@ jobs:
           targets: x86_64-pc-windows-msvc
       - name: Prepare Windows native artifacts
         run: ./scripts/build_native_windows.sh debug
+      - name: Native ABI verification
+        run: dart run scripts/workspace_tools.dart verify-native-abi
       - name: Workspace artifact verification
         run: dart run scripts/workspace_tools.dart verify-artifact-consistency
       - name: Development path verification

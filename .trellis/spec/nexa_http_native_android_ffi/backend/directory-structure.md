@@ -13,7 +13,7 @@ packages/nexa_http_native_android/native/nexa_http_native_android_ffi/
 
 ## 模块职责
 
-- `src/lib.rs` 只做 C ABI export 和 runtime wiring，复用 `nexa_http_native_core::runtime::NexaHttpRuntime`。
+- `src/lib.rs` 只定义 Android `RUNTIME` 和 runtime wiring，并调用 core `export_nexa_http_ffi!` 生成统一 C ABI exports。
 - `src/proxy_source.rs` 实现 `AndroidProxySource`，通过 Android `getprop` 读取系统 proxy 设置。
 - `tests/proxy_settings.rs` 验证 `getprop` 字段解析、bypass 分隔符和 refresh mode。
 
@@ -33,6 +33,6 @@ packages/nexa_http_native_android/native/nexa_http_native_android_ffi/
 
 ## 真实例子
 
-- `packages/nexa_http_native_android/native/nexa_http_native_android_ffi/src/lib.rs`：统一导出 `nexa_http_client_create`、`nexa_http_client_execute_async` 等 ABI。
+- `packages/nexa_http_native_android/native/nexa_http_native_android_ffi/src/lib.rs`：保留 polling runtime 并调用共享 ABI export macro。
 - `packages/nexa_http_native_android/native/nexa_http_native_android_ffi/src/proxy_source.rs`：平台专属 proxy source 和 `getprop` 字段解析。
 - `packages/nexa_http_native_android/native/nexa_http_native_android_ffi/tests/proxy_settings.rs`：验证 `current_proxy_settings_for_test()` 和 polling refresh policy。

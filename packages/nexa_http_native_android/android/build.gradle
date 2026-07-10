@@ -51,10 +51,13 @@ def nexaHttpForceSourceBuild = (System.getenv('NEXA_HTTP_ANDROID_FORCE_SOURCE_BU
     .toBoolean()
 def nexaHttpRequiredAndroidSymbols = [
     'nexa_http_client_create',
+    'nexa_http_take_last_error_json',
+    'nexa_http_string_free',
     'nexa_http_request_body_alloc',
     'nexa_http_request_body_free',
     'nexa_http_client_execute_async',
     'nexa_http_client_cancel_request',
+    'nexa_http_client_close',
     'nexa_http_binary_result_free',
 ]
 

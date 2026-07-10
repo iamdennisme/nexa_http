@@ -13,7 +13,7 @@ packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi/
 
 ## 模块职责
 
-- `src/lib.rs` 只做 C ABI export 和 runtime wiring，复用 `nexa_http_native_core::runtime::NexaHttpRuntime`。
+- `src/lib.rs` 只定义 iOS `RUNTIME` 和 runtime wiring，并调用 core `export_nexa_http_ffi!` 生成统一 C ABI exports。
 - `src/proxy_source.rs` 实现 `IosProxySource`，读取 raw Apple SystemConfiguration 值，再委托 `nexa_http_native_apple_proxy`。
 - `tests/proxy_settings.rs` 验证 raw-value adapter wiring、runtime state 和 refresh mode；纯解析规则由共享 parser tests 验证。
 
@@ -26,6 +26,6 @@ packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi/
 
 ## 真实例子
 
-- `packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi/src/lib.rs`：导出统一 `nexa_http_*` ABI。
+- `packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi/src/lib.rs`：保留 construction-boundary runtime 并调用共享 ABI export macro。
 - `packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi/src/proxy_source.rs`：实现 `IosProxySource` 和 SystemConfiguration adapter。
 - `native/nexa_http_native_apple_proxy/src/lib.rs`：iOS/macOS 共用的纯 Apple proxy parser。

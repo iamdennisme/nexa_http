@@ -3,7 +3,7 @@
 ## 必需模式
 
 - `Cargo.toml` 同时声明 `cdylib` 和 `rlib`。
-- 所有 C ABI export 与其他平台保持同名同签名。
+- 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，并由 Apple runner 检查最终 Mach-O symbols。
 - 纯 proxy parser 必须使用 `nexa_http_native_apple_proxy` 并由其 tests 覆盖。
 - iOS device/simulator target 变化必须同步 target matrix、build hook、podspec 和 release workflow。
 

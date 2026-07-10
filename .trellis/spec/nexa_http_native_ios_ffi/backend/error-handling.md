@@ -11,4 +11,4 @@ iOS FFI crate 不定义新的 public error schema。错误 JSON、bootstrap erro
 ## 真实例子
 
 - `src/proxy_source.rs` 中系统 proxy 读取失败会降级为默认设置。
-- `src/lib.rs` 中 `nexa_http_take_last_error_json()` 直接调用 core `take_last_error_json()`。
+- `export_nexa_http_ffi!` 展开的 `nexa_http_take_last_error_json()` 直接调用 core `take_last_error_json()`。

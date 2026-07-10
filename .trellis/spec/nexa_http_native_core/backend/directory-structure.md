@@ -11,6 +11,7 @@ native/nexa_http_native_core/
 │   ├── api/
 │   │   ├── error.rs
 │   │   ├── ffi.rs
+│   │   ├── ffi_exports.rs
 │   │   ├── request.rs
 │   │   └── response.rs
 │   ├── platform/
@@ -29,6 +30,7 @@ native/nexa_http_native_core/
 ## 模块职责
 
 - `api/ffi.rs` 定义 C ABI 可见的 struct、callback type、string free 和测试辅助入口，例如 `NexaHttpRequestArgs`、`NexaHttpBinaryResult`、`nexa_http_string_free`。
+- `api/ffi_exports.rs` 定义 `export_nexa_http_ffi!`，集中生成所有平台一致的九个 public C ABI wrappers；平台 crate 只提供自己的 static runtime 和 state type。
 - `api/request.rs` / `api/response.rs` 负责把 FFI pointer/length 读成 core 内部请求/响应模型，并维护 native-owned body 的释放规则。
 - `api/error.rs` 定义 `NativeError` 与可序列化的 `NativeHttpError`。跨 FFI 的错误 JSON 必须从这里的模型出发。
 - `runtime/executor.rs` 是 HTTP client、request dispatch、cancellation、callback 和 result free 的主要实现位置。

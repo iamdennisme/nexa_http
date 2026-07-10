@@ -13,7 +13,7 @@ packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/
 
 ## 模块职责
 
-- `src/lib.rs` 只做 C ABI export 和 runtime wiring。
+- `src/lib.rs` 只定义 Windows `RUNTIME` 和 runtime wiring，并调用 core `export_nexa_http_ffi!` 生成统一 C ABI exports。
 - `src/proxy_source.rs` 实现 `WindowsProxySource`，从 `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings` 读取 proxy 设置。
 - `tests/proxy_settings.rs` 验证 `ProxyServer` 和 bypass parser。
 
@@ -25,4 +25,5 @@ packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/
 
 ## 真实例子
 
+- `packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/src/lib.rs`：保留 construction-boundary runtime 并调用共享 ABI export macro。
 - `packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/src/proxy_source.rs`：Windows registry proxy 读取。

@@ -1,6 +1,7 @@
 pub mod api {
     pub mod error;
     pub mod ffi;
+    mod ffi_exports;
     pub mod request;
     pub mod response;
 }

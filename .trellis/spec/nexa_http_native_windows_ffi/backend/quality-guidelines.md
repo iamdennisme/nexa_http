@@ -3,7 +3,7 @@
 ## 必需模式
 
 - `Cargo.toml` 同时声明 `cdylib` 和 `rlib`。
-- 所有 C ABI export 与其他平台保持同名同签名。
+- 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，并由 Windows runner 检查最终 PE exports。
 - Windows x64 target 变化必须同步 target matrix、build hook、CMake 和 release workflow。
 
 ## 禁止模式

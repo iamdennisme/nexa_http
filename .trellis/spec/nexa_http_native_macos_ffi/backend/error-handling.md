@@ -11,4 +11,4 @@
 ## 真实例子
 
 - `src/proxy_source.rs` 中 `SCDynamicStoreCopyProxies` 返回 null 时降级为 `ProxySettings::default()`。
-- `src/lib.rs` 中 `nexa_http_take_last_error_json()` 直接调用 core `take_last_error_json()`。
+- `export_nexa_http_ffi!` 展开的 `nexa_http_take_last_error_json()` 直接调用 core `take_last_error_json()`。

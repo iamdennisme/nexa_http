@@ -11,6 +11,7 @@ void main() {
       workspaceVerificationCommands,
       contains('verify-artifact-consistency'),
     );
+    expect(workspaceVerificationCommands, contains('verify-native-abi'));
     expect(workspaceVerificationCommands, contains('verify-development-path'));
     expect(workspaceVerificationCommands, contains('verify-external-consumer'));
     expect(workspaceVerificationCommands, contains('verify-release-consumer'));
@@ -50,6 +51,19 @@ void main() {
       expect(workflow, contains('macos-14'));
       expect(workflow, contains('windows-latest'));
       expect(workflow, contains('verify-artifact-consistency'));
+      expect(RegExp('verify-native-abi').allMatches(workflow), hasLength(3));
+      expect(workflow, contains('dart run ffigen --config ffigen.yaml'));
+      expect(
+        workflow,
+        contains('dart test test/native_ffi_abi_contract_test.dart'),
+      );
+      expect(workflow, contains('test/native_abi_verifier_test.dart'));
+      expect(
+        workflow,
+        contains(
+          'git diff --ignore-all-space --exit-code -- lib/nexa_http_bindings_generated.dart',
+        ),
+      );
       expect(workflow, contains('verify-development-path'));
       expect(workflow, contains('verify-external-consumer'));
     },

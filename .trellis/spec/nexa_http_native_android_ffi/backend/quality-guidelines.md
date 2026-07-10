@@ -3,7 +3,8 @@
 ## 必需模式
 
 - `Cargo.toml` 同时声明 `cdylib` 和 `rlib`，保证动态库产物和 Rust tests 都可用。
-- 所有 C ABI export 使用和其他平台一致的 `nexa_http_*` 函数名。
+- 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，禁止在平台 `lib.rs` 复制 wrapper。
+- Gradle source-build safety list 必须覆盖 canonical 九符号 public ABI；最终 ELF 仍需通过 `verify-native-abi` exact comparison。
 - Proxy 解析 helper 必须可测试；`current_proxy_settings_for_test()` 接收 `BTreeMap<String, String>`，避免测试依赖真实 Android 设备。
 - Android proxy source 使用 `RefreshMode::Polling`，当前轮询间隔由 `ANDROID_PROXY_REFRESH_INTERVAL = 15s` 集中定义。
 - `getprop` 只在 `#[cfg(target_os = "android")]` 代码中执行，非 Android 单元测试不得尝试运行系统命令。
