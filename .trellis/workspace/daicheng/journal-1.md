@@ -290,3 +290,37 @@ Extracted a shared Apple proxy parser crate, delegated iOS/macOS adapters, centr
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: Centralize platform FFI exports
+
+**Date**: 2026-07-10
+**Task**: Centralize platform FFI exports
+**Package**: nexa_http_native_core
+**Branch**: `main`
+
+### Summary
+
+Centralized the nine platform C ABI wrappers behind a core macro, added executable source and artifact ABI guards across CI runners, preserved platform runtime ownership, and verified Rust, Dart, ownership, carrier, and clean-host contracts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `83e6fd4` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
