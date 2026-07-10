@@ -255,3 +255,38 @@ Deepened packages/nexa_http native transport by moving lease lifecycle, request/
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Deepen Apple proxy settings parser
+
+**Date**: 2026-07-10
+**Task**: Deepen Apple proxy settings parser
+**Package**: nexa_http_native_core
+**Branch**: `main`
+
+### Summary
+
+Extracted a shared Apple proxy parser crate, delegated iOS/macOS adapters, centralized parser tests and specs, made proxy state assertions environment-independent, and verified Rust plus Flutter clean-host paths.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `28bf630` | (see git log) |
+| `01ab31d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
