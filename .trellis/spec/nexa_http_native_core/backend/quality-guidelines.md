@@ -13,6 +13,7 @@
 - FFI pointer + len 输入必须在 Rust 侧显式校验 null/length 组合。
 - Native-owned bytes 只能有一个释放入口；`NativeHttpOwnedBody::free_raw_parts` 是 response body ownership 的核心规则。
 - Proxy refresh 策略通过 `RefreshMode` 表达，平台 crate 实现 `ProxyConfigSource`。
+- 测试 `ManagedProxyState` 保存的 raw snapshot 时使用 `current_proxy_snapshot()`；`current_platform_state()` 会合并进程级 proxy 环境变量，断言 view 内容时必须提供优先级更高的显式平台值或隔离 proxy 环境变量。
 
 ## 禁止模式
 

@@ -167,7 +167,6 @@ fn changed_generation_is_observable_through_runtime_state() {
 
     let initial = capabilities.current_platform_state();
     assert_eq!(initial.proxy_generation, 0);
-    assert_eq!(initial.platform_features.proxy, ProxySettings::default());
 
     switch.store(true, Ordering::Relaxed);
     generation.store(1, Ordering::Relaxed);
