@@ -102,11 +102,12 @@ Evidence:
 
 状态：confirmed
 
-面向 Rust 和平台 native 世界的项目层，包含共享 Rust core、platform FFI crates 和 native build scripts。
+面向 Rust 和平台 native 世界的项目层，包含共享 Rust crates、platform FFI crates 和 native build scripts。
 
 Includes:
 
 - `native/nexa_http_native_core`
+- `native/nexa_http_native_apple_proxy`
 - `packages/nexa_http_native_android/native/nexa_http_native_android_ffi`
 - `packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi`
 - `packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi`
@@ -122,6 +123,7 @@ Owns:
 - Client registry、async execution、cancellation、callback 和 result free。
 - Native error JSON。
 - Shared proxy model 和 proxy matching。
+- Shared Apple proxy value parsing。
 - OS-specific proxy/system capability discovery in platform FFI crates。
 - 编译平台动态库。
 
@@ -136,7 +138,7 @@ Does not own:
 Relationships:
 
 - 被 Flutter SDK layer 通过统一 C ABI 调用。
-- Platform FFI crates 把 shared Rust core 包装成目标平台动态库。
+- Platform FFI crates 把 shared Rust crates 包装成目标平台动态库。
 - Native build scripts 为 workspace/release tooling 准备动态库，但不是外部 App 的标准集成步骤。
 
 Evidence:
@@ -381,6 +383,7 @@ Relationships:
 - 被 `platform FFI crate` 包装成平台动态库。
 - 通过 `uniform C ABI` 暴露给 Dart native transport。
 - 消费来自平台的 `platform runtime state`。
+- 为 `nexa_http_native_apple_proxy` 提供 `ProxySettings` 输出模型。
 
 Evidence:
 
@@ -399,7 +402,7 @@ Owns:
 - Platform dynamic library artifact。
 - C ABI export glue for `nexa_http_*` symbols。
 - Binding `Rust transport core` runtime to platform-specific proxy source。
-- Platform-specific proxy settings discovery and parsing。
+- Platform-specific proxy settings discovery and source adaptation。
 
 Does not own:
 
@@ -411,6 +414,7 @@ Relationships:
 
 - 属于对应 `platform carrier`。
 - 复用 `Rust transport core`。
+- iOS/macOS 复用 `nexa_http_native_apple_proxy` 的纯解析规则。
 - 产出 `native artifact`。
 
 Evidence:
@@ -470,7 +474,7 @@ Does not own:
 
 Relationships:
 
-- 由 `platform FFI crate` 从 OS-specific source 读取。
+- 由 `platform FFI crate` 从 OS-specific source 读取；Apple raw values 由共享 Apple parser 转换。
 - 通过 `platform runtime state` 暴露给 `Rust transport core`。
 - 由 `Rust transport core` 应用到 reqwest client。
 
@@ -478,6 +482,7 @@ Evidence:
 
 - `native/nexa_http_native_core/src/platform/proxy.rs`
 - `native/nexa_http_native_core/src/platform/source.rs`
+- `native/nexa_http_native_apple_proxy/src/lib.rs`
 - `packages/nexa_http_native_*/native/*_ffi/src/proxy_source.rs`
 
 ## platform runtime state

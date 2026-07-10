@@ -6,7 +6,7 @@
 
 - `src/lib.rs` 的 C ABI 函数应直接委托 `NexaHttpRuntime`，不要在每个平台包重新包装错误 JSON。
 - macOS proxy 读取失败或系统 API 返回 null 时返回 `ProxySettings::default()`，不要 panic。
-- 输入清洗使用 `clean_value()`、`normalize_proxy_url()`，无效 proxy URL 被忽略而不是暴露成请求失败。
+- 输入清洗和 URL validation 委托 `nexa_http_native_apple_proxy`；无效 proxy URL 被忽略而不是暴露成请求失败。
 
 ## 真实例子
 

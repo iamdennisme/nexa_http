@@ -36,6 +36,7 @@ import 'package:nexa_http/nexa_http.dart';
 - `nexa_http_native_windows`
 - `packages/*/native/` 下的平台 FFI crate
 - `native/nexa_http_native_core` 下的共享 Rust core
+- `native/nexa_http_native_apple_proxy` 下的共享 Apple proxy parser
 
 这些包在 runtime API 层必须保持实现细节。公开 API、README 示例、测试 fixture 和外部 consumer 示例都应该守住 `nexa_http` 主包 import 边界，但依赖声明需要显式列出目标平台 carrier package。
 

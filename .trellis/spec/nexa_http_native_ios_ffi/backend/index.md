@@ -15,11 +15,12 @@
 ## Pre-Development Checklist
 
 - [ ] 修改 `src/lib.rs` C ABI export 时同步 core FFI 和 Dart bindings。
-- [ ] 修改 `src/proxy_source.rs` 时补充或更新 `tests/proxy_settings.rs`。
+- [ ] 修改 `src/proxy_source.rs` 的 SystemConfiguration mapping 时更新 `tests/proxy_settings.rs`；修改纯解析规则时更新 `nexa_http_native_apple_proxy` tests。
 - [ ] 修改 framework/dylib 命名时同步 iOS hook、podspec 和 release manifest tests。
 
 ## Quality Check
 
 - [ ] `cargo fmt --all --check` 通过。
 - [ ] `cargo test -p nexa_http_native_ios_ffi` 通过。
+- [ ] `cargo test -p nexa_http_native_apple_proxy` 通过。
 - [ ] `packages/nexa_http_native_ios/test/build_hook_test.dart` 仍能解析和 materialize iOS artifact。

@@ -65,6 +65,7 @@ Flutter SDK 层负责：
 原生 native 层包含：
 
 - `native/nexa_http_native_core`
+- `native/nexa_http_native_apple_proxy`
 - `packages/nexa_http_native_android/native/nexa_http_native_android_ffi`
 - `packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi`
 - `packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi`
@@ -96,11 +97,19 @@ Flutter SDK 层负责：
 - 不处理 `pubspec.yaml`、plugin registration、build hook、release asset、workspace/pub-cache probing 或 host app integration。
 - 不直接读取 OS-specific proxy source。
 
+`native/nexa_http_native_apple_proxy` 是 Apple 平台共享的纯 parser：
+
+- 接收 iOS/macOS FFI crate 已读取的 SystemConfiguration 原始值，返回 core `ProxySettings`。
+- 拥有 Apple proxy URL normalization、值清洗和 bypass canonicalization。
+- 不调用 CoreFoundation/SystemConfiguration，不拥有 runtime state、C ABI 或 native artifact。
+- 具体接口与错误矩阵见 `nexa_http_native_apple_proxy/backend/proxy-parser-contract.md`。
+
 Platform FFI crate 是 native platform adapter：
 
 - 导出统一 `nexa_http_*` C ABI。
 - 绑定 shared Rust core 和平台 proxy source。
 - 读取平台 proxy/system capability，例如 Android `getprop`、Apple SystemConfiguration、Windows registry。
+- iOS/macOS 把 raw proxy values 委托给 `nexa_http_native_apple_proxy`，不复制 Apple parser 规则。
 - 不复制 shared HTTP runtime logic。
 - 不处理 Dart build hook 或 release artifact download。
 

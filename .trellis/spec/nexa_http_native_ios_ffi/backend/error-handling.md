@@ -6,7 +6,7 @@ iOS FFI crate 不定义新的 public error schema。错误 JSON、bootstrap erro
 
 - C ABI 函数直接委托 `NexaHttpRuntime`。
 - Apple proxy 读取失败或返回 null 时返回 `ProxySettings::default()`，不要 panic。
-- 无效 proxy URL 被忽略，不应导致 client 创建失败。
+- 输入清洗和 URL validation 委托 `nexa_http_native_apple_proxy`；无效 proxy URL 被忽略，不应导致 client 创建失败。
 
 ## 真实例子
 

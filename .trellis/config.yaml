@@ -113,6 +113,8 @@ channel:
 packages:
   nexa_http_native_core:
     path: native/nexa_http_native_core
+  nexa_http_native_apple_proxy:
+    path: native/nexa_http_native_apple_proxy
   nexa_http_native_macos_ffi:
     path: packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi
   nexa_http_native_windows_ffi:

@@ -1,0 +1,12 @@
+[package]
+name = "nexa_http_native_apple_proxy"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+nexa_http_native_core = { path = "../nexa_http_native_core" }
+url = "2.5.4"
