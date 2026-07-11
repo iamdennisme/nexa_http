@@ -324,3 +324,37 @@ Centralized the nine platform C ABI wrappers behind a core macro, added executab
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: V2 public HTTP API clean cutover
+
+**Date**: 2026-07-11
+**Task**: V2 public HTTP API clean cutover
+**Package**: nexa_http_native_core
+**Branch**: `main`
+
+### Summary
+
+Completed the one-shot V2 HTTP API cutover: removed compatibility surfaces, linearized cancellation and callback commit, enforced typed failures and request/response body ownership copy budgets, moved generated bindings internal, updated docs/specs, and passed package, Rust, native integration, workspace, and clean-consumer gates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `20c3786` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
