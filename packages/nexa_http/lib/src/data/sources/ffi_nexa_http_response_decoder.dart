@@ -1,18 +1,18 @@
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:nexa_http/nexa_http_bindings_generated.dart';
+import '../../native_bridge/nexa_http_bindings_generated.dart';
 
 import '../../api/nexa_http_exception.dart';
-import '../../internal/body/native_response_body_bytes.dart';
+import '../../internal/body/response_body_owner.dart';
 import '../../internal/transport/transport_response.dart';
 import '../dto/native_http_error_dto.dart';
 import '../mappers/native_http_error_mapper.dart';
 
-typedef BinaryResultRelease = void Function(
-  Pointer<NexaHttpBinaryResult> resultPointer,
-);
+typedef BinaryResultRelease =
+    void Function(Pointer<NexaHttpBinaryResult> resultPointer);
 
 final class FfiNexaHttpResponseDecoder {
   const FfiNexaHttpResponseDecoder({
@@ -27,33 +27,67 @@ final class FfiNexaHttpResponseDecoder {
   TransportResponse decode(Pointer<NexaHttpBinaryResult> resultPointer) {
     if (resultPointer == nullptr) {
       throw const NexaHttpException(
-        code: 'ffi_invalid_response',
+        kind: NexaHttpFailureKind.internal,
         message: 'The nexa_http native library returned a null binary result.',
+        diagnostics: <String, Object?>{
+          'stage': 'response_decode',
+          'native_code': 'ffi_invalid_response',
+        },
       );
     }
 
-    final result = resultPointer.ref;
-    if (result.is_success == 0) {
-      throw _decodeError(result.error_json);
+    var releaseResult = true;
+    try {
+      final result = resultPointer.ref;
+      if (result.is_success == 0) {
+        throw _decodeError(result.error_json);
+      }
+
+      final statusCode = result.status_code;
+      final headers = _decodeHeaders(result.headers_ptr, result.headers_len);
+      final finalUri = _decodeFinalUri(
+        result.final_url_ptr,
+        result.final_url_len,
+      );
+      final ResponseBodyOwner bodyOwner;
+      if (result.body_len == 0) {
+        releaseResult = false;
+        _releaseBinaryResult(resultPointer);
+        bodyOwner = DartResponseBodyOwner(Uint8List(0));
+      } else {
+        if (result.body_ptr == nullptr) {
+          throw const NexaHttpException(
+            kind: NexaHttpFailureKind.internal,
+            message:
+                'The nexa_http native library returned a null body pointer for a non-empty response body.',
+            diagnostics: <String, Object?>{
+              'stage': 'response_body_decode',
+              'native_code': 'ffi_invalid_response',
+            },
+          );
+        }
+        bodyOwner = NativeResponseBodyOwner(
+          result.body_ptr.asTypedList(result.body_len),
+          release: () => _releaseBinaryResult(resultPointer),
+          finalizer: _binaryResultNativeFinalizer,
+          finalizerToken: resultPointer.cast(),
+          externalSize: result.body_len,
+        );
+        releaseResult = false;
+      }
+
+      return TransportResponse(
+        statusCode: statusCode,
+        headers: headers,
+        bodyOwner: bodyOwner,
+        finalUri: finalUri,
+      );
+    } catch (_) {
+      if (releaseResult) {
+        _releaseBinaryResult(resultPointer);
+      }
+      rethrow;
     }
-
-    final headers = _decodeHeaders(result.headers_ptr, result.headers_len);
-    final finalUri = _decodeFinalUri(
-      result.final_url_ptr,
-      result.final_url_len,
-    );
-    final bodyBytes = _takeResponseBody(resultPointer, result);
-
-    return TransportResponse(
-      statusCode: result.status_code,
-      headers: headers,
-      bodyBytes: bodyBytes,
-      finalUri: finalUri,
-    );
-  }
-
-  bool adoptsBodyOwnership(NexaHttpBinaryResult result) {
-    return result.body_ptr != nullptr && result.body_len > 0;
   }
 
   Map<String, List<String>> _decodeHeaders(
@@ -65,9 +99,13 @@ final class FfiNexaHttpResponseDecoder {
     }
     if (headersPointer == nullptr) {
       throw const NexaHttpException(
-        code: 'ffi_invalid_response',
+        kind: NexaHttpFailureKind.internal,
         message:
             'The nexa_http native library returned invalid response headers.',
+        diagnostics: <String, Object?>{
+          'stage': 'response_headers_decode',
+          'native_code': 'ffi_invalid_response',
+        },
       );
     }
 
@@ -89,66 +127,77 @@ final class FfiNexaHttpResponseDecoder {
     return headers;
   }
 
-  List<int> _takeResponseBody(
-    Pointer<NexaHttpBinaryResult> resultPointer,
-    NexaHttpBinaryResult result,
-  ) {
-    if (result.body_len == 0) {
-      return const <int>[];
-    }
-    if (result.body_ptr == nullptr) {
-      throw const NexaHttpException(
-        code: 'ffi_invalid_response',
-        message:
-            'The nexa_http native library returned a null body pointer for a non-empty response body.',
-      );
-    }
-
-    final bytes = result.body_ptr.asTypedList(result.body_len);
-    return adoptNativeResponseBodyBytes(
-      bytes,
-      release: () => _releaseBinaryResult(resultPointer),
-      finalizer: _binaryResultNativeFinalizer,
-      finalizerToken: resultPointer.cast(),
-      externalSize: result.body_len,
-    );
-  }
-
   Uri? _decodeFinalUri(Pointer<Char> finalUrlPointer, int finalUrlLength) {
     if (finalUrlLength == 0) {
       return null;
     }
-    return Uri.tryParse(
-      _decodeSizedString(
-        finalUrlPointer,
-        finalUrlLength,
-        fieldName: 'final response URL',
-      ),
+    final value = _decodeSizedString(
+      finalUrlPointer,
+      finalUrlLength,
+      fieldName: 'final response URL',
     );
+    try {
+      return Uri.parse(value);
+    } on FormatException catch (error) {
+      throw NexaHttpException(
+        kind: NexaHttpFailureKind.internal,
+        message:
+            'The nexa_http native library returned an invalid final response URL.',
+        diagnostics: <String, Object?>{
+          'stage': 'response_final_url_decode',
+          'native_code': 'ffi_invalid_response',
+          'native_value': value,
+          'error': error.toString(),
+        },
+      );
+    }
   }
 
   NexaHttpException _decodeError(Pointer<Char> errorPointer) {
     if (errorPointer == nullptr) {
       return const NexaHttpException(
-        code: 'ffi_invalid_response',
+        kind: NexaHttpFailureKind.internal,
         message:
             'The nexa_http native library returned an invalid error result.',
+        diagnostics: <String, Object?>{
+          'stage': 'response_error_decode',
+          'native_code': 'ffi_invalid_response',
+        },
       );
     }
 
-    final decoded = jsonDecode(errorPointer.cast<Utf8>().toDartString());
-    if (decoded is! Map) {
-      return const NexaHttpException(
-        code: 'ffi_invalid_response',
-        message: 'The nexa_http native library returned invalid error payload.',
+    try {
+      final decoded = jsonDecode(errorPointer.cast<Utf8>().toDartString());
+      if (decoded is! Map) {
+        return const NexaHttpException(
+          kind: NexaHttpFailureKind.internal,
+          message:
+              'The nexa_http native library returned invalid error payload.',
+          diagnostics: <String, Object?>{
+            'stage': 'response_error_decode',
+            'native_code': 'ffi_invalid_response',
+          },
+        );
+      }
+
+      return NativeHttpErrorMapper.toDomain(
+        NativeHttpErrorDto.fromJson(
+          Map<String, dynamic>.from(decoded.cast<String, Object?>()),
+        ),
+      );
+    } on Object catch (error) {
+      return NexaHttpException(
+        kind: NexaHttpFailureKind.internal,
+        message:
+            'The nexa_http native library returned malformed error payload.',
+        diagnostics: <String, Object?>{
+          'stage': 'response_error_decode',
+          'native_code': 'ffi_invalid_response',
+          'error_type': error.runtimeType.toString(),
+          'error': error.toString(),
+        },
       );
     }
-
-    return NativeHttpErrorMapper.toDomain(
-      NativeHttpErrorDto.fromJson(
-        Map<String, dynamic>.from(decoded.cast<String, Object?>()),
-      ),
-    );
   }
 
   String _decodeSizedString(
@@ -161,9 +210,14 @@ final class FfiNexaHttpResponseDecoder {
     }
     if (pointer == nullptr) {
       throw NexaHttpException(
-        code: 'ffi_invalid_response',
+        kind: NexaHttpFailureKind.internal,
         message:
             'The nexa_http native library returned a null pointer for $fieldName.',
+        diagnostics: <String, Object?>{
+          'stage': 'response_field_decode',
+          'field': fieldName,
+          'native_code': 'ffi_invalid_response',
+        },
       );
     }
     return pointer.cast<Utf8>().toDartString(length: length);

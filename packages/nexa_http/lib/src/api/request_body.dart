@@ -9,7 +9,7 @@ final class RequestBody {
   final Uint8List _bytes;
   final MediaType? contentType;
 
-  factory RequestBody.bytes(Uint8List bytes, {MediaType? contentType}) {
+  factory RequestBody.takeBytes(Uint8List bytes, {MediaType? contentType}) {
     return RequestBody._(bytes: bytes, contentType: contentType);
   }
 
@@ -28,11 +28,11 @@ final class RequestBody {
     );
   }
 
-  Future<Uint8List> bytes() async => _bytes;
-
-  Stream<Uint8List> byteStream() => Stream<Uint8List>.value(_bytes);
-
   int get contentLength => _bytes.length;
+}
 
-  Uint8List get payloadBytes => _bytes;
+final class RequestBodyTransportAccess {
+  const RequestBodyTransportAccess._();
+
+  static Uint8List bytes(RequestBody body) => body._bytes;
 }

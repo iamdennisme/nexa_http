@@ -1,5 +1,6 @@
 import 'dart:ffi';
 
+import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
@@ -58,32 +59,84 @@ void main() {
     );
   });
 
-  test(
-    'surfaces a clear missing-strategy error when nothing is registered',
-    () {
-      final factory = NexaHttpNativeDataSourceFactory(
-        loadDynamicLibrary: () {
-          return loadNexaHttpDynamicLibraryForTesting();
-        },
-        createDataSource: _FakeNexaHttpNativeDataSource.new,
-      );
+  test('normalizes a missing carrier strategy to unavailable', () {
+    final factory = NexaHttpNativeDataSourceFactory(
+      loadDynamicLibrary: () {
+        return loadNexaHttpDynamicLibraryForTesting();
+      },
+      createDataSource: _FakeNexaHttpNativeDataSource.new,
+    );
 
-      expect(
-        () => factory.create(),
-        throwsA(
-          predicate<Object>(
-            (error) =>
-                error is StateError &&
-                error.toString().contains('stage=plugin registration') &&
-                error.toString().contains('platform=') &&
-                error.toString().contains('architecture=') &&
-                error.toString().contains('expected_action=') &&
-                error.toString().contains('Register a platform strategy first'),
-          ),
-        ),
-      );
-    },
-  );
+    expect(
+      () => factory.create(),
+      throwsA(
+        isA<NexaHttpException>()
+            .having(
+              (error) => error.kind,
+              'kind',
+              NexaHttpFailureKind.unavailable,
+            )
+            .having(
+              (error) => error.diagnostics?['stage'],
+              'diagnostics.stage',
+              'native_library_open',
+            )
+            .having(
+              (error) => error.diagnostics?['error'],
+              'diagnostics.error',
+              allOf(
+                contains('stage=plugin registration'),
+                contains('platform='),
+                contains('architecture='),
+                contains('expected_action='),
+                contains('Register a platform strategy first'),
+              ),
+            ),
+      ),
+    );
+  });
+
+  test('normalizes native binding construction failures to unavailable', () {
+    final factory = NexaHttpNativeDataSourceFactory(
+      loadDynamicLibrary: DynamicLibrary.process,
+      createDataSource: (_) => throw ArgumentError('missing native symbol'),
+    );
+
+    expect(
+      factory.create,
+      throwsA(
+        isA<NexaHttpException>()
+            .having(
+              (error) => error.kind,
+              'kind',
+              NexaHttpFailureKind.unavailable,
+            )
+            .having(
+              (error) => error.diagnostics?['stage'],
+              'diagnostics.stage',
+              'native_bindings_create',
+            )
+            .having(
+              (error) => error.diagnostics?['error'],
+              'diagnostics.error',
+              contains('missing native symbol'),
+            ),
+      ),
+    );
+  });
+
+  test('passes through an existing typed HTTP Failure', () {
+    final expected = NexaHttpException(
+      kind: NexaHttpFailureKind.internal,
+      message: 'already normalized',
+    );
+    final factory = NexaHttpNativeDataSourceFactory(
+      loadDynamicLibrary: DynamicLibrary.process,
+      createDataSource: (_) => throw expected,
+    );
+
+    expect(factory.create, throwsA(same(expected)));
+  });
 }
 
 final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {

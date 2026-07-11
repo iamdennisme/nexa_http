@@ -1,4 +1,3 @@
-import '../../api/nexa_http_exception.dart';
 import '../../api/request.dart';
 import '../../api/response.dart';
 import '../../data/mappers/native_http_client_config_mapper.dart';
@@ -6,6 +5,7 @@ import '../../data/mappers/native_http_request_mapper.dart';
 import '../../data/sources/nexa_http_native_data_source.dart';
 import '../../native_bridge/nexa_http_native_data_source_factory.dart';
 import '../config/client_options.dart';
+import '../errors/nexa_http_failures.dart';
 import 'nexa_http_response_mapper.dart';
 
 final class NexaHttpNativeTransport {
@@ -43,7 +43,6 @@ final class NexaHttpNativeTransport {
       requestDto,
       onCancelReady: onCancelReady,
     );
-    _throwIfCanceled(request, isCanceled);
     return _responseMapper.map(request: request, payload: response);
   }
 
@@ -108,9 +107,8 @@ final class NexaHttpNativeTransport {
     if (isCanceled?.call() != true) {
       return;
     }
-    throw NexaHttpException(
-      code: 'canceled',
-      message: 'The request was canceled.',
+    throw NexaHttpFailures.canceled(
+      stage: 'transport_preflight',
       uri: request.url,
     );
   }

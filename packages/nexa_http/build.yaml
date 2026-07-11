@@ -1,0 +1,15 @@
+targets:
+  $default:
+    builders:
+      freezed:
+        generate_for:
+          include:
+            - lib/**.dart
+      json_serializable:
+        generate_for:
+          include:
+            - lib/**.dart
+      source_gen:combining_builder:
+        generate_for:
+          include:
+            - lib/**.dart

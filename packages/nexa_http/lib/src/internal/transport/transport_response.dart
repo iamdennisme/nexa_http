@@ -1,13 +1,15 @@
+import '../body/response_body_owner.dart';
+
 final class TransportResponse {
   const TransportResponse({
     required this.statusCode,
     this.headers = const <String, List<String>>{},
-    this.bodyBytes = const <int>[],
+    this.bodyOwner,
     this.finalUri,
   });
 
   final int statusCode;
   final Map<String, List<String>> headers;
-  final List<int> bodyBytes;
+  final ResponseBodyOwner? bodyOwner;
   final Uri? finalUri;
 }

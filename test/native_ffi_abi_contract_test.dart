@@ -10,7 +10,7 @@ void main() {
       'native/nexa_http_native_core/include/nexa_http_native.h',
     ).readAsStringSync();
     final generatedBindings = File(
-      'packages/nexa_http/lib/nexa_http_bindings_generated.dart',
+      'packages/nexa_http/lib/src/native_bridge/nexa_http_bindings_generated.dart',
     ).readAsStringSync();
     final androidBuild = File(
       'packages/nexa_http_native_android/android/build.gradle',

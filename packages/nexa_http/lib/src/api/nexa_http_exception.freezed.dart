@@ -17,12 +17,10 @@ final _privateConstructorUsedError = UnsupportedError(
 
 /// @nodoc
 mixin _$NexaHttpException {
-  String get code => throw _privateConstructorUsedError;
+  NexaHttpFailureKind get kind => throw _privateConstructorUsedError;
   String get message => throw _privateConstructorUsedError;
-  int? get statusCode => throw _privateConstructorUsedError;
-  bool get isTimeout => throw _privateConstructorUsedError;
   Uri? get uri => throw _privateConstructorUsedError;
-  Map<String, Object?>? get details => throw _privateConstructorUsedError;
+  Map<String, Object?>? get diagnostics => throw _privateConstructorUsedError;
 
   /// Create a copy of NexaHttpException
   /// with the given fields replaced by the non-null parameter values.
@@ -39,12 +37,10 @@ abstract class $NexaHttpExceptionCopyWith<$Res> {
   ) = _$NexaHttpExceptionCopyWithImpl<$Res, NexaHttpException>;
   @useResult
   $Res call({
-    String code,
+    NexaHttpFailureKind kind,
     String message,
-    int? statusCode,
-    bool isTimeout,
     Uri? uri,
-    Map<String, Object?>? details,
+    Map<String, Object?>? diagnostics,
   });
 }
 
@@ -63,38 +59,28 @@ class _$NexaHttpExceptionCopyWithImpl<$Res, $Val extends NexaHttpException>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? code = null,
+    Object? kind = null,
     Object? message = null,
-    Object? statusCode = freezed,
-    Object? isTimeout = null,
     Object? uri = freezed,
-    Object? details = freezed,
+    Object? diagnostics = freezed,
   }) {
     return _then(
       _value.copyWith(
-            code: null == code
-                ? _value.code
-                : code // ignore: cast_nullable_to_non_nullable
-                      as String,
+            kind: null == kind
+                ? _value.kind
+                : kind // ignore: cast_nullable_to_non_nullable
+                      as NexaHttpFailureKind,
             message: null == message
                 ? _value.message
                 : message // ignore: cast_nullable_to_non_nullable
                       as String,
-            statusCode: freezed == statusCode
-                ? _value.statusCode
-                : statusCode // ignore: cast_nullable_to_non_nullable
-                      as int?,
-            isTimeout: null == isTimeout
-                ? _value.isTimeout
-                : isTimeout // ignore: cast_nullable_to_non_nullable
-                      as bool,
             uri: freezed == uri
                 ? _value.uri
                 : uri // ignore: cast_nullable_to_non_nullable
                       as Uri?,
-            details: freezed == details
-                ? _value.details
-                : details // ignore: cast_nullable_to_non_nullable
+            diagnostics: freezed == diagnostics
+                ? _value.diagnostics
+                : diagnostics // ignore: cast_nullable_to_non_nullable
                       as Map<String, Object?>?,
           )
           as $Val,
@@ -112,12 +98,10 @@ abstract class _$$NexaHttpExceptionImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
-    String code,
+    NexaHttpFailureKind kind,
     String message,
-    int? statusCode,
-    bool isTimeout,
     Uri? uri,
-    Map<String, Object?>? details,
+    Map<String, Object?>? diagnostics,
   });
 }
 
@@ -135,38 +119,28 @@ class __$$NexaHttpExceptionImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? code = null,
+    Object? kind = null,
     Object? message = null,
-    Object? statusCode = freezed,
-    Object? isTimeout = null,
     Object? uri = freezed,
-    Object? details = freezed,
+    Object? diagnostics = freezed,
   }) {
     return _then(
       _$NexaHttpExceptionImpl(
-        code: null == code
-            ? _value.code
-            : code // ignore: cast_nullable_to_non_nullable
-                  as String,
+        kind: null == kind
+            ? _value.kind
+            : kind // ignore: cast_nullable_to_non_nullable
+                  as NexaHttpFailureKind,
         message: null == message
             ? _value.message
             : message // ignore: cast_nullable_to_non_nullable
                   as String,
-        statusCode: freezed == statusCode
-            ? _value.statusCode
-            : statusCode // ignore: cast_nullable_to_non_nullable
-                  as int?,
-        isTimeout: null == isTimeout
-            ? _value.isTimeout
-            : isTimeout // ignore: cast_nullable_to_non_nullable
-                  as bool,
         uri: freezed == uri
             ? _value.uri
             : uri // ignore: cast_nullable_to_non_nullable
                   as Uri?,
-        details: freezed == details
-            ? _value._details
-            : details // ignore: cast_nullable_to_non_nullable
+        diagnostics: freezed == diagnostics
+            ? _value._diagnostics
+            : diagnostics // ignore: cast_nullable_to_non_nullable
                   as Map<String, Object?>?,
       ),
     );
@@ -177,32 +151,25 @@ class __$$NexaHttpExceptionImplCopyWithImpl<$Res>
 
 class _$NexaHttpExceptionImpl extends _NexaHttpException {
   const _$NexaHttpExceptionImpl({
-    required this.code,
+    required this.kind,
     required this.message,
-    this.statusCode,
-    this.isTimeout = false,
     this.uri,
-    final Map<String, Object?>? details,
-  }) : _details = details,
+    final Map<String, Object?>? diagnostics,
+  }) : _diagnostics = diagnostics,
        super._();
 
   @override
-  final String code;
+  final NexaHttpFailureKind kind;
   @override
   final String message;
   @override
-  final int? statusCode;
-  @override
-  @JsonKey()
-  final bool isTimeout;
-  @override
   final Uri? uri;
-  final Map<String, Object?>? _details;
+  final Map<String, Object?>? _diagnostics;
   @override
-  Map<String, Object?>? get details {
-    final value = _details;
+  Map<String, Object?>? get diagnostics {
+    final value = _diagnostics;
     if (value == null) return null;
-    if (_details is EqualUnmodifiableMapView) return _details;
+    if (_diagnostics is EqualUnmodifiableMapView) return _diagnostics;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableMapView(value);
   }
@@ -212,25 +179,22 @@ class _$NexaHttpExceptionImpl extends _NexaHttpException {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$NexaHttpExceptionImpl &&
-            (identical(other.code, code) || other.code == code) &&
+            (identical(other.kind, kind) || other.kind == kind) &&
             (identical(other.message, message) || other.message == message) &&
-            (identical(other.statusCode, statusCode) ||
-                other.statusCode == statusCode) &&
-            (identical(other.isTimeout, isTimeout) ||
-                other.isTimeout == isTimeout) &&
             (identical(other.uri, uri) || other.uri == uri) &&
-            const DeepCollectionEquality().equals(other._details, _details));
+            const DeepCollectionEquality().equals(
+              other._diagnostics,
+              _diagnostics,
+            ));
   }
 
   @override
   int get hashCode => Object.hash(
     runtimeType,
-    code,
+    kind,
     message,
-    statusCode,
-    isTimeout,
     uri,
-    const DeepCollectionEquality().hash(_details),
+    const DeepCollectionEquality().hash(_diagnostics),
   );
 
   /// Create a copy of NexaHttpException
@@ -247,27 +211,21 @@ class _$NexaHttpExceptionImpl extends _NexaHttpException {
 
 abstract class _NexaHttpException extends NexaHttpException {
   const factory _NexaHttpException({
-    required final String code,
+    required final NexaHttpFailureKind kind,
     required final String message,
-    final int? statusCode,
-    final bool isTimeout,
     final Uri? uri,
-    final Map<String, Object?>? details,
+    final Map<String, Object?>? diagnostics,
   }) = _$NexaHttpExceptionImpl;
   const _NexaHttpException._() : super._();
 
   @override
-  String get code;
+  NexaHttpFailureKind get kind;
   @override
   String get message;
   @override
-  int? get statusCode;
-  @override
-  bool get isTimeout;
-  @override
   Uri? get uri;
   @override
-  Map<String, Object?>? get details;
+  Map<String, Object?>? get diagnostics;
 
   /// Create a copy of NexaHttpException
   /// with the given fields replaced by the non-null parameter values.

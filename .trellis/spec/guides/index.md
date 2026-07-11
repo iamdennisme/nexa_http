@@ -10,6 +10,7 @@
 |------|------|----------|
 | [文档语言规范](./documentation-language-policy.md) | 规定 `.trellis/spec/` 规则文档和 AI 协作沟通默认使用中文 | 新增或修改任何 spec 规则文档，或需要确认会话语言时 |
 | [TDD 开发准则](./tdd-development-policy.md) | 规定所有有行为变化的开发默认按测试驱动推进 | 开始任何代码实现、bug 修复、重构或跨层行为变更时 |
+| [验证命令与 CI 所有权契约](./verification-command-contract.md) | 固定验证目录、完整 suite、动态 target matrix 和 GitHub Actions 职责边界 | 修改 workspace 工具、CI、release workflow 或 clean-host gate 时 |
 | [项目分层契约](./project-layering-contract.md) | 固定 monorepo 两层主架构、外部 App 集成方式和 native 下载/物化边界 | 修改 SDK/package/native/build/release 架构、context、README 或 verification 文档时 |
 | [代码复用思考指南](./code-reuse-thinking-guide.md) | 识别重复模式，避免同一逻辑散落多处 | 新增工具函数、常量、解析逻辑或看到相似代码时 |
 | [跨层思考指南](./cross-layer-thinking-guide.md) | 梳理跨 API、数据、构建、平台边界的数据流和职责 | 变更触达多个层或多个消费者时 |
@@ -50,12 +51,21 @@
 
 ### 思考项目分层时
 
-- [ ] 修改 `CONTEXT.md`、ADR、README、verification playbook 或架构说明
+- [ ] 修改 `CONTEXT-MAP.md`、任一 context glossary、ADR、README、verification playbook 或架构说明
 - [ ] 修改 `packages/nexa_http`、`packages/nexa_http_native_internal`、platform carrier package、platform FFI crate 或 `native/nexa_http_native_core` 的职责边界
 - [ ] 修改 build hook、release asset、materialization、CodeAsset、plugin registration 或 clean-host verification
 - [ ] 文档开始把 `release asset`、`native artifact`、`carrier`、`internal native helper` 当作独立主层
 
 → 阅读 [项目分层契约](./project-layering-contract.md)
+
+### 修改验证与 CI 时
+
+- [ ] 修改 `scripts/workspace_tools.dart`、`scripts/verification/` 或 native build scripts
+- [ ] 修改 `.github/workflows/ci.yml` 或 release workflow
+- [ ] 新增、删除或重排 Dart/Rust/ABI/consumer/runtime 检查
+- [ ] 修改支持平台、target matrix、candidate artifact 或 release gate
+
+→ 阅读 [验证命令与 CI 所有权契约](./verification-command-contract.md)
 
 ### 思考代码复用时
 

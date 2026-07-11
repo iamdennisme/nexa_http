@@ -74,6 +74,24 @@ final request = RequestBuilder()
 
 final response = await client.newCall(request).execute();
 final body = await response.body?.string();
+await client.close();
+```
+
+`Call` is one-shot. To repeat a `Request`, create another call with
+`client.newCall(request)`. `ResponseBody` is also one-shot: consume it once with
+`bytes()` or `string()`, or call `close()` without reading it.
+
+Byte-backed request bodies transfer ownership explicitly:
+
+```dart
+import 'dart:typed_data';
+
+final payload = Uint8List.fromList(<int>[1, 2, 3]);
+final body = RequestBody.takeBytes(
+  payload,
+  contentType: MediaType.parse('application/octet-stream'),
+);
+// Do not mutate payload after ownership has transferred to RequestBody.
 ```
 
 ## Public API
@@ -90,8 +108,12 @@ The package exposes the core request and response types you use directly:
 - `Headers`
 - `MediaType`
 - `Call`
-- `Callback`
 - `NexaHttpException`
+- `NexaHttpFailureKind`
+
+Application control flow should switch on `NexaHttpException.kind`. Native
+codes and FFI stages, when present, are diagnostics rather than stable public
+failure categories.
 
 ## What stays internal
 

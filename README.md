@@ -83,7 +83,11 @@ final request = RequestBuilder()
 
 final response = await client.newCall(request).execute();
 final body = await response.body?.string();
+await client.close();
 ```
+
+Calls and response bodies are one-shot. Reuse a `Request` by creating a new
+call, and consume each response body once with `bytes()` or `string()`.
 
 ## Demo
 

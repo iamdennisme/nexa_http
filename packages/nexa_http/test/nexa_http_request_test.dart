@@ -1,16 +1,18 @@
 import 'dart:typed_data';
 
 import 'package:nexa_http/nexa_http.dart';
+import 'package:nexa_http/src/api/request_body.dart'
+    show RequestBodyTransportAccess;
 import 'package:test/test.dart';
 
 void main() {
-  test('builds a POST request with headers, body, and timeout', () async {
+  test('builds a POST request with headers, body, and timeout', () {
     final request = RequestBuilder()
         .url(Uri.parse('https://example.com/items'))
         .header('content-type', 'application/json')
         .timeout(const Duration(seconds: 5))
         .post(
-          RequestBody.bytes(
+          RequestBody.takeBytes(
             Uint8List.fromList(const <int>[1, 2, 3]),
             contentType: MediaType.parse('application/json'),
           ),
@@ -21,14 +23,18 @@ void main() {
     expect(request.url, Uri.parse('https://example.com/items'));
     expect(request.headers['content-type'], 'application/json');
     expect(request.timeout, const Duration(seconds: 5));
-    expect(await request.body!.bytes(), const <int>[1, 2, 3]);
+    expect(RequestBodyTransportAccess.bytes(request.body!), const <int>[
+      1,
+      2,
+      3,
+    ]);
   });
 
   test('newBuilder clones a request for targeted mutation', () {
     final original = RequestBuilder()
         .url(Uri.parse('https://example.com/items/42'))
         .header('x-sdk', 'nexa_http')
-        .put(RequestBody.bytes(Uint8List.fromList(const <int>[4, 5, 6])))
+        .put(RequestBody.takeBytes(Uint8List.fromList(const <int>[4, 5, 6])))
         .timeout(const Duration(seconds: 3))
         .build();
 

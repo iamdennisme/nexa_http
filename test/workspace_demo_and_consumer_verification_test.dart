@@ -61,7 +61,7 @@ void main() {
       expect(
         workflow,
         contains(
-          'git diff --ignore-all-space --exit-code -- lib/nexa_http_bindings_generated.dart',
+          'git diff --ignore-all-space --exit-code -- lib/src/native_bridge/nexa_http_bindings_generated.dart',
         ),
       );
       expect(workflow, contains('verify-development-path'));

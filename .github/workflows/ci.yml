@@ -32,7 +32,7 @@ jobs:
         run: |
           flutter pub get
           dart run ffigen --config ffigen.yaml
-          git diff --ignore-all-space --exit-code -- lib/nexa_http_bindings_generated.dart
+          git diff --ignore-all-space --exit-code -- lib/src/native_bridge/nexa_http_bindings_generated.dart
       - name: Native ABI contract tests
         run: |
           dart pub get

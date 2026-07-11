@@ -46,6 +46,7 @@ enum InflightRequestState {
     Pending,
     CanceledPending,
     Active(tokio::task::AbortHandle),
+    CallbackCommitted,
 }
 
 struct InflightRequestGuard<P: PlatformRuntimeState> {
@@ -158,8 +159,11 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
         let cleanup_inner = Arc::clone(&self.inner);
         let task = self.inner.tokio.spawn(async move {
             let _guard = InflightRequestGuard::new(cleanup_inner, request_key);
-            let result = execute_request_with_limit(inner, client_id, request)
-                .await
+            let result = execute_request_with_limit(Arc::clone(&inner), client_id, request).await;
+            if !commit_callback(&inner, request_key) {
+                return;
+            }
+            let result = result
                 .map(build_binary_success_result)
                 .unwrap_or_else(|error| build_binary_error_result(error.into_http_error()));
 
@@ -179,6 +183,7 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
                 task.abort();
             }
             Some(InflightRequestState::Active(_)) => {}
+            Some(InflightRequestState::CallbackCommitted) => {}
             None => {
                 drop(inflight_requests);
                 task.abort();
@@ -206,6 +211,7 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
                     Some(InflightRequestState::Active(abort_handle)) => Some(abort_handle),
                     _ => None,
                 },
+                Some(InflightRequestState::CallbackCommitted) => return 0,
                 None => return 0,
             }
         };
@@ -238,6 +244,22 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
         unsafe {
             binary_result_free_impl(value);
         }
+    }
+}
+
+fn commit_callback<P: PlatformRuntimeState>(
+    inner: &NexaHttpRuntimeInner<P>,
+    key: InflightRequestKey,
+) -> bool {
+    let mut inflight_requests = inner.inflight_requests.lock().unwrap();
+    match inflight_requests.get_mut(&key) {
+        Some(state @ (InflightRequestState::Pending | InflightRequestState::Active(_))) => {
+            *state = InflightRequestState::CallbackCommitted;
+            true
+        }
+        Some(InflightRequestState::CanceledPending)
+        | Some(InflightRequestState::CallbackCommitted)
+        | None => false,
     }
 }
 
@@ -724,9 +746,9 @@ mod tests {
     use std::os::raw::c_char;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-    use std::sync::mpsc::{self, Sender};
+    use std::sync::mpsc::{self, Receiver, Sender};
     use std::sync::{LazyLock, Mutex};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     #[derive(Clone)]
     struct CountingCapabilities {
@@ -891,10 +913,29 @@ mod tests {
     static NEXT_TEST_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
     static TEST_RESULT_SENDERS: LazyLock<Mutex<HashMap<u64, Sender<usize>>>> =
         LazyLock::new(|| Mutex::new(HashMap::new()));
+    static BLOCKING_CALLBACKS: LazyLock<Mutex<HashMap<u64, BlockingCallback>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+
+    struct BlockingCallback {
+        result_sender: Sender<usize>,
+        release_receiver: Receiver<()>,
+    }
 
     unsafe extern "C" fn capture_test_result(request_id: u64, result: *mut NexaHttpBinaryResult) {
         if let Some(sender) = TEST_RESULT_SENDERS.lock().unwrap().remove(&request_id) {
             let _ = sender.send(result as usize);
+        }
+    }
+
+    unsafe extern "C" fn capture_and_block_test_result(
+        request_id: u64,
+        result: *mut NexaHttpBinaryResult,
+    ) {
+        if let Some(callback) = BLOCKING_CALLBACKS.lock().unwrap().remove(&request_id) {
+            let _ = callback.result_sender.send(result as usize);
+            let _ = callback
+                .release_receiver
+                .recv_timeout(Duration::from_secs(1));
         }
     }
 
@@ -1184,9 +1225,84 @@ mod tests {
                 .get(&request_key)
                 .is_none()
         );
+        assert!(
+            !commit_callback(&runtime.inner, request_key),
+            "accepted cancellation must suppress Callback Commit",
+        );
         runtime.inner.tokio.block_on(async {
             assert!(handle.await.is_err());
         });
+    }
+
+    #[test]
+    fn cancel_request_returns_zero_for_unknown_requests() {
+        let runtime = NexaHttpRuntime::new(CountingCapabilities {
+            proxy_settings_calls: Arc::new(AtomicUsize::new(0)),
+        });
+
+        assert_eq!(runtime.cancel_request(404, 999), 0);
+    }
+
+    #[test]
+    fn cancel_request_returns_zero_after_callback_commit_and_callback_is_delivered() {
+        let runtime = NexaHttpRuntime::new(CountingCapabilities {
+            proxy_settings_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        let config = TestClientConfigArgs::new();
+        let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
+        let client_id = runtime.create_client(config.as_args());
+        assert_ne!(client_id, 0);
+
+        let request_id = NEXT_TEST_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+        let (result_sender, result_receiver) = mpsc::channel();
+        let (release_sender, release_receiver) = mpsc::channel();
+        BLOCKING_CALLBACKS.lock().unwrap().insert(
+            request_id,
+            BlockingCallback {
+                result_sender,
+                release_receiver,
+            },
+        );
+
+        assert_eq!(
+            runtime.execute_async(
+                client_id,
+                request_id,
+                request.as_args(),
+                Some(capture_and_block_test_result),
+            ),
+            1,
+        );
+        let result = result_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the committed callback must be delivered");
+
+        let cancel_result = runtime.cancel_request(client_id, request_id);
+        release_sender
+            .send(())
+            .expect("the blocked callback should still be waiting");
+        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(
+            result as *mut NexaHttpBinaryResult,
+        );
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while runtime
+            .inner
+            .inflight_requests
+            .lock()
+            .unwrap()
+            .contains_key(&InflightRequestKey {
+                client_id,
+                request_id,
+            })
+        {
+            assert!(
+                Instant::now() < deadline,
+                "the delivered callback should drain inflight tracking",
+            );
+            std::thread::yield_now();
+        }
+
+        assert_eq!(cancel_result, 0);
     }
 }
 

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
-import 'package:nexa_http/nexa_http_bindings_generated.dart';
+import '../../native_bridge/nexa_http_bindings_generated.dart';
 
 import '../dto/native_http_client_config_dto.dart';
 
@@ -20,10 +20,14 @@ final class FfiEncodedNativeClientConfig {
   final Arena _arena;
   final Pointer<NexaHttpClientConfigArgs> pointer;
 
-  factory FfiEncodedNativeClientConfig._fromDto(NativeHttpClientConfigDto config) {
+  factory FfiEncodedNativeClientConfig._fromDto(
+    NativeHttpClientConfigDto config,
+  ) {
     final arena = Arena();
     final pointer = arena<NexaHttpClientConfigArgs>();
-    final defaultHeaders = config.defaultHeaders.entries.toList(growable: false);
+    final defaultHeaders = config.defaultHeaders.entries.toList(
+      growable: false,
+    );
     final defaultHeadersPointer = defaultHeaders.isEmpty
         ? nullptr
         : arena<NexaHttpHeaderEntry>(defaultHeaders.length);

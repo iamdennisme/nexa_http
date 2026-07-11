@@ -1,20 +1,19 @@
 import '../api/call.dart';
-import '../api/callback.dart';
 import '../api/request.dart';
 import '../api/response.dart';
+import '../internal/errors/nexa_http_failures.dart';
 
-typedef ExecuteRequest = Future<Response> Function(
-  Request request, {
-  void Function(void Function() cancelRequest)? onCancelReady,
-  bool Function()? isCanceled,
-});
+typedef ExecuteRequest =
+    Future<Response> Function(
+      Request request, {
+      void Function(void Function() cancelRequest)? onCancelReady,
+      bool Function()? isCanceled,
+    });
 
 final class RealCall implements Call {
-  RealCall({
-    required Request request,
-    required ExecuteRequest executeRequest,
-  }) : _request = request,
-       _executeRequest = executeRequest;
+  RealCall({required Request request, required ExecuteRequest executeRequest})
+    : _request = request,
+      _executeRequest = executeRequest;
 
   final Request _request;
   final ExecuteRequest _executeRequest;
@@ -38,11 +37,15 @@ final class RealCall implements Call {
     if (_isExecuted) {
       throw StateError('This call has already been executed.');
     }
-    if (_isCanceled) {
-      throw StateError('This call was canceled before execution.');
-    }
 
     _isExecuted = true;
+    if (_isCanceled) {
+      throw NexaHttpFailures.canceled(
+        stage: 'call_pre_execute',
+        uri: _request.url,
+      );
+    }
+
     try {
       return await _executeRequest(
         _request,
@@ -55,24 +58,9 @@ final class RealCall implements Call {
   }
 
   @override
-  void enqueue(Callback callback) {
-    execute().then(
-      (response) => callback.onResponse(this, response),
-      onError: (Object error, StackTrace stackTrace) {
-        callback.onFailure(this, error, stackTrace);
-      },
-    );
-  }
-
-  @override
   void cancel() {
     _isCanceled = true;
     _forwardCancellation();
-  }
-
-  @override
-  Call clone() {
-    return RealCall(request: _request, executeRequest: _executeRequest);
   }
 
   void _installCancelRequest(void Function() cancelRequest) {
@@ -82,7 +70,10 @@ final class RealCall implements Call {
 
   void _forwardCancellation() {
     final cancelRequest = _cancelRequest;
-    if (!_isExecuted || !_isCanceled || _hasForwardedCancellation || cancelRequest == null) {
+    if (!_isExecuted ||
+        !_isCanceled ||
+        _hasForwardedCancellation ||
+        cancelRequest == null) {
       return;
     }
 

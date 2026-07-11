@@ -1,10 +1,15 @@
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:nexa_http/nexa_http_bindings_generated.dart';
+import '../../native_bridge/nexa_http_bindings_generated.dart';
+import '../../internal/errors/nexa_http_failures.dart';
 
 import '../dto/native_http_request_dto.dart';
+
+typedef NativeRequestBodyCopier =
+    void Function(Uint8List source, Pointer<Uint8> destination);
 
 final class FfiNexaHttpRequestEncoder {
   const FfiNexaHttpRequestEncoder._();
@@ -12,12 +17,14 @@ final class FfiNexaHttpRequestEncoder {
   static FfiEncodedNativeRequest encode(
     NativeHttpRequestDto request, {
     required Pointer<Uint8> Function(int bodyLength) allocateBody,
+    NativeRequestBodyCopier copyBody = _copyBody,
     required void Function(Pointer<Uint8> bodyPointer, int bodyLength)
     releaseBody,
   }) {
     return FfiEncodedNativeRequest._fromDto(
       request,
       allocateBody: allocateBody,
+      copyBody: copyBody,
       releaseBody: releaseBody,
     );
   }
@@ -43,6 +50,7 @@ final class FfiEncodedNativeRequest {
   factory FfiEncodedNativeRequest._fromDto(
     NativeHttpRequestDto request, {
     required Pointer<Uint8> Function(int bodyLength) allocateBody,
+    required NativeRequestBodyCopier copyBody,
     required void Function(Pointer<Uint8> bodyPointer, int bodyLength)
     releaseBody,
   }) {
@@ -72,8 +80,23 @@ final class FfiEncodedNativeRequest {
     final bodyPointer = bodyBytes == null || bodyBytes.isEmpty
         ? nullptr
         : allocateBody(bodyBytes.length);
+    if (bodyBytes != null && bodyBytes.isNotEmpty && bodyPointer == nullptr) {
+      arena.releaseAll();
+      throw NexaHttpFailures.internal(
+        message:
+            'The nexa_http native library failed to allocate request body memory.',
+        stage: 'request_body_allocation',
+        diagnostics: <String, Object?>{'body_length': bodyBytes.length},
+      );
+    }
     if (bodyPointer != nullptr) {
-      bodyPointer.asTypedList(bodyBytes!.length).setAll(0, bodyBytes);
+      try {
+        copyBody(bodyBytes!, bodyPointer);
+      } catch (error, stackTrace) {
+        releaseBody(bodyPointer, bodyBytes!.length);
+        arena.releaseAll();
+        Error.throwWithStackTrace(error, stackTrace);
+      }
     }
     final bodyLength = bodyBytes?.length ?? 0;
     final bodyOwned = bodyPointer != nullptr && bodyLength > 0;
@@ -112,6 +135,10 @@ final class FfiEncodedNativeRequest {
     }
     _arena.releaseAll();
   }
+}
+
+void _copyBody(Uint8List source, Pointer<Uint8> destination) {
+  destination.asTypedList(source.length).setAll(0, source);
 }
 
 final class _NativeUtf8Slice {

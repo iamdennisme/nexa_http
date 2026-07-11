@@ -53,7 +53,7 @@ REFACTOR: 在所有测试通过后整理结构，再跑测试
 
 实现前：
 
-- [ ] 读 `CONTEXT.md` 和相关 ADR，测试命名使用项目领域词汇。
+- [ ] 多 context 项目先读 `CONTEXT-MAP.md` 和相关 context glossary；单 context 项目读根 `CONTEXT.md`。同时读取相关 ADR，测试命名使用项目领域词汇。
 - [ ] 读当前任务的 `prd.md`、`design.md`、`implement.md`。
 - [ ] 找到最小 public 或稳定 module interface。
 - [ ] 列出第一个要证明的行为，不列实现步骤。

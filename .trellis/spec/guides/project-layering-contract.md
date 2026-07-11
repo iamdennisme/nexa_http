@@ -126,6 +126,28 @@ Native build scripts 是维护者/CI 工具：
 2. FFI ABI contract：Flutter SDK 层只通过统一 `nexa_http_*` C ABI 调用原生 native 层。
 3. Artifact packaging contract：原生 native 层提供动态库，Flutter SDK 层通过 carrier hook 把动态库物化并交给 Flutter build 打包。
 
+## 架构迁移原子完成规则
+
+架构职责从旧机制迁移到新机制时，默认采用 clean cutover：在同一个任务范围内切换所有生产者、消费者、验证命令和文档，并删除旧机制。
+
+禁止把以下做法作为“安全迁移”自行加入：
+
+- 新旧实现并行运行。
+- fallback、compatibility branch、shadow path 或备用 loader。
+- deprecated alias、转发 facade 或长期保留的旧入口。
+- 新 verification 检查新路径，但 runtime 继续使用旧路径。
+- 用“后续任务再删除”接受当前任务中的架构中间态。
+
+只有 owner 在实现前明确批准时才允许例外；例外必须进入当前任务 PRD/design 和独立 ADR。实现者不得因为降低迁移风险而自行推断需要兼容层。
+
+完成标准：
+
+- 只有一个权威实现和一个事实来源。
+- 所有消费者使用新路径。
+- 旧代码、旧配置、旧测试、旧文档和旧验证入口已经删除或改写。
+- 搜索旧 symbol、路径、环境变量和配置键无残留。
+- clean-host 和 release-candidate 验证执行的是新路径，而不是仅证明新代码可以编译。
+
 ## 外部 App 集成契约
 
 外部 App 不是只依赖一个包。标准依赖是：
@@ -177,6 +199,8 @@ import 'package:nexa_http/nexa_http.dart';
 
 Materialized native library 不是独立对外产物。它是 build 时由 carrier hook 从 workspace build output 或 release asset 物化到 carrier/App 内部路径的动态库。
 
+Release Candidate 是 Release Transaction 内部的私有候选状态，不是第三类对外产物。它必须由 version + commit SHA 标识，经过四平台 gate 后原样 promotion；tag 和 GitHub Release 是验证成功后的输出，不是构建/验证输入。
+
 ## Native 下载与集成位置
 
 下载触发点在 platform carrier 的 `hook/build.dart`。
@@ -199,3 +223,5 @@ carrier plugin 注册 runtime loader，让 App 运行时能打开已打包的动
 - [ ] `native_core` 是否只承担 Rust runtime 和 FFI contract。
 - [ ] artifact download/materialization 是否仍在 Flutter SDK 层的 internal helper + carrier hook。
 - [ ] 文档是否避免把 materialized native library 写成独立最终产物。
+- [ ] 架构迁移是否已经删除旧路径，而不是保留 fallback 或双轨中间态。
+- [ ] Runtime、verification 和 release 是否消费同一个权威实现。

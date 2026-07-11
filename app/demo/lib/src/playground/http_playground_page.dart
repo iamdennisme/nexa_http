@@ -131,11 +131,10 @@ class _HttpPlaygroundPageState extends State<HttpPlaygroundPage> {
         _errorPreview = [
           'Request failed',
           'elapsed: ${stopwatch.elapsed.inMilliseconds} ms',
-          'code: ${error.code}',
+          'kind: ${error.kind.name}',
           'message: ${error.message}',
-          'status: ${error.statusCode ?? '-'}',
           'uri: ${error.uri ?? '-'}',
-          'is_timeout: ${error.isTimeout}',
+          if (error.diagnostics != null) 'diagnostics: ${error.diagnostics}',
         ].join('\n');
       });
     } catch (error) {

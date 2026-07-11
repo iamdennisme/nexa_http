@@ -82,7 +82,11 @@ final request = RequestBuilder()
 
 final response = await client.newCall(request).execute();
 final body = await response.body?.string();
+await client.close();
 ```
+
+`Call` 和 `ResponseBody` 都是一次性的。重复同一个 `Request` 时重新调用
+`client.newCall(request)`；每个响应体只调用一次 `bytes()` 或 `string()`。
 
 ## Demo
 

@@ -27,7 +27,9 @@ class NexaHttpBindings {
 
   late final _nexa_http_client_createPtr =
       _lookup<
-        ffi.NativeFunction<ffi.Uint64 Function(ffi.Pointer<NexaHttpClientConfigArgs>)>
+        ffi.NativeFunction<
+          ffi.Uint64 Function(ffi.Pointer<NexaHttpClientConfigArgs>)
+        >
       >('nexa_http_client_create');
   late final _nexa_http_client_create = _nexa_http_client_createPtr
       .asFunction<int Function(ffi.Pointer<NexaHttpClientConfigArgs>)>();
@@ -66,13 +68,18 @@ class NexaHttpBindings {
   late final _nexa_http_request_body_alloc = _nexa_http_request_body_allocPtr
       .asFunction<ffi.Pointer<ffi.Uint8> Function(int)>();
 
-  void nexa_http_request_body_free(ffi.Pointer<ffi.Uint8> body_ptr, int body_len) {
+  void nexa_http_request_body_free(
+    ffi.Pointer<ffi.Uint8> body_ptr,
+    int body_len,
+  ) {
     return _nexa_http_request_body_free(body_ptr, body_len);
   }
 
   late final _nexa_http_request_body_freePtr =
       _lookup<
-        ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Uint8>, ffi.UintPtr)>
+        ffi.NativeFunction<
+          ffi.Void Function(ffi.Pointer<ffi.Uint8>, ffi.UintPtr)
+        >
       >('nexa_http_request_body_free');
   late final _nexa_http_request_body_free = _nexa_http_request_body_freePtr
       .asFunction<void Function(ffi.Pointer<ffi.Uint8>, int)>();
@@ -113,6 +120,12 @@ class NexaHttpBindings {
             )
           >();
 
+  /// Returns 1 only when cancellation wins before Callback Commit; native then
+  /// guarantees that callback will not be invoked for this request. Returns 0
+  /// when cancellation is not accepted. For a successfully dispatched request
+  /// that is still callback-outstanding, 0 means Callback Commit already won and
+  /// the callback remains guaranteed. Unknown or already-removed request IDs also
+  /// return 0 but do not create a callback guarantee.
   int nexa_http_client_cancel_request(int client_id, int request_id) {
     return _nexa_http_client_cancel_request(client_id, request_id);
   }

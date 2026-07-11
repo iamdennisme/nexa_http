@@ -104,3 +104,74 @@ nexa_http_native_core::export_nexa_http_ffi! {
     state = ManagedProxyState<PlatformProxySource>,
 }
 ```
+
+## Scenario: Cancellation acknowledgment 与 Callback Commit 线性化
+
+### 1. Scope / Trigger
+
+- Trigger: 修改 `NexaHttpRuntime::execute_async`、`cancel_request`、inflight request state、Dart pending registry、`NativeCallable` disposal 或 `nexa_http_client_cancel_request` 的返回值处理。
+
+### 2. Signatures
+
+- C ABI 签名保持：
+
+```c
+uint8_t nexa_http_client_cancel_request(uint64_t client_id, uint64_t request_id);
+```
+
+- 返回 `1`：cancel 在线性化点先于 Callback Commit，native 保证该 request 不再 callback。
+- 返回 `0`：cancel 未被接受。仅当 `execute_async` 已返回 `1` 且 Dart registry 仍标记 callback-outstanding 时，`0` 才保证 Callback Commit 已发生并且 callback 必须到达；unknown/already-removed request ID 不承诺 callback。
+
+### 3. Contracts
+
+- cancel 与 completion 必须通过同一个 inflight state lock 决定 winner。
+- Completion 必须先把 `Active` 变为 `CallbackCommitted`，再构造 FFI-owned binary result 和调用 callback。
+- Cancel 看到 `Pending/Active` 时可以返回 `1`、抑制 callback并中止工作。
+- Cancel 看到 `CallbackCommitted` 或已离开可取消状态时必须返回 `0`；callback delivery保证只适用于成功dispatch且仍outstanding的合法request。
+- `CanceledPending` 在 abort handle 安装时被清理，不得 callback。
+- Accepted cancel 后 Dart可以移除 callback-outstanding entry；cancel返回 `0` 时 Dart必须保留entry，直到callback完成ownership handoff/free。
+- `NativeCallable` 只有在所有仍可能 callback 的entry清空后才能关闭。
+
+### 4. Validation & Error Matrix
+
+- cancel返回 `1` 后 callback仍被调用 -> ABI contract failure，可能触发closed callback handle。
+- Callback Commit先发生但cancel返回 `1` -> terminal winner错误，Dart可能覆盖response。
+- 成功dispatch且仍outstanding的request在cancel返回 `0` 后 callback未到达 -> pending registry永久不drain。
+- 成功dispatch且仍outstanding的request在cancel返回 `0` 后，Dart提前完成canceled或删除entry -> callback result丢失或double free。
+- dispatch返回 `0` -> 没有callback expectation，Dart立即移除entry并归一化为 `unavailable`。
+
+### 5. Good/Base/Bad Cases
+
+- Good: 合法outstanding request的completion在锁内提交 `CallbackCommitted`，cancel随后返回 `0`，Dart等待并交付response。
+- Base: cancel在request仍Active时返回 `1`，abort work，Dart完成typed canceled且不等待callback。
+- Bad: 先调用 `abort_handle.abort()` 并返回 `1`，但没有证明callback尚未开始。
+- Bad: Dart对所有cancel保留tombstone，accepted cancel永不callback导致dispose永久等待。
+
+### 6. Tests Required
+
+- Rust unit: cancel先赢返回 `1` 且callback counter保持0。
+- Rust unit: Callback Commit先赢的合法outstanding request在cancel返回 `0` 后callback恰好1次；unknown request返回 `0` 但无callback guarantee。
+- Rust unit: `CanceledPending` 在handle安装后被移除且不callback。
+- Dart registry: native cancel返回 `1` 时完成canceled并drain；返回 `0` 时保持callback outstanding。
+- Dart FFI: `cancel → dispose → non-empty callback` 在返回 `0` 分支安全完成，result/body只释放一次。
+- Call test: response-wins、cancel-wins、repeated cancel、pre-execute cancel、second execute和cancel-after-terminal。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```rust
+let handle = inflight.remove(&key);
+handle.abort();
+return 1; // callback 可能已经开始。
+```
+
+#### Correct
+
+```rust
+match inflight.get_mut(&key) {
+    Some(InflightRequestState::Active(_)) => accept_cancel_and_suppress_callback(),
+    Some(InflightRequestState::CallbackCommitted) => return 0,
+    _ => return 0,
+}
+```

@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:nexa_http/nexa_http.dart';
+import 'package:nexa_http/src/api/request_body.dart'
+    show RequestBodyTransportAccess;
 import 'package:test/test.dart';
 
 void main() {
@@ -17,8 +19,8 @@ void main() {
     expect(request.body, isNull);
   });
 
-  test('builds a POST request with a request body', () async {
-    final body = RequestBody.bytes(
+  test('builds a POST request with a request body', () {
+    final body = RequestBody.takeBytes(
       Uint8List.fromList(const <int>[1, 2, 3]),
       contentType: MediaType.parse('application/octet-stream'),
     );
@@ -32,6 +34,10 @@ void main() {
     expect(request.url, Uri.parse('https://example.com/items'));
     expect(request.body, same(body));
     expect(request.body!.contentType.toString(), 'application/octet-stream');
-    expect(await request.body!.bytes(), const <int>[1, 2, 3]);
+    expect(RequestBodyTransportAccess.bytes(request.body!), const <int>[
+      1,
+      2,
+      3,
+    ]);
   });
 }

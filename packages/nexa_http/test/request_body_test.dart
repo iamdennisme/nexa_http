@@ -2,37 +2,65 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:nexa_http/nexa_http.dart';
+import 'package:nexa_http/src/api/request_body.dart'
+    show RequestBodyTransportAccess;
 import 'package:test/test.dart';
 
 void main() {
-  test('adopts the owned binary payload across reads and streams', () async {
+  test('takeBytes transfers the original Uint8List without copying', () {
     final payload = Uint8List.fromList(const <int>[1, 2, 3]);
-    final body = RequestBody.bytes(payload);
+    final body = RequestBody.takeBytes(payload);
 
-    final firstRead = await body.bytes();
-    final secondRead = await body.bytes();
-    final streamed = await body.byteStream().single;
-
-    expect(identical(firstRead, payload), isTrue);
-    expect(identical(secondRead, payload), isTrue);
-    expect(identical(streamed, payload), isTrue);
+    expect(RequestBodyTransportAccess.bytes(body), same(payload));
   });
 
-  test('text adopts freshly encoded bytes without an extra copy', () async {
+  test('text adopts freshly encoded Uint8List without an extra copy', () {
     final encoding = _TrackingEncoding(<int>[65, 66, 67]);
 
     final body = RequestBody.text('abc', encoding: encoding);
-    final bytes = await body.bytes();
+    final bytes = RequestBodyTransportAccess.bytes(body);
 
     expect(identical(bytes, encoding.lastEncodedBytes), isTrue);
   });
 
-  test('text uses one canonical payload for reads and transport', () async {
-    final body = RequestBody.text('abc');
+  test('text normalizes a generic byte list once', () {
+    final encoding = _GenericTrackingEncoding(<int>[65, 66, 67]);
 
-    expect(body.payloadBytes, same(await body.bytes()));
-    expect(body.payloadBytes, same(await body.byteStream().single));
+    final body = RequestBody.text('abc', encoding: encoding);
+    final bytes = RequestBodyTransportAccess.bytes(body);
+
+    expect(bytes, isA<Uint8List>());
+    expect(bytes, const <int>[65, 66, 67]);
+    expect(encoding.encodeCount, 1);
   });
+}
+
+final class _GenericTrackingEncoding extends Encoding {
+  _GenericTrackingEncoding(this._encodedBytes);
+
+  final List<int> _encodedBytes;
+  int encodeCount = 0;
+
+  @override
+  String get name => 'generic-tracking';
+
+  @override
+  Converter<List<int>, String> get decoder => utf8.decoder;
+
+  @override
+  Converter<String, List<int>> get encoder => _GenericTrackingEncoder(this);
+}
+
+final class _GenericTrackingEncoder extends Converter<String, List<int>> {
+  const _GenericTrackingEncoder(this._encoding);
+
+  final _GenericTrackingEncoding _encoding;
+
+  @override
+  List<int> convert(String input) {
+    _encoding.encodeCount += 1;
+    return _encoding._encodedBytes;
+  }
 }
 
 final class _TrackingEncoding extends Encoding {

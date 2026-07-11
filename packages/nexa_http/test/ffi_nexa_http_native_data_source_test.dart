@@ -5,7 +5,7 @@ import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:nexa_http/nexa_http_bindings_generated.dart';
+import 'package:nexa_http/src/native_bridge/nexa_http_bindings_generated.dart';
 import 'package:nexa_http/src/api/api.dart';
 import 'package:nexa_http/src/data/mappers/native_http_client_config_mapper.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
@@ -88,12 +88,12 @@ void main() {
     );
 
     expect(response.statusCode, 200);
-    expect(response.bodyBytes, const <int>[9, 8, 7]);
+    expect(response.bodyOwner!.view, const <int>[9, 8, 7]);
     expect(response.finalUri, Uri.parse('https://example.com/upload'));
     expect(bindings.freedResultCount, 0);
     expect(bindings.freedRequestBodyCount, 0);
 
-    bindings.freeTrackedResult();
+    response.bodyOwner!.release();
     expect(bindings.freedResultCount, 1);
   });
 
@@ -231,11 +231,11 @@ void main() {
         'cache-control': <String>['max-age=60'],
         'content-type': <String>['image/png'],
       });
-      expect(response.bodyBytes, const <int>[5, 6, 7, 8]);
+      expect(response.bodyOwner!.view, const <int>[5, 6, 7, 8]);
       expect(response.finalUri, Uri.parse('https://cdn.example.com/final.png'));
       expect(bindings.freedResultCount, 0);
 
-      bindings.freeTrackedResult();
+      response.bodyOwner!.release();
       expect(bindings.freedResultCount, 1);
     },
   );
@@ -291,18 +291,18 @@ void main() {
         ),
       );
 
-      expect(response.bodyBytes, const <int>[1, 2, 3, 4]);
+      expect(response.bodyOwner!.view, const <int>[1, 2, 3, 4]);
       expect(bindings.freedResultCount, 0);
 
       bindings.overwriteTrackedBody(const <int>[7, 6, 5, 4]);
       expect(
-        response.bodyBytes,
+        response.bodyOwner!.view,
         const <int>[7, 6, 5, 4],
         reason:
             'body bytes should adopt the native buffer instead of copying it',
       );
 
-      bindings.freeTrackedResult();
+      response.bodyOwner!.release();
       expect(bindings.freedResultCount, 1);
     },
   );
@@ -390,21 +390,18 @@ void main() {
       ),
       throwsA(
         isA<NexaHttpException>().having(
-          (error) => error.code,
-          'code',
-          'ffi_dispatch_failed',
+          (error) => error.kind,
+          'kind',
+          NexaHttpFailureKind.unavailable,
         ),
       ),
     );
   });
 
   test(
-    'cancel completes pending requests and frees late native results',
+    'cancel acknowledgment one completes the pending request as canceled',
     () async {
-      late final _FakeNexaHttpBindings bindings;
-      late NexaHttpExecuteCallback capturedCallback;
-      late int capturedRequestId;
-      bindings = _FakeNexaHttpBindings(
+      final bindings = _FakeNexaHttpBindings(
         onExecuteAsync:
             ({
               required int clientId,
@@ -412,8 +409,6 @@ void main() {
               required _StructuredRequestWire? structuredRequest,
               required NexaHttpExecuteCallback callback,
             }) {
-              capturedRequestId = requestId;
-              capturedCallback = callback;
               return 1;
             },
       );
@@ -440,13 +435,61 @@ void main() {
         responseFuture,
         throwsA(
           isA<NexaHttpException>().having(
-            (error) => error.code,
-            'code',
-            'canceled',
+            (error) => error.kind,
+            'kind',
+            NexaHttpFailureKind.canceled,
           ),
         ),
       );
       expect(bindings.canceledRequestCount, 1);
+      dataSource.dispose();
+    },
+  );
+
+  test(
+    'cancel acknowledgment zero keeps the response callback as terminal winner',
+    () async {
+      late final _FakeNexaHttpBindings bindings;
+      late NexaHttpExecuteCallback capturedCallback;
+      late int capturedRequestId;
+      bindings = _FakeNexaHttpBindings(
+        cancelRequestResult: 0,
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              capturedRequestId = requestId;
+              capturedCallback = callback;
+              return 1;
+            },
+      );
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: bindings,
+        binaryResultFinalizer: ffi.nullptr,
+      );
+
+      CancelNativeRequest? cancelRequest;
+      Object? terminalBeforeCallback;
+      final responseFuture = dataSource.execute(
+        32,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/response-wins',
+        ),
+        onCancelReady: (value) => cancelRequest = value,
+      );
+      responseFuture.then<Object?>(
+        (response) => terminalBeforeCallback = response,
+        onError: (Object error) => terminalBeforeCallback = error,
+      );
+
+      cancelRequest!.call();
+      await Future<void>.delayed(Duration.zero);
+      final completedBeforeCallback = terminalBeforeCallback != null;
 
       final resultPointer = calloc<NexaHttpBinaryResult>();
       resultPointer.ref
@@ -459,14 +502,87 @@ void main() {
         ..body_ptr = ffi.nullptr
         ..body_len = 0
         ..error_json = ffi.nullptr;
-
       bindings.trackResult(resultPointer);
       capturedCallback
           .asFunction<void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
         capturedRequestId,
         resultPointer,
       );
-      await Future<void>.delayed(Duration.zero);
+
+      final response = await responseFuture;
+      expect(completedBeforeCallback, isFalse);
+      expect(response.statusCode, 204);
+      expect(bindings.canceledRequestCount, 1);
+      expect(bindings.freedResultCount, 1);
+    },
+  );
+
+  test(
+    'dispose waits for a callback-committed non-empty response after cancel',
+    () async {
+      late final _FakeNexaHttpBindings bindings;
+      late NexaHttpExecuteCallback capturedCallback;
+      late int capturedRequestId;
+      bindings = _FakeNexaHttpBindings(
+        cancelRequestResult: 0,
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              capturedRequestId = requestId;
+              capturedCallback = callback;
+              return 1;
+            },
+      );
+      final dataSource = FfiNexaHttpNativeDataSource(
+        library: ffi.DynamicLibrary.process(),
+        bindings: bindings,
+        binaryResultFinalizer: ffi.nullptr,
+      );
+
+      CancelNativeRequest? cancelRequest;
+      final responseFuture = dataSource.execute(
+        33,
+        const NativeHttpRequestDto(
+          method: 'GET',
+          url: 'https://example.com/dispose-after-commit',
+        ),
+        onCancelReady: (value) => cancelRequest = value,
+      );
+
+      cancelRequest!.call();
+      dataSource.dispose();
+
+      final resultPointer = calloc<NexaHttpBinaryResult>();
+      final bodyPointer = calloc<ffi.Uint8>(3);
+      bodyPointer.asTypedList(3).setAll(0, const <int>[4, 5, 6]);
+      resultPointer.ref
+        ..is_success = 1
+        ..status_code = 200
+        ..headers_ptr = ffi.nullptr
+        ..headers_len = 0
+        ..final_url_ptr = ffi.nullptr
+        ..final_url_len = 0
+        ..body_ptr = bodyPointer
+        ..body_len = 3
+        ..error_json = ffi.nullptr;
+      bindings.trackResult(resultPointer);
+      capturedCallback
+          .asFunction<void Function(int, ffi.Pointer<NexaHttpBinaryResult>)>()(
+        capturedRequestId,
+        resultPointer,
+      );
+
+      final response = await responseFuture;
+      expect(response.statusCode, 200);
+      expect(response.bodyOwner!.view, const <int>[4, 5, 6]);
+      expect(bindings.canceledRequestCount, 1);
+      expect(bindings.freedResultCount, 0);
+
+      response.bodyOwner!.release();
       expect(bindings.freedResultCount, 1);
     },
   );
@@ -539,24 +655,62 @@ void main() {
     );
 
     expect(
-      () => dataSource.createClient(
-        NativeHttpClientConfigDto(),
-      ),
+      () => dataSource.createClient(NativeHttpClientConfigDto()),
       throwsA(
         isA<NexaHttpException>()
-            .having((error) => error.code, 'code', 'native_bootstrap_failed')
             .having(
-              (error) => error.details?['stage'],
-              'details.stage',
+              (error) => error.kind,
+              'kind',
+              NexaHttpFailureKind.configuration,
+            )
+            .having(
+              (error) => error.diagnostics?['stage'],
+              'diagnostics.stage',
               'client_create',
             )
             .having(
-              (error) => error.details?['native_code'],
-              'details.native_code',
+              (error) => error.diagnostics?['native_code'],
+              'diagnostics.native_code',
               'invalid_proxy',
             ),
       ),
     );
+  });
+
+  test('createClient normalizes malformed bootstrap payloads to internal', () {
+    final errorJson = '{"code":'.toNativeUtf8();
+    final dataSource = FfiNexaHttpNativeDataSource(
+      library: ffi.DynamicLibrary.process(),
+      bindings: _FakeNexaHttpBindings(
+        onCreateClient: (_) => 0,
+        onTakeLastErrorJson: () => errorJson.cast(),
+        onExecuteAsync:
+            ({
+              required int clientId,
+              required int requestId,
+              required _StructuredRequestWire? structuredRequest,
+              required NexaHttpExecuteCallback callback,
+            }) {
+              throw UnimplementedError();
+            },
+      ),
+      binaryResultFinalizer: ffi.nullptr,
+    );
+
+    expect(
+      () => dataSource.createClient(NativeHttpClientConfigDto()),
+      throwsA(
+        isA<NexaHttpException>()
+            .having((error) => error.kind, 'kind', NexaHttpFailureKind.internal)
+            .having(
+              (error) => error.diagnostics?['stage'],
+              'diagnostics.stage',
+              'client_create',
+            ),
+      ),
+    );
+
+    calloc.free(errorJson);
   });
 }
 
@@ -564,12 +718,14 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   _FakeNexaHttpBindings({
     this.onCreateClient,
     this.onTakeLastErrorJson,
+    this.cancelRequestResult = 1,
     required this.onExecuteAsync,
   }) : super.fromLookup(_unimplementedLookup);
 
   final int Function(ffi.Pointer<NexaHttpClientConfigArgs> configArgs)?
   onCreateClient;
   final ffi.Pointer<ffi.Char> Function()? onTakeLastErrorJson;
+  final int cancelRequestResult;
   final int Function({
     required int clientId,
     required int requestId,
@@ -636,7 +792,7 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   @override
   int nexa_http_client_cancel_request(int client_id, int request_id) {
     canceledRequestCount += 1;
-    return 1;
+    return cancelRequestResult;
   }
 
   void trackResult(ffi.Pointer<NexaHttpBinaryResult> resultPointer) {
@@ -649,13 +805,6 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
     }
     final result = _trackedResultPointer.ref;
     result.body_ptr.asTypedList(result.body_len).setAll(0, bytes);
-  }
-
-  void freeTrackedResult() {
-    if (_trackedResultPointer == ffi.nullptr) {
-      throw StateError('No tracked native result is available.');
-    }
-    nexa_http_binary_result_free(_trackedResultPointer);
   }
 
   @override
