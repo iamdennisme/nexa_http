@@ -6,6 +6,7 @@
 - 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，并由 Windows runner 检查最终 PE exports。
 - Windows x64 target 变化必须同步 canonical target matrix、build hook、typed build script、release metadata 和 verification matrix。
 - 最终 runner distribution 必须只包含一个导出 canonical `nexa_http_*` ABI 的 payload；Windows `identity_sha256` 等于 packaged raw SHA。
+- `dumpbin /exports`解析只接受行尾symbol token，必须忽略`Dump of file <path>` banner中的`nexa_http_*`路径片段。
 - workspace hook 与 Catalog 调用 shell build script 时必须复用 `resolveNexaHttpNativeBashExecutable()` 定位 Git for Windows；禁止裸 `Process.run('bash')` 命中 WSL stub。
 - verification consumer 调用 Flutter 时必须由共享 process runner 把 `flutter` 解析为 `FLUTTER_ROOT/bin/flutter.bat`；禁止在各 consumer adapter复制 Windows shell wrapper。
 

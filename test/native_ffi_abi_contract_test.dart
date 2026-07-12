@@ -59,6 +59,7 @@ void main() {
 0000000000010100 T _nexa_http_client_execute_async
           8    7 00011000 nexa_http_binary_result_free
 0000000000010200 T _nexa_http_test_binary_result_free
+Dump of file C:\temp\nexa_http_external_consumer_36eed48c\payload.dll
 ''';
 
     expect(nexaHttpSymbolsFromToolOutput(toolOutput), <String>{
@@ -67,6 +68,10 @@ void main() {
       'nexa_http_binary_result_free',
       'nexa_http_test_binary_result_free',
     });
+    expect(
+      nexaHttpSymbolsFromToolOutput(toolOutput),
+      isNot(contains('nexa_http_external_consumer_36eed48c')),
+    );
   });
 
   test('public ABI comparison excludes test helpers and reports drift', () {

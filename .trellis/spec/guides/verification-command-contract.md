@@ -111,6 +111,8 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - execution不覆盖required check -> planner失败，不允许host filter静默丢项。
 - report缺失、重复、`status != passed` 或 planned/completed membership漂移 -> aggregate失败。
 - proof缺字段、路径非绝对、digest格式错误、payload count不为1、lifecycle字段非true、target/asset/identity不匹配 -> row解析或aggregate失败。
+- Windows `dumpbin /exports` 的 banner/path 可能包含以 `nexa_http_` 开头的临时目录名；symbol parser只接受工具输出行尾的symbol token，不得把`Dump of file <path>`当成unexpected export。
+- Android emulator的`sys.boot_completed=1`不保证package manager已ready；Actions row在运行suite前必须有界等待`adb shell service check package`成功，超时直接失败，不得把后续install失败包装成SDK runtime失败。
 - candidate缺artifact、存在未知artifact、manifest/SHA256SUMS/实际bytes不一致 -> candidate set失败。
 - 缺device、fixture URL、candidate identity/digest/SDK ref -> CLI usage失败。
 - 平台toolchain或device缺失 -> suite失败，不得skip-as-pass。

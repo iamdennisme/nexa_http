@@ -12,6 +12,8 @@ void main() {
     expect(workflow, matches(RegExp(r'verify-integration\s+--execution')));
     expect(workflow, contains('verify-static --aggregate-reports'));
     expect(workflow, contains('verify-integration --aggregate-reports'));
+    expect(workflow, contains('adb shell service check package'));
+    expect(workflow, contains('Android package service did not become ready'));
     expect(workflow, isNot(contains('dart test')));
     expect(workflow, isNot(contains('cargo test')));
     expect(workflow, isNot(contains('build_native_')));

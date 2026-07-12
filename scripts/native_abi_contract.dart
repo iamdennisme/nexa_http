@@ -23,9 +23,13 @@ Set<String> quotedNexaHttpSymbolNames(String source) {
 }
 
 Set<String> nexaHttpSymbolsFromToolOutput(String output) {
-  return RegExp(
-    r'\b_?(nexa_http_[a-z0-9_]+)\b',
-  ).allMatches(output).map((match) => match.group(1)!).toSet();
+  final symbolAtEndOfLine = RegExp(r'\b_?(nexa_http_[a-z0-9_]+)\s*$');
+  return output
+      .split(RegExp(r'[\r\n]+'))
+      .map(symbolAtEndOfLine.firstMatch)
+      .whereType<RegExpMatch>()
+      .map((match) => match.group(1)!)
+      .toSet();
 }
 
 NexaHttpNativeAbiDifference compareNexaHttpPublicNativeAbiSymbols(

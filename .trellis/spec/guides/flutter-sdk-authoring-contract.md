@@ -362,6 +362,7 @@ output.assets.code.add(
 - Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android/Windows 的 identity digest 等于 raw digest；Apple framework 会被 Xcode改 install name并重签名，因此 identity digest固定为按 architecture排序后的 Mach-O `LC_UUID`集合的SHA-256，aggregate比较 identity digest而不是错误要求签名前后raw bytes相等。
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
+- Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。
 - Target matrix 是 target tuple、build target、source artifact、release file name 和 packaging identity 的单一事实来源。Workflow、shell、Gradle、Podspec、CMake 不得维护一份独立 target/path 表。
 - 迁移必须在同一个任务内删除所有旧 packaging/loading 代码、测试和文档。不提供 fallback，不接受“先双轨、后续再清理”。
 - clean cutover 不允许 deprecated alias、forwarder、compatibility wrapper 或“临时”双轨；rollback 只能整体 revert 完整变更。
@@ -371,6 +372,7 @@ output.assets.code.add(
 - Target tuple 无匹配项 -> `native target resolution` 失败，不允许 fallback 到 host architecture 或默认文件。
 - Preparation 返回文件不存在 -> `native packaging` 失败，错误包含 target tuple 和期望动作。
 - App 中出现两个导出 canonical `nexa_http_*` ABI 的 payload -> 验证失败，阻断合并和发布。
+- Android emulator已报告boot complete但package service未ready -> CI继续有界等待；超时阻断row，不启动clean-host runtime。
 - ABI verifier 检查的文件与 runtime smoke 加载的 artifact identity 不一致 -> 验证失败。
 - Workspace build 产物 architecture 与请求 target 不一致 -> 验证失败，不得使用 host build 代替。
 - 搜索到已删除的 Pod resource bundle、legacy `jniLibs`/CMake copy 或固定 loader path -> 架构迁移未完成。
