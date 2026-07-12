@@ -15,16 +15,11 @@ macOS carrier package for nexa_http native artifacts.
 
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
-  s.preserve_paths = 'Libraries/**/*'
-  s.resource_bundles = {
-    'nexa_http_native' => ['Libraries/libnexa_http_native.dylib']
-  }
-
   # If your plugin requires a privacy manifest, for example if it collects user
   # data, update the PrivacyInfo.xcprivacy file to describe your plugin's
   # privacy impact, and then uncomment this line. For more information,
   # see https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
-  # s.resource_bundles = {'nexa_http_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
+  # Add a privacy resource only if the plugin begins using a required-reason API.
 
   s.dependency 'FlutterMacOS'
 

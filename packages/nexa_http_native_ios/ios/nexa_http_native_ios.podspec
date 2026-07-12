@@ -11,7 +11,6 @@ iOS carrier package for nexa_http native artifacts.
 
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
-  s.preserve_paths = 'Frameworks/**/*'
   s.dependency 'Flutter'
   s.platform = :ios, '12.0'
   s.pod_target_xcconfig = {

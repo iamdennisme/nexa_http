@@ -1,20 +1,17 @@
-import 'dart:ffi';
-
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+
+import 'native/nexa_http_native_android_bindings.dart';
 
 final class NexaHttpNativeAndroidPlugin {
   NexaHttpNativeAndroidPlugin._();
 
   static void registerWith() {
-    registerNexaHttpNativeRuntime(const _NexaHttpNativeAndroidRuntime());
-  }
-}
-
-final class _NexaHttpNativeAndroidRuntime implements NexaHttpNativeRuntime {
-  const _NexaHttpNativeAndroidRuntime();
-
-  @override
-  DynamicLibrary open() {
-    return DynamicLibrary.open('libnexa_http_native.so');
+    registerNexaHttpNativeBindings(
+      const NexaHttpNativeBindingsFactory(
+        assetId:
+            'package:nexa_http_native_android/src/native/nexa_http_native_ffi.dart',
+        create: NexaHttpNativeAndroidBindings.new,
+      ),
+    );
   }
 }

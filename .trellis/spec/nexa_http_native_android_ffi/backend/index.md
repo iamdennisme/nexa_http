@@ -18,7 +18,7 @@
 
 - [ ] 修改 `src/lib.rs` C ABI export 时同步 core FFI 和 Dart bindings。
 - [ ] 修改 `src/proxy_source.rs` 时补充或更新 `tests/proxy_settings.rs`。
-- [ ] 修改构建产物名称、crate type 或 Android target triple 时同步 Dart build hook、Gradle 和 workspace verification。
+- [ ] 修改构建产物名称、crate type 或 Android target triple 时同步 canonical target matrix、Dart build hook、typed build script 和 workspace verification；Gradle 不拥有 native artifact build/copy authority。
 
 ## Quality Check
 

@@ -3,7 +3,7 @@ import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import '../../native_bridge/nexa_http_bindings_generated.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import '../../internal/errors/nexa_http_failures.dart';
 
 import '../dto/native_http_request_dto.dart';

@@ -6,15 +6,20 @@ import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
 import '../lib/src/nexa_http_native_ios_asset_bundle.dart';
 
-Future<void> main(List<String> args) async {
+Future<void> main(
+  List<String> args, {
+  NexaHttpNativeArtifactPreparer prepareArtifact =
+      prepareNexaHttpNativeCarrierArtifact,
+}) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets || input.config.code.targetOS != OS.iOS) {
       return;
     }
 
     final packageRoot = Directory.fromUri(input.packageRoot).path;
-    await prepareNexaHttpNativeCarrierArtifact(
+    final preparedFile = await prepareArtifact(
       packageRoot: packageRoot,
+      outputDirectory: Directory.fromUri(input.outputDirectory).path,
       targetOS: 'ios',
       targetArchitecture: _targetArchitecture(
         input.config.code.targetArchitecture,
@@ -22,7 +27,12 @@ Future<void> main(List<String> args) async {
       targetSdk: _targetSdk(input.config.code.iOS.targetSdk),
     );
 
-    output.assets.code.add(await NexaHttpNativeIosAssetBundle.resolve(input));
+    output.assets.code.add(
+      await NexaHttpNativeIosAssetBundle.resolveFromFile(
+        packageName: input.packageName,
+        file: preparedFile,
+      ),
+    );
   });
 }
 

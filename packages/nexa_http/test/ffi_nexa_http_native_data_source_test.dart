@@ -5,7 +5,7 @@ import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:nexa_http/src/native_bridge/nexa_http_bindings_generated.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:nexa_http/src/api/api.dart';
 import 'package:nexa_http/src/data/mappers/native_http_client_config_mapper.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
@@ -72,11 +72,7 @@ void main() {
           },
     );
 
-    final dataSource = FfiNexaHttpNativeDataSource(
-      library: ffi.DynamicLibrary.process(),
-      bindings: bindings,
-      binaryResultFinalizer: ffi.nullptr,
-    );
+    final dataSource = FfiNexaHttpNativeDataSource(bindings: bindings);
 
     final response = await dataSource.execute(
       7,
@@ -142,11 +138,7 @@ void main() {
             },
       );
 
-      final dataSource = FfiNexaHttpNativeDataSource(
-        library: ffi.DynamicLibrary.process(),
-        bindings: bindings,
-        binaryResultFinalizer: ffi.nullptr,
-      );
+      final dataSource = FfiNexaHttpNativeDataSource(bindings: bindings);
 
       final response = await dataSource.execute(
         8,
@@ -212,11 +204,7 @@ void main() {
             },
       );
 
-      final dataSource = FfiNexaHttpNativeDataSource(
-        library: ffi.DynamicLibrary.process(),
-        bindings: bindings,
-        binaryResultFinalizer: ffi.nullptr,
-      );
+      final dataSource = FfiNexaHttpNativeDataSource(bindings: bindings);
 
       final response = await dataSource.execute(
         9,
@@ -277,11 +265,7 @@ void main() {
               return 1;
             },
       );
-      final dataSource = FfiNexaHttpNativeDataSource(
-        library: ffi.DynamicLibrary.process(),
-        bindings: bindings,
-        binaryResultFinalizer: ffi.nullptr,
-      );
+      final dataSource = FfiNexaHttpNativeDataSource(bindings: bindings);
 
       final response = await dataSource.execute(
         11,
@@ -338,11 +322,7 @@ void main() {
             return 1;
           },
     );
-    final dataSource = FfiNexaHttpNativeDataSource(
-      library: ffi.DynamicLibrary.process(),
-      bindings: bindings,
-      binaryResultFinalizer: ffi.nullptr,
-    );
+    final dataSource = FfiNexaHttpNativeDataSource(bindings: bindings);
 
     final response = await dataSource.execute(
       21,
@@ -360,7 +340,6 @@ void main() {
 
   test('dispatch failures still surface as ffi_dispatch_failed', () async {
     final dataSource = FfiNexaHttpNativeDataSource(
-      library: ffi.DynamicLibrary.process(),
       bindings: _FakeNexaHttpBindings(
         onExecuteAsync:
             ({
@@ -377,7 +356,6 @@ void main() {
               return 0;
             },
       ),
-      binaryResultFinalizer: ffi.nullptr,
     );
 
     await expectLater(
@@ -412,11 +390,7 @@ void main() {
               return 1;
             },
       );
-      final dataSource = FfiNexaHttpNativeDataSource(
-        library: ffi.DynamicLibrary.process(),
-        bindings: bindings,
-        binaryResultFinalizer: ffi.nullptr,
-      );
+      final dataSource = FfiNexaHttpNativeDataSource(bindings: bindings);
 
       CancelNativeRequest? cancelRequest;
       final responseFuture = dataSource.execute(
@@ -466,11 +440,7 @@ void main() {
               return 1;
             },
       );
-      final dataSource = FfiNexaHttpNativeDataSource(
-        library: ffi.DynamicLibrary.process(),
-        bindings: bindings,
-        binaryResultFinalizer: ffi.nullptr,
-      );
+      final dataSource = FfiNexaHttpNativeDataSource(bindings: bindings);
 
       CancelNativeRequest? cancelRequest;
       Object? terminalBeforeCallback;
@@ -537,11 +507,7 @@ void main() {
               return 1;
             },
       );
-      final dataSource = FfiNexaHttpNativeDataSource(
-        library: ffi.DynamicLibrary.process(),
-        bindings: bindings,
-        binaryResultFinalizer: ffi.nullptr,
-      );
+      final dataSource = FfiNexaHttpNativeDataSource(bindings: bindings);
 
       CancelNativeRequest? cancelRequest;
       final responseFuture = dataSource.execute(
@@ -590,7 +556,6 @@ void main() {
   test('createClient only encodes config fields consumed by Rust', () {
     late _StructuredConfigWire capturedConfig;
     final dataSource = FfiNexaHttpNativeDataSource(
-      library: ffi.DynamicLibrary.process(),
       bindings: _FakeNexaHttpBindings(
         onCreateClient: (configArgs) {
           capturedConfig = _StructuredConfigWire.fromPointer(configArgs);
@@ -608,7 +573,6 @@ void main() {
               );
             },
       ),
-      binaryResultFinalizer: ffi.nullptr,
     );
 
     final clientId = dataSource.createClient(
@@ -630,7 +594,6 @@ void main() {
 
   test('createClient surfaces structured native bootstrap errors', () {
     final dataSource = FfiNexaHttpNativeDataSource(
-      library: ffi.DynamicLibrary.process(),
       bindings: _FakeNexaHttpBindings(
         onCreateClient: (_) => 0,
         onTakeLastErrorJson: () => jsonEncode(<String, Object?>{
@@ -651,7 +614,6 @@ void main() {
               throw UnimplementedError();
             },
       ),
-      binaryResultFinalizer: ffi.nullptr,
     );
 
     expect(
@@ -680,7 +642,6 @@ void main() {
   test('createClient normalizes malformed bootstrap payloads to internal', () {
     final errorJson = '{"code":'.toNativeUtf8();
     final dataSource = FfiNexaHttpNativeDataSource(
-      library: ffi.DynamicLibrary.process(),
       bindings: _FakeNexaHttpBindings(
         onCreateClient: (_) => 0,
         onTakeLastErrorJson: () => errorJson.cast(),
@@ -694,7 +655,6 @@ void main() {
               throw UnimplementedError();
             },
       ),
-      binaryResultFinalizer: ffi.nullptr,
     );
 
     expect(
@@ -714,13 +674,13 @@ void main() {
   });
 }
 
-class _FakeNexaHttpBindings extends NexaHttpBindings {
+class _FakeNexaHttpBindings implements NexaHttpBindings {
   _FakeNexaHttpBindings({
     this.onCreateClient,
     this.onTakeLastErrorJson,
     this.cancelRequestResult = 1,
     required this.onExecuteAsync,
-  }) : super.fromLookup(_unimplementedLookup);
+  });
 
   final int Function(ffi.Pointer<NexaHttpClientConfigArgs> configArgs)?
   onCreateClient;
@@ -739,6 +699,16 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
   int canceledRequestCount = 0;
   ffi.Pointer<NexaHttpBinaryResult> _trackedResultPointer = ffi.nullptr;
   final Set<int> _freedResultAddresses = <int>{};
+
+  @override
+  ffi.Pointer<
+    ffi.NativeFunction<ffi.Void Function(ffi.Pointer<NexaHttpBinaryResult>)>
+  >
+  get nexaHttpBinaryResultFreeAddress => ffi.nullptr;
+
+  @override
+  ffi.Pointer<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Char>)>>
+  get nexaHttpStringFreeAddress => ffi.nullptr;
 
   @override
   int nexa_http_client_create(
@@ -840,10 +810,14 @@ class _FakeNexaHttpBindings extends NexaHttpBindings {
       _trackedResultPointer = ffi.nullptr;
     }
   }
-}
 
-ffi.Pointer<T> _unimplementedLookup<T extends ffi.NativeType>(String _) {
-  throw UnimplementedError();
+  @override
+  void nexa_http_string_free(ffi.Pointer<ffi.Char> value) {
+    calloc.free(value.cast<Utf8>());
+  }
+
+  @override
+  void nexa_http_client_close(int client_id) {}
 }
 
 class _StructuredRequestWire {

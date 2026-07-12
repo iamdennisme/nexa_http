@@ -227,10 +227,10 @@ void main() {
 
       await const VerificationExecutor().execute(plan);
 
-      expect(commands, hasLength(2));
+      expect(commands, hasLength(6));
       expect(
         commands.first.workingDirectory,
-        p.join('/workspace', 'packages', 'nexa_http'),
+        p.join('/workspace', 'packages', 'nexa_http_native_internal'),
       );
       expect(commands.first.executable, 'dart');
       expect(commands.first.arguments, <String>[
@@ -240,13 +240,12 @@ void main() {
         'ffigen.yaml',
       ]);
       expect(commands.last.executable, 'git');
-      expect(commands.last.arguments, <String>[
-        'diff',
-        '--ignore-all-space',
-        '--exit-code',
-        '--',
-        'lib/src/native_bridge/nexa_http_bindings_generated.dart',
-      ]);
+      expect(
+        commands.last.arguments,
+        contains(
+          'packages/nexa_http_native_windows/lib/src/native/nexa_http_native_ffi.dart',
+        ),
+      );
     },
   );
 }

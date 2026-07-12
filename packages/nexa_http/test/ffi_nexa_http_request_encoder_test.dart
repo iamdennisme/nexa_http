@@ -5,7 +5,7 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 import 'package:nexa_http/src/api/api.dart';
-import 'package:nexa_http/src/native_bridge/nexa_http_bindings_generated.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/ffi_nexa_http_request_encoder.dart';
 import 'package:test/test.dart';

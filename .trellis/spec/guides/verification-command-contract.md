@@ -95,7 +95,10 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 
 ### 3. Contracts
 
-- row report schema 固定包含 `schema_version=1`、`suite_id`、`execution_id`、`planned_check_ids`、`completed_check_ids`、`status`。
+- row report只接受`schema_version=2`，固定包含`suite_id`、`execution_id`、`planned_check_ids`、`completed_check_ids`、`status`、`prepared_artifacts`和`runtime_payloads`；schema v1直接拒绝，不提供兼容解析。
+- `prepared_artifacts`每项包含canonical target tuple、完整Native Asset ID、绝对prepared file、raw`sha256`、`identity_sha256`与source identity。
+- `runtime_payloads`每项包含同一target/asset identity、绝对packaged file、raw`sha256`、`identity_sha256`、`payload_count=1`及request/callback/body consumed/body released/client closed五个true字段。
+- aggregate只读report并按canonical matrix校验9个target、Android/iOS/macOS/Windows四个平台、无重复/未知tuple，以及runtime和prepared的`identity_sha256`一致。Apple raw SHA因framework install-name/codesign允许不同，但两个raw值都必须保留用于审计。
 - aggregate mode 只读取 report，不执行任何 check、build 或 fixture materialization。
 - candidate build-time environment 只允许 `NEXA_HTTP_NATIVE_CANDIDATE_DIR` 与 `NEXA_HTTP_NATIVE_CANDIDATE_REF`；设置 candidate directory 后缺 ref 或校验失败直接阻断，不 fallback 到 workspace/release source。
 - `VerifiedCandidateSet` 保留原始 candidate directory 与 verified file handles；ABI/runtime consumer不得创建第二份 candidate set。
@@ -107,6 +110,7 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - duplicate/unknown suite membership、unknown dependency或cycle -> Catalog构造失败。
 - execution不覆盖required check -> planner失败，不允许host filter静默丢项。
 - report缺失、重复、`status != passed` 或 planned/completed membership漂移 -> aggregate失败。
+- proof缺字段、路径非绝对、digest格式错误、payload count不为1、lifecycle字段非true、target/asset/identity不匹配 -> row解析或aggregate失败。
 - candidate缺artifact、存在未知artifact、manifest/SHA256SUMS/实际bytes不一致 -> candidate set失败。
 - 缺device、fixture URL、candidate identity/digest/SDK ref -> CLI usage失败。
 - 平台toolchain或device缺失 -> suite失败，不得skip-as-pass。
@@ -120,6 +124,7 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 ### 6. Tests Required
 
 - `fvm dart test test/verification`
+- `fvm dart test test/native_payload_identity_test.dart test/native_artifact_uniqueness_test.dart`
 - `fvm dart test test/native_abi_verifier_test.dart`
 - `fvm dart analyze`
 - `cargo fmt --all -- --check`

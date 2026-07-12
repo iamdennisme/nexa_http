@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+
 final class VerificationCheckId {
   const VerificationCheckId(this.value);
 
@@ -127,6 +131,13 @@ final class VerificationRunContext {
   final Map<VerificationResourceKey, Future<Object?>> _resources =
       <VerificationResourceKey, Future<Object?>>{};
 
+  static const _preparedArtifactIdentitiesKey = VerificationResourceKey(
+    'prepared-native-artifact-identities',
+  );
+  static const _runtimePayloadProofsKey = VerificationResourceKey(
+    'runtime-native-payload-proofs',
+  );
+
   Future<T> memoize<T>(
     VerificationResourceKey key,
     Future<T> Function() producer,
@@ -140,6 +151,77 @@ final class VerificationRunContext {
     _resources[key] = created;
     return created;
   }
+
+  Future<List<VerifiedNativeArtifactIdentity>>
+  producePreparedArtifactIdentities(
+    Future<List<VerifiedNativeArtifactIdentity>> Function() producer,
+  ) {
+    return memoize(
+      _preparedArtifactIdentitiesKey,
+      () async =>
+          List<VerifiedNativeArtifactIdentity>.unmodifiable(await producer()),
+    );
+  }
+
+  Future<List<VerifiedNativeArtifactIdentity>>
+  requirePreparedArtifactIdentities() {
+    final prepared = _resources[_preparedArtifactIdentitiesKey];
+    if (prepared == null) {
+      throw StateError(
+        'Prepared native artifact identities are not available for '
+        '$executionId',
+      );
+    }
+    return prepared.then(
+      (value) => value! as List<VerifiedNativeArtifactIdentity>,
+    );
+  }
+
+  Future<List<VerifiedNativeArtifactIdentity>>
+  preparedArtifactIdentitiesOrEmpty() async {
+    final prepared = _resources[_preparedArtifactIdentitiesKey];
+    if (prepared == null) {
+      return const <VerifiedNativeArtifactIdentity>[];
+    }
+    return List<VerifiedNativeArtifactIdentity>.unmodifiable(
+      await prepared as List<VerifiedNativeArtifactIdentity>,
+    );
+  }
+
+  Future<List<T>> produceRuntimePayloadProofs<T>(
+    Future<List<T>> Function() producer,
+  ) {
+    return memoize(
+      _runtimePayloadProofsKey,
+      () async => List<T>.unmodifiable(await producer()),
+    );
+  }
+
+  Future<List<T>> runtimePayloadProofsOrEmpty<T>() async {
+    final proofs = _resources[_runtimePayloadProofsKey];
+    if (proofs == null) {
+      return List<T>.empty(growable: false);
+    }
+    return List<T>.unmodifiable(await proofs as List<T>);
+  }
+}
+
+final class VerifiedNativeArtifactIdentity {
+  const VerifiedNativeArtifactIdentity({
+    required this.target,
+    required this.file,
+    required this.sha256,
+    required this.identitySha256,
+    required this.sourceIdentity,
+  });
+
+  final NexaHttpNativeTarget target;
+  final File file;
+  final String sha256;
+  final String identitySha256;
+  final String sourceIdentity;
+
+  String get nativeAssetId => target.nativeAssetId;
 }
 
 typedef VerificationCheckAction =

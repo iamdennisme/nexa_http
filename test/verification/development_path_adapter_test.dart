@@ -21,5 +21,11 @@ void main() {
       <String>['build', 'macos', '--debug'],
       <String>['build', 'ios', '--simulator', '--debug', '--no-codesign'],
     ]);
+    for (final command in commands) {
+      expect(command.environment, <String, String>{
+        'NEXA_HTTP_NATIVE_PREPARED_DIR':
+            '/workspace/.dart_tool/nexa_http_native/integration/apple-macos',
+      });
+    }
   });
 }

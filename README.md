@@ -99,12 +99,11 @@ Start the local fixture server from the repository root:
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-For repository development, prepare local debug artifacts before running the
-workspace demo:
+For repository development, run the demo through the standard Flutter toolchain.
+The carrier hook builds the requested Rust target into target-scoped hook
+output and passes that exact file to Flutter Native Assets:
 
 ```bash
-./scripts/build_native_macos.sh debug
-./scripts/build_native_ios.sh debug
 cd app/demo
 fvm flutter pub get
 fvm flutter run -d macos
@@ -122,7 +121,7 @@ More run details are in [`app/demo/README.md`](./app/demo/README.md).
 Flutter SDK layer:
 
 - `packages/nexa_http` — public Dart SDK
-- `packages/nexa_http_native_internal` — internal runtime/loading and artifact materialization helper
+- `packages/nexa_http_native_internal` — shared ABI types, bindings registry, target matrix, and artifact materialization helper
 - `packages/nexa_http_native_android` — Android carrier
 - `packages/nexa_http_native_ios` — iOS carrier
 - `packages/nexa_http_native_macos` — macOS carrier
@@ -133,7 +132,7 @@ Native layer:
 - `native/nexa_http_native_core` — shared Rust transport core
 - `packages/nexa_http_native_*/native/*_ffi` — platform FFI crates
 
-Release builds publish native download assets on GitHub Releases. Carrier build hooks download and verify those assets, then materialize the platform library inside the carrier/App build layout.
+Release builds publish native download assets on GitHub Releases. Carrier build hooks download and verify those assets into target-scoped hook output. Flutter Native Assets is the only packaging/loading authority; carrier-owned `@Native` bindings resolve the matching CodeAsset ID.
 
 ## Development
 

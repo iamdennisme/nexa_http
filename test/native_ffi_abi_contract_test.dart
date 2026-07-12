@@ -9,28 +9,29 @@ void main() {
     final header = File(
       'native/nexa_http_native_core/include/nexa_http_native.h',
     ).readAsStringSync();
-    final generatedBindings = File(
-      'packages/nexa_http/lib/src/native_bridge/nexa_http_bindings_generated.dart',
-    ).readAsStringSync();
-    final androidBuild = File(
-      'packages/nexa_http_native_android/android/build.gradle',
-    ).readAsStringSync();
 
     expect(
       cHeaderNexaHttpFunctionNames(header),
       nexaHttpPublicNativeAbiSymbols.toSet(),
       reason: 'The canonical C header must declare the public ABI.',
     );
-    expect(
-      quotedNexaHttpSymbolNames(generatedBindings),
-      nexaHttpPublicNativeAbiSymbols.toSet(),
-      reason: 'Generated Dart lookups must match the C header.',
-    );
-    expect(
-      quotedNexaHttpSymbolNames(androidBuild),
-      nexaHttpPublicNativeAbiSymbols.toSet(),
-      reason: 'Android source builds must reject every incomplete public ABI.',
-    );
+    for (final path in <String>[
+      'packages/nexa_http_native_android/lib/src/native/nexa_http_native_ffi.dart',
+      'packages/nexa_http_native_ios/lib/src/native/nexa_http_native_ffi.dart',
+      'packages/nexa_http_native_macos/lib/src/native/nexa_http_native_ffi.dart',
+      'packages/nexa_http_native_windows/lib/src/native/nexa_http_native_ffi.dart',
+    ]) {
+      final generated = File(path).readAsStringSync();
+      for (final symbol in nexaHttpPublicNativeAbiSymbols) {
+        expect(
+          generated,
+          contains('$symbol('),
+          reason: '$path missing $symbol',
+        );
+      }
+      expect(generated, contains('@ffi.DefaultAsset('), reason: path);
+      expect(generated, isNot(contains('DynamicLibrary')), reason: path);
+    }
   });
 
   test('platform crates use one shared native export definition', () {

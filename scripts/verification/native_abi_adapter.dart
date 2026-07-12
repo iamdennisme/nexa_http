@@ -1,33 +1,32 @@
+import 'dart:io';
+
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+
 import '../native_abi_verifier.dart';
 import 'model.dart';
 
 typedef NativeAbiVerifier =
     Future<void> Function(
       String workspaceRoot, {
-      required NexaHttpNativeAbiHost host,
+      required Map<NexaHttpNativeTarget, File> artifacts,
     });
 
 typedef NativeAbiExecutionRunner =
-    Future<void> Function(VerificationExecutionId executionId);
+    Future<void> Function(
+      List<VerifiedNativeArtifactIdentity> preparedArtifactIdentities,
+    );
 
 NativeAbiExecutionRunner createNativeAbiRunner(
   String workspaceRoot, {
-  NativeAbiVerifier verify = verifyNexaHttpNativeAbi,
+  NativeAbiVerifier verify = verifyNexaHttpNativeAbiArtifacts,
 }) {
-  return (executionId) {
-    return verify(workspaceRoot, host: nativeAbiHostForExecution(executionId));
-  };
-}
-
-NexaHttpNativeAbiHost nativeAbiHostForExecution(
-  VerificationExecutionId executionId,
-) {
-  return switch (executionId.value) {
-    'android-linux' => NexaHttpNativeAbiHost.android,
-    'apple-macos' => NexaHttpNativeAbiHost.apple,
-    'windows-x64' => NexaHttpNativeAbiHost.windows,
-    _ => throw StateError(
-      'No native ABI host mapping for execution $executionId',
-    ),
+  return (preparedArtifactIdentities) {
+    return verify(
+      workspaceRoot,
+      artifacts: <NexaHttpNativeTarget, File>{
+        for (final identity in preparedArtifactIdentities)
+          identity.target: identity.file,
+      },
+    );
   };
 }

@@ -1,40 +1,17 @@
-import 'dart:ffi';
-import 'dart:io';
-
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
-import 'package:path/path.dart' as p;
+
+import 'native/nexa_http_native_macos_bindings.dart';
 
 final class NexaHttpNativeMacosPlugin {
   NexaHttpNativeMacosPlugin._();
 
   static void registerWith() {
-    registerNexaHttpNativeRuntime(const _NexaHttpNativeMacosRuntime());
+    registerNexaHttpNativeBindings(
+      const NexaHttpNativeBindingsFactory(
+        assetId:
+            'package:nexa_http_native_macos/src/native/nexa_http_native_ffi.dart',
+        create: NexaHttpNativeMacosBindings.new,
+      ),
+    );
   }
-}
-
-final class _NexaHttpNativeMacosRuntime implements NexaHttpNativeRuntime {
-  const _NexaHttpNativeMacosRuntime();
-
-  @override
-  DynamicLibrary open() {
-    return DynamicLibrary.open(_resolvedBundledLibraryPath());
-  }
-}
-
-String _resolvedBundledLibraryPath() {
-  return p.normalize(
-    p.join(
-      File(Platform.resolvedExecutable).parent.path,
-      '..',
-      'Frameworks',
-      'nexa_http_native_macos.framework',
-      'Versions',
-      'A',
-      'Resources',
-      'nexa_http_native.bundle',
-      'Contents',
-      'Resources',
-      'libnexa_http_native.dylib',
-    ),
-  );
 }

@@ -17,32 +17,31 @@ final class IntegrationExecutionRow {
 }
 
 List<IntegrationExecutionRow> buildIntegrationExecutionRows() {
-  final androidTargets = nexaHttpSupportedNativeTargets
-      .where((target) => target.targetOS == 'android')
-      .toList(growable: false);
-  final appleTargets = nexaHttpSupportedNativeTargets
-      .where((target) => target.targetOS == 'ios' || target.targetOS == 'macos')
-      .toList(growable: false);
-  final windowsTargets = nexaHttpSupportedNativeTargets
-      .where((target) => target.targetOS == 'windows')
-      .toList(growable: false);
-
+  final targetsByExecution = <String, List<NexaHttpNativeTarget>>{};
+  final runnersByExecution = <String, String>{};
+  for (final target in nexaHttpSupportedNativeTargets) {
+    targetsByExecution
+        .putIfAbsent(
+          target.integrationExecutionId,
+          () => <NexaHttpNativeTarget>[],
+        )
+        .add(target);
+    final previousRunner = runnersByExecution[target.integrationExecutionId];
+    if (previousRunner != null && previousRunner != target.runner) {
+      throw StateError(
+        'Execution ${target.integrationExecutionId} maps to both '
+        '$previousRunner and ${target.runner}',
+      );
+    }
+    runnersByExecution[target.integrationExecutionId] = target.runner;
+  }
   final rows = <IntegrationExecutionRow>[
-    IntegrationExecutionRow(
-      executionId: const VerificationExecutionId('android-linux'),
-      runner: const VerificationRunner('ubuntu-latest'),
-      targets: androidTargets,
-    ),
-    IntegrationExecutionRow(
-      executionId: const VerificationExecutionId('apple-macos'),
-      runner: const VerificationRunner('macos-14'),
-      targets: appleTargets,
-    ),
-    IntegrationExecutionRow(
-      executionId: const VerificationExecutionId('windows-x64'),
-      runner: const VerificationRunner('windows-latest'),
-      targets: windowsTargets,
-    ),
+    for (final entry in targetsByExecution.entries)
+      IntegrationExecutionRow(
+        executionId: VerificationExecutionId(entry.key),
+        runner: VerificationRunner(runnersByExecution[entry.key]!),
+        targets: List<NexaHttpNativeTarget>.unmodifiable(entry.value),
+      ),
   ];
   validateIntegrationExecutionRows(rows);
   return rows;

@@ -15,6 +15,7 @@ ReleasedConsumerRunner createReleasedConsumerRunner({
   required Uri fixtureUrl,
   required Map<String, String> deviceIds,
   required VerificationCommandRunner runCommand,
+  required ExternalRuntimeProofMarkerTracker runtimeProofTracker,
 }) {
   return (executionId) async {
     final tempRoot = await Directory.systemTemp.createTemp(
@@ -23,6 +24,7 @@ ReleasedConsumerRunner createReleasedConsumerRunner({
     final runtimeSmoke = createFlutterRuntimeSmokeRunner(
       runCommand,
       deviceIdForTargetOS: (targetOS) => deviceIds[targetOS] ?? '',
+      proofTracker: runtimeProofTracker,
     );
     try {
       for (final platform in externalConsumerPlatformsForExecution(
@@ -39,6 +41,9 @@ ReleasedConsumerRunner createReleasedConsumerRunner({
             workingDirectory: fixtureDirectory.path,
           ),
         );
+        if (platform.targetOS == 'macos') {
+          await enableMacosNetworkClientEntitlement(fixtureDirectory);
+        }
         await File(p.join(fixtureDirectory.path, 'pubspec.yaml')).writeAsString(
           buildReleasedConsumerPubspec(
             repoUrl: repoUrl,
@@ -69,6 +74,7 @@ ReleasedConsumerRunner createReleasedConsumerRunner({
           fixtureDirectory: fixtureDirectory,
           platform: platform,
           fixtureUrl: fixtureUrl,
+          environment: const <String, String>{},
         );
       }
     } finally {

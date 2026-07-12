@@ -1,0 +1,33 @@
+name: NexaHttpNativeAndroidFunctions
+description: Android Native Asset bindings for the nexa_http ABI.
+ffi-native:
+  asset-id: package:nexa_http_native_android/src/native/nexa_http_native_ffi.dart
+output: lib/src/native/nexa_http_native_ffi.dart
+headers:
+  entry-points:
+    - ../../native/nexa_http_native_core/include/nexa_http_native.h
+import:
+  symbol-files:
+    - package:nexa_http_native_internal/src/native/nexa_http_native_types.symbols.yaml
+functions:
+  include:
+    - 'nexa_http_.*'
+  symbol-address:
+    include:
+      - nexa_http_binary_result_free
+      - nexa_http_string_free
+structs:
+  include:
+    - 'NexaHttp.*'
+unions:
+  exclude:
+    - '.*'
+enums:
+  exclude:
+    - '.*'
+typedefs:
+  include:
+    - 'NexaHttp.*'
+macros:
+  exclude:
+    - '.*'

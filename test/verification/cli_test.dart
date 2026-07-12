@@ -1,12 +1,17 @@
 import 'dart:io';
 import 'dart:convert';
 
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../../scripts/verification/cli.dart';
 import '../../scripts/verification/command.dart';
 import '../../scripts/verification/candidate_set.dart';
+import '../../scripts/verification/external_consumer_adapter.dart';
 import '../../scripts/verification/model.dart';
+import '../../scripts/verification/report.dart';
+import '../../scripts/verification/target_matrix.dart';
 
 void main() {
   test('parses bootstrap as a workspace utility command', () {
@@ -106,7 +111,7 @@ void main() {
     );
 
     expect(exitCode, 0);
-    expect(commands, hasLength(6));
+    expect(commands, hasLength(10));
   });
 
   test('suite execution writes a machine-readable coverage report', () async {
@@ -137,7 +142,7 @@ void main() {
 
     expect(exitCode, 0);
     expect(jsonDecode(await reportFile.readAsString()), {
-      'schema_version': 1,
+      'schema_version': 2,
       'suite_id': 'verify-static',
       'execution_id': 'static-linux',
       'planned_check_ids': <String>[
@@ -159,6 +164,8 @@ void main() {
         'workspace-dart-test',
       ],
       'status': 'passed',
+      'prepared_artifacts': <Object?>[],
+      'runtime_payloads': <Object?>[],
     });
   });
 
@@ -173,7 +180,7 @@ void main() {
     });
     await File('${reportDirectory.path}/static-linux.json').writeAsString(
       jsonEncode(<String, Object?>{
-        'schema_version': 1,
+        'schema_version': 2,
         'suite_id': 'verify-static',
         'execution_id': 'static-linux',
         'planned_check_ids': <String>[
@@ -195,6 +202,8 @@ void main() {
           'workspace-dart-test',
         ],
         'status': 'passed',
+        'prepared_artifacts': <Object?>[],
+        'runtime_payloads': <Object?>[],
       }),
     );
     final commands = <VerificationCommand>[];
@@ -213,8 +222,12 @@ void main() {
   test(
     'verify-integration executes one grouped build and its consumers',
     () async {
+      final workspace = await Directory.systemTemp.createTemp(
+        'nexa_http_cli_integration_',
+      );
+      addTearDown(() => workspace.delete(recursive: true));
       final commands = <VerificationCommand>[];
-      final abiExecutions = <VerificationExecutionId>[];
+      final abiIdentities = <List<VerifiedNativeArtifactIdentity>>[];
       final developmentExecutions = <VerificationExecutionId>[];
       final externalExecutions = <VerificationExecutionId>[];
 
@@ -228,20 +241,25 @@ void main() {
           '--device',
           'android=emulator-id',
         ],
-        workspaceRoot: '/workspace',
-        runCommand: (command) async => commands.add(command),
-        verifyAbi: (executionId) async => abiExecutions.add(executionId),
+        workspaceRoot: workspace.path,
+        runCommand: (command) async {
+          commands.add(command);
+          await _writeNativeBuildOutputs(command);
+        },
+        verifyAbi: (identities) async => abiIdentities.add(identities),
         verifyDevelopmentPath: (executionId) async =>
             developmentExecutions.add(executionId),
-        verifyExternalConsumer: (executionId) async =>
+        verifyExternalConsumer: (executionId, _) async =>
             externalExecutions.add(executionId),
+        verifyArtifactUniqueness: (_) async =>
+            const <VerificationRuntimePayloadProof>[],
         writeStdout: (_) {},
         writeStderr: (_) {},
       );
 
       expect(exitCode, 0);
       expect(commands, hasLength(1));
-      expect(abiExecutions, hasLength(1));
+      expect(abiIdentities.single, hasLength(3));
       expect(developmentExecutions, hasLength(1));
       expect(externalExecutions, hasLength(1));
     },
@@ -253,6 +271,8 @@ void main() {
     );
     addTearDown(() async => temp.delete(recursive: true));
     final reportFile = File('${temp.path}/android-linux.json');
+    final workspace = Directory('${temp.path}/workspace');
+    await workspace.create();
 
     final exitCode = await runVerificationCli(
       <String>[
@@ -266,11 +286,13 @@ void main() {
         '--report-out',
         reportFile.path,
       ],
-      workspaceRoot: '/workspace',
-      runCommand: (_) async {},
+      workspaceRoot: workspace.path,
+      runCommand: _writeNativeBuildOutputs,
       verifyAbi: (_) async {},
       verifyDevelopmentPath: (_) async {},
-      verifyExternalConsumer: (_) async {},
+      verifyExternalConsumer: (_, _) async {},
+      verifyArtifactUniqueness: (_) async =>
+          const <VerificationRuntimePayloadProof>[],
       writeStdout: (_) {},
       writeStderr: (_) {},
     );
@@ -283,8 +305,12 @@ void main() {
   });
 
   test('integration diagnostic reuses its Catalog build dependency', () async {
+    final workspace = await Directory.systemTemp.createTemp(
+      'nexa_http_cli_diagnostic_',
+    );
+    addTearDown(() => workspace.delete(recursive: true));
     final commands = <VerificationCommand>[];
-    final abiExecutions = <VerificationExecutionId>[];
+    final abiIdentities = <List<VerifiedNativeArtifactIdentity>>[];
 
     final exitCode = await runVerificationCli(
       const <String>[
@@ -297,18 +323,19 @@ void main() {
         '--device',
         'android=emulator-id',
       ],
-      workspaceRoot: '/workspace',
-      runCommand: (command) async => commands.add(command),
-      verifyAbi: (executionId) async => abiExecutions.add(executionId),
+      workspaceRoot: workspace.path,
+      runCommand: (command) async {
+        commands.add(command);
+        await _writeNativeBuildOutputs(command);
+      },
+      verifyAbi: (identities) async => abiIdentities.add(identities),
       writeStdout: (_) {},
       writeStderr: (_) {},
     );
 
     expect(exitCode, 0);
     expect(commands, hasLength(1));
-    expect(abiExecutions, const <VerificationExecutionId>[
-      VerificationExecutionId('android-linux'),
-    ]);
+    expect(abiIdentities.single, hasLength(3));
   });
 
   test(
@@ -324,24 +351,19 @@ void main() {
         'windows-x64',
       ]) {
         await File('${reportDirectory.path}/$executionId.json').writeAsString(
-          jsonEncode(<String, Object?>{
-            'schema_version': 1,
-            'suite_id': 'verify-integration',
-            'execution_id': executionId,
-            'planned_check_ids': <String>[
-              'native-build',
-              'development-path',
-              'external-consumer',
-              'native-abi',
-            ],
-            'completed_check_ids': <String>[
-              'native-build',
-              'development-path',
-              'external-consumer',
-              'native-abi',
-            ],
-            'status': 'passed',
-          }),
+          jsonEncode(
+            _completeNativeReportJson(
+              suiteId: VerificationSuiteId.verifyIntegration,
+              executionId: VerificationExecutionId(executionId),
+              checkIds: const <VerificationCheckId>[
+                VerificationCheckId('native-build'),
+                VerificationCheckId('development-path'),
+                VerificationCheckId('external-consumer'),
+                VerificationCheckId('artifact-uniqueness'),
+                VerificationCheckId('native-abi'),
+              ],
+            ),
+          ),
         );
       }
 
@@ -418,14 +440,14 @@ void main() {
       var setRuns = 0;
       final consumers = <String>[];
       final commands = <VerificationCommand>[];
-      final verified = VerifiedCandidateSet(
+      final verified = _verifiedCandidateForExecution(
+        const VerificationExecutionId('candidate-macos'),
         candidateDirectory: Directory('/candidate'),
         candidateId: 'candidate-42',
         sdkRef: '20c3786',
         digest: digest,
-        artifactDigests: const <String, String>{},
-        artifactFiles: <String, File>{},
       );
+      final runtimeProofTracker = ExternalRuntimeProofMarkerTracker();
 
       final exitCode = await runVerificationCli(
         <String>[
@@ -447,13 +469,33 @@ void main() {
           '--report-out',
           reportFile.path,
         ],
-        runCommand: (command) async => commands.add(command),
+        runCommand: (command) async {
+          commands.add(command);
+          if (command.arguments case <String>[
+            'create',
+            '--platforms=macos',
+            _,
+            _,
+          ]) {
+            await _writeMacosEntitlementFixtures(command.workingDirectory);
+          }
+          if (command.arguments case <String>['run', ...]) {
+            runtimeProofTracker.observeLine(_runtimeProofMarkerLine);
+          }
+        },
+        runtimeProofTracker: runtimeProofTracker,
+        candidateIdentityDigester: (file, {required platform}) async =>
+            verified.artifactDigests[p.basename(file.path)]!,
         candidateSetLoader: () async {
           setRuns += 1;
           return verified;
         },
         verifyCandidateAbi: (candidate, executionId) async =>
             consumers.add('abi'),
+        verifyCandidateBuiltPayload: (_, _, prepared) async =>
+            <VerificationRuntimePayloadProof>[
+              _runtimeProofFromPrepared(prepared.first),
+            ],
         writeStdout: (_) {},
         writeStderr: (_) {},
       );
@@ -489,22 +531,17 @@ void main() {
         'candidate-windows',
       ]) {
         await File('${reportDirectory.path}/$executionId.json').writeAsString(
-          jsonEncode(<String, Object?>{
-            'schema_version': 1,
-            'suite_id': 'verify-release-candidate',
-            'execution_id': executionId,
-            'planned_check_ids': <String>[
-              'candidate-set',
-              'candidate-abi',
-              'candidate-runtime',
-            ],
-            'completed_check_ids': <String>[
-              'candidate-set',
-              'candidate-abi',
-              'candidate-runtime',
-            ],
-            'status': 'passed',
-          }),
+          jsonEncode(
+            _completeNativeReportJson(
+              suiteId: VerificationSuiteId.verifyReleaseCandidate,
+              executionId: VerificationExecutionId(executionId),
+              checkIds: const <VerificationCheckId>[
+                VerificationCheckId('candidate-set'),
+                VerificationCheckId('candidate-abi'),
+                VerificationCheckId('candidate-runtime'),
+              ],
+            ),
+          ),
         );
       }
 
@@ -562,8 +599,10 @@ void main() {
         },
         verifyCandidateAbi: (candidate, executionId) async =>
             consumers.add('abi'),
-        verifyCandidateRuntime: (candidate, executionId) async =>
-            consumers.add('runtime'),
+        verifyCandidateRuntime: (candidate, executionId) async {
+          consumers.add('runtime');
+          return const <VerificationRuntimePayloadProof>[];
+        },
         writeStdout: (_) {},
         writeStderr: (_) {},
       );
@@ -576,6 +615,7 @@ void main() {
 
   test('released-consumer remains a Catalog diagnostic only', () async {
     final commands = <VerificationCommand>[];
+    final runtimeProofTracker = ExternalRuntimeProofMarkerTracker();
 
     final exitCode = await runVerificationCli(
       const <String>[
@@ -592,7 +632,13 @@ void main() {
         '--device',
         'windows=windows',
       ],
-      runCommand: (command) async => commands.add(command),
+      runCommand: (command) async {
+        commands.add(command);
+        if (command.arguments case <String>['run', ...]) {
+          runtimeProofTracker.observeLine(_runtimeProofMarkerLine);
+        }
+      },
+      runtimeProofTracker: runtimeProofTracker,
       writeStdout: (_) {},
       writeStderr: (_) {},
     );
@@ -601,3 +647,151 @@ void main() {
     expect(commands, hasLength(4));
   });
 }
+
+Future<void> _writeNativeBuildOutputs(VerificationCommand command) async {
+  if (!command.arguments.contains('--output-dir')) {
+    return;
+  }
+  final outputDirectory = Directory(
+    command.arguments[command.arguments.indexOf('--output-dir') + 1],
+  );
+  await outputDirectory.create(recursive: true);
+  final requestedTriples = <String>[
+    for (var index = 0; index < command.arguments.length; index++)
+      if (command.arguments[index] == '--target') command.arguments[index + 1],
+  ];
+  for (final target in nexaHttpSupportedNativeTargets.where(
+    (target) => requestedTriples.contains(target.rustTargetTriple),
+  )) {
+    await File(
+      p.join(outputDirectory.path, target.releaseAssetFileName),
+    ).writeAsString(target.rustTargetTriple);
+  }
+}
+
+Map<String, Object?> _completeNativeReportJson({
+  required VerificationSuiteId suiteId,
+  required VerificationExecutionId executionId,
+  required List<VerificationCheckId> checkIds,
+}) {
+  final rows = suiteId == VerificationSuiteId.verifyIntegration
+      ? buildIntegrationExecutionRows()
+      : buildReleaseCandidateExecutionRows();
+  final row = rows.singleWhere(
+    (candidate) => candidate.executionId == executionId,
+  );
+  final prepared = <VerificationPreparedArtifactProof>[
+    for (var index = 0; index < row.targets.length; index++)
+      VerificationPreparedArtifactProof(
+        target: _proofTuple(row.targets[index]),
+        nativeAssetId: row.targets[index].nativeAssetId,
+        absolutePreparedFile:
+            '/prepared/${row.targets[index].releaseAssetFileName}',
+        sha256: List<String>.filled(64, (index + 1).toRadixString(16)).join(),
+        identitySha256: List<String>.filled(
+          64,
+          (index + 1).toRadixString(16),
+        ).join(),
+        sourceIdentity: suiteId == VerificationSuiteId.verifyIntegration
+            ? 'workspace'
+            : 'candidate:test',
+      ),
+  ];
+  final firstPreparedByPlatform = <String, VerificationPreparedArtifactProof>{};
+  for (final proof in prepared) {
+    firstPreparedByPlatform.putIfAbsent(proof.target.targetOS, () => proof);
+  }
+  final runtime = <VerificationRuntimePayloadProof>[
+    for (final proof in firstPreparedByPlatform.values)
+      _runtimeProofFromPrepared(proof),
+  ];
+  return VerificationCoverageReport(
+    suiteId: suiteId,
+    executionId: executionId,
+    plannedCheckIds: checkIds,
+    completedCheckIds: checkIds,
+    status: VerificationCoverageStatus.passed,
+    preparedArtifactProofs: prepared,
+    runtimePayloadProofs: runtime,
+  ).toJson();
+}
+
+VerificationNativeTargetTuple _proofTuple(NexaHttpNativeTarget target) {
+  return VerificationNativeTargetTuple(
+    targetOS: target.targetOS,
+    targetArchitecture: target.targetArchitecture,
+    targetSdk: target.targetSdk,
+    rustTarget: target.rustTargetTriple,
+  );
+}
+
+VerificationRuntimePayloadProof _runtimeProofFromPrepared(
+  VerificationPreparedArtifactProof prepared,
+) {
+  return VerificationRuntimePayloadProof(
+    target: prepared.target,
+    nativeAssetId: prepared.nativeAssetId,
+    absolutePackagedFile:
+        '/packaged/${p.basename(prepared.absolutePreparedFile)}',
+    sha256: prepared.sha256,
+    identitySha256: prepared.identitySha256,
+    payloadCount: 1,
+    requestCompleted: true,
+    callbackReceived: true,
+    bodyConsumed: true,
+    bodyReleased: true,
+    clientClosed: true,
+  );
+}
+
+VerifiedCandidateSet _verifiedCandidateForExecution(
+  VerificationExecutionId executionId, {
+  required Directory candidateDirectory,
+  required String candidateId,
+  required String sdkRef,
+  required String digest,
+}) {
+  final row = buildReleaseCandidateExecutionRows().singleWhere(
+    (candidate) => candidate.executionId == executionId,
+  );
+  return VerifiedCandidateSet(
+    candidateDirectory: candidateDirectory,
+    candidateId: candidateId,
+    sdkRef: sdkRef,
+    digest: digest,
+    artifactDigests: <String, String>{
+      for (var index = 0; index < row.targets.length; index++)
+        row.targets[index].releaseAssetFileName: List<String>.filled(
+          64,
+          (index + 1).toRadixString(16),
+        ).join(),
+    },
+    artifactFiles: <String, File>{
+      for (final target in row.targets)
+        target.releaseAssetFileName: File(
+          p.join(candidateDirectory.path, target.releaseAssetFileName),
+        ),
+    },
+  );
+}
+
+Future<void> _writeMacosEntitlementFixtures(String fixturePath) async {
+  final runnerDirectory = Directory(p.join(fixturePath, 'macos', 'Runner'));
+  await runnerDirectory.create(recursive: true);
+  for (final name in <String>[
+    'DebugProfile.entitlements',
+    'Release.entitlements',
+  ]) {
+    await File(p.join(runnerDirectory.path, name)).writeAsString('''
+<plist version="1.0">
+<dict>
+</dict>
+</plist>
+''');
+  }
+}
+
+const _runtimeProofMarkerLine =
+    'flutter: NEXA_HTTP_RUNTIME_PROOF '
+    '{"request_completed":true,"callback_received":true,'
+    '"body_consumed":true,"body_released":true,"client_closed":true}';

@@ -54,7 +54,7 @@ SDK 必须自己处理：
 
 Carrier package 和 build hook 可以在内部协作，但正常集成路径不得要求宿主修改 `Podfile`、Xcode build phase、Gradle 文件、CMake 文件或 native 源码路径。宿主选择平台 package 是依赖声明，不是 native 工程改造。
 
-编译后的动态库下载和集成发生在 Flutter SDK 层：platform carrier 的 `hook/build.dart` 把 Flutter hook 输入映射成 target OS / architecture / SDK tuple，然后调用 `nexa_http_native_internal` 的 carrier artifact preparation。该内部 module 负责 workspace/release 判断、packaging directory cleanup、workspace source build script 调用、release artifact materialization、manifest 下载、目标平台文件选择、checksum 校验，并把动态库写入 target matrix 定义的 package-internal `packagedRelativePath`。
+编译后的动态库下载和集成发生在 Flutter SDK 层：platform carrier 的 `hook/build.dart` 把 Flutter hook 输入映射成 target OS / architecture / SDK tuple，并把 Flutter hook output directory 传给 `nexa_http_native_internal`。该内部 module 负责 workspace/release 判断、显式 Rust target build、target-isolated materialization、manifest 下载、checksum 校验、single-flight lock、唯一 temp 和 replace；产物不得写入 carrier package 的 `jniLibs`、`Frameworks` 或 `Libraries`。
 
 `nexa_http_native_internal` 不得依赖 `hooks` 或 `code_assets`，也不得接收 `BuildInput` 或产生 `CodeAsset`；这些 Flutter build hook adapter 类型保留在 platform carrier package。`native/nexa_http_native_core` 不负责下载、缓存、pub-cache/workspace 判断或 Flutter App 打包。
 
@@ -154,11 +154,8 @@ Release transaction 必须由明确 version 和 commit SHA 启动，不得由 pu
 
 ### 2. Signatures
 
-- `scripts/build_native_macos.sh <debug|release>`
-- `scripts/build_native_ios.sh <debug|release>`
-- `scripts/build_native_android.sh <debug|release>`
-- `scripts/build_native_windows.sh <debug|release>`
-- carrier hook 只能通过 `bash scripts/build_native_<platform>.sh debug` 准备 workspace artifact。
+- `scripts/build_native_<platform>.sh <debug|release> --output-dir <dir> --target <rust-triple> [--target <rust-triple>...]`
+- carrier hook 只能请求当前 target tuple；Catalog 可以按脚本分组，在一次 invocation 中传该 execution 的全部显式 target。
 
 ### 3. Contracts
 
@@ -166,6 +163,7 @@ Release transaction 必须由明确 version 和 commit SHA 启动，不得由 pu
 - Rust target 准备必须先读取 `rustup target list --installed`，只安装缺失 target。
 - `rustup target add` 必须有有界超时；当前脚本使用 `run_with_timeout 600`。
 - build hook 不得要求宿主 App 在 Xcode、Podfile、Gradle 或 shell profile 中手工设置 SDK path、Rust target 或 C compiler。
+- workspace hook output 必须以 source fingerprint + target-scoped file lock 做 fast path；同 tuple 并发只 build 一次，native/Cargo/build-script 输入变化后必须失效，不能用“文件已存在”盲目跳过。
 
 ### 4. Validation & Error Matrix
 
@@ -266,32 +264,31 @@ fvm dart run scripts/workspace_tools.dart check released-consumer \
 
 ### 2. Signatures
 
-- `prepareNexaHttpNativeCarrierArtifact({required String packageRoot, required String targetOS, required String targetArchitecture, required String? targetSdk})`
-- `prepareNexaHttpNativeWorkspaceArtifact({required String packageRoot, required NexaHttpNativeTarget target})`
-- `NexaHttpNativeTarget.packagedRelativePath`
-- `NexaHttpNativeTarget.packagedDirectoryRelativePath`
+- `prepareNexaHttpNativeCarrierArtifact({required String packageRoot, required String outputDirectory, required String targetOS, required String targetArchitecture, required String? targetSdk})`
+- `prepareNexaHttpNativeWorkspaceArtifact({required String packageRoot, required String outputDirectory, required NexaHttpNativeTarget target})`
+- `NexaHttpNativeTarget.materializationRelativePath(String profile)`
 - `NexaHttpNativeTarget.buildScriptName`
 
 ### 3. Contracts
 
 - platform carrier hook 负责读取 `BuildInput`，只把它映射为 target OS / architecture / SDK tuple。
-- `nexa_http_native_internal` 负责 target resolution、workspace/release 判断、packaging directory cleanup、workspace source build script 调用、release artifact materialization 和 checksum verification。
+- `nexa_http_native_internal` 负责 target resolution、workspace/release 判断、target-scoped output、workspace source build script 调用、release artifact materialization、streaming checksum 和 target lock。
 - `nexa_http_native_internal` 不得依赖 `hooks` 或 `code_assets`，不得接收 `BuildInput`，不得返回 `CodeAsset`。
 - carrier asset bundle 负责把已物化的动态库文件包装成 `CodeAsset`。
-- target matrix 是 build script name、packaged directory、packaged file path、release asset file name 和 source artifact file name 的单一事实来源。
+- target matrix 是 tuple、Rust triple、source/release filename、build script、execution、runner 和 Native Asset logical name 的单一事实来源。
 
 ### 4. Validation & Error Matrix
 
 - Unsupported target tuple -> `NexaHttpNativeArtifactException`，stage 为 `native target resolution`。
-- Workspace package 且 build script 存在 -> 删除 `packagedDirectoryRelativePath` 后运行 `bash scripts/build_native_<platform>.sh debug`。
+- Workspace package 且 build script 存在 -> 运行 `bash scripts/build_native_<platform>.sh debug --output-dir <target-dir> --target <rust-triple>`；不得删除共享平台目录。
 - Workspace build script 非 0 退出 -> `ProcessException`，message 包含 stdout 和 stderr。
 - Pub-cache 或非 workspace package -> 走 release artifact materialization。
-- Release asset checksum mismatch -> 删除已下载文件并抛出 `NexaHttpNativeArtifactException`，stage 为 `artifact verification`。
+- Release asset checksum mismatch -> 删除本次唯一 temp、保留旧完整 destination，并抛出 `NexaHttpNativeArtifactException`，stage 为 `artifact verification`。
 
 ### 5. Good/Base/Bad Cases
 
 - Good: carrier hook 调用 `prepareNexaHttpNativeCarrierArtifact`，然后用 carrier asset bundle 生成 `CodeAsset`。
-- Base: release consumer 从 manifest 下载目标 artifact，写入 target matrix 的 `packagedRelativePath`。
+- Base: release consumer 从 manifest streaming 下载目标 artifact，写入 hook output 的 target-keyed destination。
 - Bad: carrier hook 自己调用 `shouldBuildNexaHttpNativeFromWorkspaceSource`、`Process.run` 或 `materializeNexaHttpNativeReleaseArtifact`。
 - Bad: `nexa_http_native_internal` import `package:hooks` 或 `package:code_assets`。
 
@@ -320,13 +317,19 @@ if (shouldBuildNexaHttpNativeFromWorkspaceSource(...)) {
 
 ```dart
 // carrier hook 只做 Flutter hook adapter。
-await prepareNexaHttpNativeCarrierArtifact(
+final artifact = await prepareNexaHttpNativeCarrierArtifact(
   packageRoot: packageRoot,
+  outputDirectory: Directory.fromUri(input.outputDirectory).path,
   targetOS: 'macos',
   targetArchitecture: targetArchitecture,
   targetSdk: null,
 );
-output.assets.code.add(await NexaHttpNativeMacosAssetBundle.resolve(input));
+output.assets.code.add(
+  NexaHttpNativeMacosAssetBundle.resolveFromFile(
+    packageName: input.packageName,
+    file: artifact,
+  ),
+);
 ```
 
 ## Scenario: Native Assets 是唯一 artifact packaging/loading 路径
@@ -338,8 +341,9 @@ output.assets.code.add(await NexaHttpNativeMacosAssetBundle.resolve(input));
 
 ### 2. Signatures
 
-- Artifact preparation：`prepareNexaHttpNativeCarrierArtifact({required String packageRoot, required String targetOS, required String targetArchitecture, required String? targetSdk}) -> Future<File>`。
-- Target identity：`NexaHttpNativeTarget(targetOS, targetArchitecture, targetSdk, releaseAssetFileName, packagedRelativePath, rustTargetTriple, sourceArtifactFileName, buildScriptName)`。
+- Artifact preparation：`prepareNexaHttpNativeCarrierArtifact({required String packageRoot, required String outputDirectory, required String targetOS, required String targetArchitecture, required String? targetSdk}) -> Future<File>`。
+- Target identity：`NexaHttpNativeTarget(targetOS, targetArchitecture, targetSdk, rustTargetTriple, sourceArtifactFileName, releaseAssetFileName, buildScriptName, integrationExecutionId, runner, nativeAssetName)`。
+- Runtime registration：`registerNexaHttpNativeBindings(NexaHttpNativeBindingsFactory(assetId, create))`；同 ID 幂等，不同 ID 冲突失败，bindings 按 isolate lazy once。
 - Native Asset identity：carrier 生成的 `CodeAsset` 必须使用项目唯一的 native asset name，并直接引用 preparation 返回的 `File`。
 - Verification：Catalog `native-abi` check、clean-host runtime smoke 和 release-candidate gate 必须检查同一 target artifact。
 
@@ -349,8 +353,12 @@ output.assets.code.add(await NexaHttpNativeMacosAssetBundle.resolve(input));
 - Carrier hook 必须直接消费 preparation 返回的 `File`；不得忽略返回值后在 asset bundle 中重新推导或硬编码路径。
 - Native Assets/CodeAsset 是唯一 packaging authority。CocoaPods resource bundle、carrier-owned `jniLibs`、CMake bundled-library copy、固定 bundle path 和备用 `DynamicLibrary` loader 不得作为第二 artifact source 存在。
 - Runtime symbol resolution 必须绑定到 CodeAsset 打包的同一 artifact identity；不得验证 A、运行 B。
+- Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android/Windows 的 identity digest 等于 raw digest；Apple framework 会被 Xcode改 install name并重签名，因此 identity digest固定为按 architecture排序后的 Mach-O `LC_UUID`集合的SHA-256，aggregate比较 identity digest而不是错误要求签名前后raw bytes相等。
+- clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
+- uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Target matrix 是 target tuple、build target、source artifact、release file name 和 packaging identity 的单一事实来源。Workflow、shell、Gradle、Podspec、CMake 不得维护一份独立 target/path 表。
 - 迁移必须在同一个任务内删除所有旧 packaging/loading 代码、测试和文档。不提供 fallback，不接受“先双轨、后续再清理”。
+- clean cutover 不允许 deprecated alias、forwarder、compatibility wrapper 或“临时”双轨；rollback 只能整体 revert 完整变更。
 
 ### 4. Validation & Error Matrix
 
@@ -374,6 +382,7 @@ output.assets.code.add(await NexaHttpNativeMacosAssetBundle.resolve(input));
 - Carrier hook tests：断言 preparation 返回的 `File` 被直接交给 CodeAsset，不重新解析 packaged path。
 - Target matrix tests：覆盖全部支持 tuple，并断言请求 architecture 真正驱动 workspace build target。
 - Artifact uniqueness test：对构建完成的 App 扫描 public `nexa_http_*` exports，每个 target 只允许一个 payload。
+- Proof report test：schema v2拒绝缺失raw/identity digest、相对路径、payload count非1、lifecycle false、target/asset/identity mismatch；aggregate精确覆盖9个target和4个平台runtime。
 - ABI test：对最终 CodeAsset artifact 做 exact missing/unexpected symbol comparison。
 - Runtime smoke：clean host 必须实际创建 client、执行 fixture HTTP request、接收 callback 并释放 response body。
 - Release gate：Android、iOS、macOS、Windows 全部通过候选 artifact runtime smoke 后才允许公开 release。
@@ -424,7 +433,7 @@ Runtime、ABI verification 和 clean-host smoke 必须解析并使用这个 Code
 - 唯一 byte-backed request-body factory：`RequestBody.takeBytes(Uint8List bytes, {MediaType? contentType})`。`RequestBody.bytes(...)`、实例 `bytes()`、request-side `byteStream()` 和 `payloadBytes` 不属于 public surface。
 - 唯一 public failure type：`NexaHttpException(kind: NexaHttpFailureKind, message: String, uri: Uri?, diagnostics: Map<String, Object?>?)`。
 - `NexaHttpFailureKind` 的稳定值只有 `canceled`、`timeout`、`network`、`invalidRequest`、`configuration`、`unavailable`、`internal`。旧 string `code`、error `statusCode`、`isTimeout` 和 `details` 不属于 v2 public surface。
-- Generated FFI bindings 必须位于 `packages/nexa_http/lib/src/native_bridge/` 或等价 `lib/src/` 内部路径，不得生成独立的 `lib/<bindings>.dart` root library。
+- 共享 ABI types 必须位于 `nexa_http_native_internal/lib/src/native/`；四个平台 carrier 分别生成与自身 CodeAsset ID 对齐的 `lib/src/native/nexa_http_native_ffi.dart`。主包不得拥有 `DynamicLibrary` lookup bindings。
 - Internal body adoption 和 raw payload access 只能由 `native transport` 内部调用，不提供 public function/getter。
 
 ### 3. Contracts

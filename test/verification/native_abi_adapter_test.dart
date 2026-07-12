@@ -1,39 +1,44 @@
+import 'dart:io';
+
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:test/test.dart';
 
-import '../../scripts/native_abi_verifier.dart';
 import '../../scripts/verification/model.dart';
 import '../../scripts/verification/native_abi_adapter.dart';
 
 void main() {
-  test('maps explicit execution IDs to ABI hosts', () {
-    expect(
-      nativeAbiHostForExecution(const VerificationExecutionId('android-linux')),
-      NexaHttpNativeAbiHost.android,
-    );
-    expect(
-      nativeAbiHostForExecution(const VerificationExecutionId('apple-macos')),
-      NexaHttpNativeAbiHost.apple,
-    );
-    expect(
-      nativeAbiHostForExecution(const VerificationExecutionId('windows-x64')),
-      NexaHttpNativeAbiHost.windows,
-    );
-  });
+  test(
+    'ABI runner passes the producer-owned File handle to the verifier',
+    () async {
+      String? receivedRoot;
+      Map<NexaHttpNativeTarget, File>? receivedArtifacts;
+      final target = nexaHttpSupportedNativeTargets.first;
+      final file = File('/tmp/prepared-android-arm64.so');
+      final runner = createNativeAbiRunner(
+        '/workspace',
+        verify: (workspaceRoot, {required artifacts}) async {
+          receivedRoot = workspaceRoot;
+          receivedArtifacts = artifacts;
+        },
+      );
 
-  test('ABI runner passes the explicit host to the native verifier', () async {
-    String? receivedRoot;
-    NexaHttpNativeAbiHost? receivedHost;
-    final runner = createNativeAbiRunner(
-      '/workspace',
-      verify: (workspaceRoot, {required host}) async {
-        receivedRoot = workspaceRoot;
-        receivedHost = host;
-      },
-    );
+      await runner(<VerifiedNativeArtifactIdentity>[
+        VerifiedNativeArtifactIdentity(
+          target: target,
+          file: file,
+          sha256:
+              'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          identitySha256:
+              'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          sourceIdentity: 'workspace',
+        ),
+      ]);
 
-    await runner(const VerificationExecutionId('apple-macos'));
-
-    expect(receivedRoot, '/workspace');
-    expect(receivedHost, NexaHttpNativeAbiHost.apple);
-  });
+      expect(receivedRoot, '/workspace');
+      expect(receivedArtifacts!.keys, <NexaHttpNativeTarget>[target]);
+      expect(identical(receivedArtifacts![target], file), isTrue);
+    },
+  );
 }

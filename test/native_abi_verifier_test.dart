@@ -124,7 +124,7 @@ void main() {
     await File(
       p.join(
         workspace.path,
-        'packages/nexa_http_native_windows/windows/Libraries/nexa_http_native.dll',
+        '.dart_tool/nexa_http_native/integration/windows-x64/nexa_http-native-windows-x64.dll',
       ),
     ).create(recursive: true);
     final commands = <String>[];
@@ -156,7 +156,7 @@ void main() {
 }
 
 const _androidArtifactPaths = <String>[
-  'packages/nexa_http_native_android/android/src/main/jniLibs/arm64-v8a/libnexa_http_native.so',
-  'packages/nexa_http_native_android/android/src/main/jniLibs/armeabi-v7a/libnexa_http_native.so',
-  'packages/nexa_http_native_android/android/src/main/jniLibs/x86_64/libnexa_http_native.so',
+  '.dart_tool/nexa_http_native/integration/android-linux/nexa_http-native-android-arm64-v8a.so',
+  '.dart_tool/nexa_http_native/integration/android-linux/nexa_http-native-android-armeabi-v7a.so',
+  '.dart_tool/nexa_http_native/integration/android-linux/nexa_http-native-android-x86_64.so',
 ];

@@ -30,7 +30,13 @@ VerificationCheckDefinition generatedBindingsFreshnessCheck(
   String workspaceRoot,
   VerificationCommandRunner runCommand,
 ) {
-  final packageRoot = p.join(workspaceRoot, 'packages', 'nexa_http');
+  const packageNames = <String>[
+    'nexa_http_native_internal',
+    'nexa_http_native_android',
+    'nexa_http_native_ios',
+    'nexa_http_native_macos',
+    'nexa_http_native_windows',
+  ];
   return VerificationCheckDefinition(
     id: const VerificationCheckId('generated-bindings-freshness'),
     suites: const <VerificationSuiteId>[VerificationSuiteId.verifyStatic],
@@ -38,13 +44,20 @@ VerificationCheckDefinition generatedBindingsFreshnessCheck(
       staticLinuxExecutionId,
     ],
     action: (_) async {
-      await runCommand(
-        VerificationCommand(
-          executable: 'dart',
-          arguments: const <String>['run', 'ffigen', '--config', 'ffigen.yaml'],
-          workingDirectory: packageRoot,
-        ),
-      );
+      for (final packageName in packageNames) {
+        await runCommand(
+          VerificationCommand(
+            executable: 'dart',
+            arguments: const <String>[
+              'run',
+              'ffigen',
+              '--config',
+              'ffigen.yaml',
+            ],
+            workingDirectory: p.join(workspaceRoot, 'packages', packageName),
+          ),
+        );
+      }
       await runCommand(
         VerificationCommand(
           executable: 'git',
@@ -53,9 +66,14 @@ VerificationCheckDefinition generatedBindingsFreshnessCheck(
             '--ignore-all-space',
             '--exit-code',
             '--',
-            'lib/src/native_bridge/nexa_http_bindings_generated.dart',
+            'packages/nexa_http_native_internal/lib/src/native/nexa_http_native_types.dart',
+            'packages/nexa_http_native_internal/lib/src/native/nexa_http_native_types.symbols.yaml',
+            'packages/nexa_http_native_android/lib/src/native/nexa_http_native_ffi.dart',
+            'packages/nexa_http_native_ios/lib/src/native/nexa_http_native_ffi.dart',
+            'packages/nexa_http_native_macos/lib/src/native/nexa_http_native_ffi.dart',
+            'packages/nexa_http_native_windows/lib/src/native/nexa_http_native_ffi.dart',
           ],
-          workingDirectory: packageRoot,
+          workingDirectory: workspaceRoot,
         ),
       );
     },

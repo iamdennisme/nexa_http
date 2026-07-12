@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
-import '../../native_bridge/nexa_http_bindings_generated.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
 import '../../api/nexa_http_exception.dart';
 import '../../internal/errors/nexa_http_failures.dart';
@@ -18,36 +18,16 @@ import 'ffi_nexa_http_request_encoder.dart';
 import 'ffi_nexa_http_response_decoder.dart';
 import 'nexa_http_native_data_source.dart';
 
-typedef BinaryResultFinalizerNative = Void Function(Pointer<Void> token);
+typedef BinaryResultFinalizerNative =
+    Void Function(Pointer<NexaHttpBinaryResult> token);
 typedef StringReleaseNative = Void Function(Pointer<Char> value);
 
 final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
-  factory FfiNexaHttpNativeDataSource({
-    required DynamicLibrary library,
-    NexaHttpBindings? bindings,
-    Pointer<NativeFunction<BinaryResultFinalizerNative>>? binaryResultFinalizer,
-    Pointer<NativeFunction<StringReleaseNative>>? stringRelease,
-  }) {
-    final resolvedBindings = bindings ?? NexaHttpBindings(library);
-    final resolvedBinaryResultFinalizer =
-        binaryResultFinalizer ??
-        (bindings == null
-            ? library.lookup<NativeFunction<BinaryResultFinalizerNative>>(
-                'nexa_http_binary_result_free',
-              )
-            : nullptr);
-    final resolvedStringRelease =
-        stringRelease ??
-        (bindings == null
-            ? library.lookup<NativeFunction<StringReleaseNative>>(
-                'nexa_http_string_free',
-              )
-            : nullptr);
-
+  factory FfiNexaHttpNativeDataSource({required NexaHttpBindings bindings}) {
     return FfiNexaHttpNativeDataSource._(
-      bindings: resolvedBindings,
-      binaryResultFinalizer: resolvedBinaryResultFinalizer,
-      releaseNativeString: resolvedStringRelease,
+      bindings: bindings,
+      binaryResultFinalizer: bindings.nexaHttpBinaryResultFreeAddress,
+      releaseNativeString: bindings.nexaHttpStringFreeAddress,
     );
   }
 

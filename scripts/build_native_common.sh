@@ -38,7 +38,7 @@ run_with_timeout() {
       sleep 2
       kill -KILL "${command_pid}" >/dev/null 2>&1 || true
     fi
-  ) &
+  ) >/dev/null 2>&1 &
   local watchdog_pid=$!
 
   local exit_code=0
@@ -111,4 +111,57 @@ normalize_profile() {
       die "Unsupported profile \"${profile}\". Use debug or release."
       ;;
   esac
+}
+
+parse_native_build_args() {
+  PROFILE="$(normalize_profile "${1:-}")"
+  shift || true
+  OUTPUT_DIR=''
+  TARGETS=()
+
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      --output-dir)
+        [[ "$#" -ge 2 && -n "$2" ]] || die 'Missing value for --output-dir.'
+        OUTPUT_DIR="$2"
+        shift 2
+        ;;
+      --target)
+        [[ "$#" -ge 2 && -n "$2" ]] || die 'Missing value for --target.'
+        TARGETS+=("$2")
+        shift 2
+        ;;
+      *)
+        die "Unknown argument: $1"
+        ;;
+    esac
+  done
+
+  [[ -n "${OUTPUT_DIR}" ]] || die 'Missing --output-dir <dir>.'
+  [[ "${#TARGETS[@]}" -gt 0 ]] || die 'Missing --target <rust-triple>.'
+}
+
+validate_requested_targets() {
+  local allowed=("$@")
+  local requested candidate matched
+  for requested in "${TARGETS[@]}"; do
+    matched='false'
+    for candidate in "${allowed[@]}"; do
+      if [[ "${requested}" == "${candidate}" ]]; then
+        matched='true'
+        break
+      fi
+    done
+    [[ "${matched}" == 'true' ]] || die "Unsupported target: ${requested}"
+  done
+}
+
+atomic_copy() {
+  local source_file="${1:?missing source file}"
+  local destination_file="${2:?missing destination file}"
+  mkdir -p "$(dirname "${destination_file}")"
+  local temporary_file
+  temporary_file="$(mktemp "${destination_file}.tmp.XXXXXX")"
+  cp "${source_file}" "${temporary_file}"
+  mv -f "${temporary_file}" "${destination_file}"
 }

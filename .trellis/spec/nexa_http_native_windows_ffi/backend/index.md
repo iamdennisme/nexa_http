@@ -16,7 +16,7 @@
 
 - [ ] 修改 `src/lib.rs` C ABI export 时同步 core FFI 和 Dart bindings。
 - [ ] 修改 registry/proxy parser 时补充或更新 `tests/proxy_settings.rs`。
-- [ ] 修改 DLL 命名或 target triple 时同步 Windows hook、CMake 和 release manifest tests。
+- [ ] 修改 DLL 命名或 target triple 时同步 canonical target matrix、Windows hook、typed build script、release manifest 和 verification tests；CMake 不拥有 native DLL copy authority。
 
 ## Quality Check
 

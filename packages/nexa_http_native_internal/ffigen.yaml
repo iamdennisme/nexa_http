@@ -1,0 +1,31 @@
+name: NexaHttpNativeTypes
+description: Shared types for the nexa_http native ABI.
+output:
+  bindings: lib/src/native/nexa_http_native_types.dart
+  symbol-file:
+    output: package:nexa_http_native_internal/src/native/nexa_http_native_types.symbols.yaml
+    import-path: package:nexa_http_native_internal/src/native/nexa_http_native_types.dart
+headers:
+  entry-points:
+    - ../../native/nexa_http_native_core/include/nexa_http_native.h
+functions:
+  exclude:
+    - '.*'
+globals:
+  exclude:
+    - '.*'
+structs:
+  include:
+    - 'NexaHttp.*'
+unions:
+  exclude:
+    - '.*'
+enums:
+  exclude:
+    - '.*'
+typedefs:
+  include:
+    - 'NexaHttp.*'
+macros:
+  exclude:
+    - '.*'

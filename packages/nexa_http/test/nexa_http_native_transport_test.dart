@@ -1,5 +1,3 @@
-import 'dart:ffi';
-
 import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
@@ -9,6 +7,8 @@ import 'package:nexa_http/src/internal/transport/nexa_http_native_transport.dart
 import 'package:nexa_http/src/internal/transport/transport_response.dart';
 import 'package:nexa_http/src/native_bridge/nexa_http_native_data_source_factory.dart';
 import 'package:test/test.dart';
+
+import 'support/fake_native_bindings.dart';
 
 void main() {
   test(
@@ -21,7 +21,7 @@ void main() {
         ],
       );
       final factory = NexaHttpNativeDataSourceFactory(
-        loadDynamicLibrary: () => DynamicLibrary.process(),
+        resolveBindings: FakeNativeBindings.new,
         createDataSource: (_) => dataSource,
       );
       final transport = NexaHttpNativeTransport(

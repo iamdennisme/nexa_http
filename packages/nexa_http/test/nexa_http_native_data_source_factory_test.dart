@@ -10,97 +10,30 @@ import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:test/test.dart';
 
 void main() {
+  setUp(resetNexaHttpNativeBindingsForTesting);
+
   test(
-    'asks the loader for a library handle without exposing a path parameter',
+    'resolves bindings once and passes the same instance to the creator',
     () {
-      var loadCount = 0;
-      late final DynamicLibrary loadedLibrary;
+      var resolveCount = 0;
+      final bindings = _FakeBindings();
       final factory = NexaHttpNativeDataSourceFactory(
-        loadDynamicLibrary: () {
-          loadCount += 1;
-          loadedLibrary = DynamicLibrary.process();
-          return loadedLibrary;
+        resolveBindings: () {
+          resolveCount += 1;
+          return bindings;
         },
         createDataSource: _FakeNexaHttpNativeDataSource.new,
       );
 
-      final dataSource = factory.create();
+      final dataSource = factory.create() as _FakeNexaHttpNativeDataSource;
 
-      expect(loadCount, 1);
-      expect(dataSource, isA<_FakeNexaHttpNativeDataSource>());
-      expect(
-        (dataSource as _FakeNexaHttpNativeDataSource).library,
-        same(loadedLibrary),
-      );
+      expect(resolveCount, 1);
+      expect(dataSource.bindings, same(bindings));
     },
   );
 
-  test('delegates to the registered strategy by default', () {
-    var runtimeOpenCount = 0;
-    final runtimeLibrary = DynamicLibrary.process();
-    final factory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () {
-        return loadNexaHttpDynamicLibraryForTesting(
-          registeredStrategy: _FakeRuntime(() {
-            runtimeOpenCount += 1;
-            return runtimeLibrary;
-          }),
-        );
-      },
-      createDataSource: _FakeNexaHttpNativeDataSource.new,
-    );
-
-    final dataSource = factory.create();
-
-    expect(runtimeOpenCount, 1);
-    expect(
-      (dataSource as _FakeNexaHttpNativeDataSource).library,
-      same(runtimeLibrary),
-    );
-  });
-
-  test('normalizes a missing carrier strategy to unavailable', () {
-    final factory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () {
-        return loadNexaHttpDynamicLibraryForTesting();
-      },
-      createDataSource: _FakeNexaHttpNativeDataSource.new,
-    );
-
-    expect(
-      () => factory.create(),
-      throwsA(
-        isA<NexaHttpException>()
-            .having(
-              (error) => error.kind,
-              'kind',
-              NexaHttpFailureKind.unavailable,
-            )
-            .having(
-              (error) => error.diagnostics?['stage'],
-              'diagnostics.stage',
-              'native_library_open',
-            )
-            .having(
-              (error) => error.diagnostics?['error'],
-              'diagnostics.error',
-              allOf(
-                contains('stage=plugin registration'),
-                contains('platform='),
-                contains('architecture='),
-                contains('expected_action='),
-                contains('Register a platform strategy first'),
-              ),
-            ),
-      ),
-    );
-  });
-
-  test('normalizes native binding construction failures to unavailable', () {
-    final factory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: DynamicLibrary.process,
-      createDataSource: (_) => throw ArgumentError('missing native symbol'),
-    );
+  test('normalizes missing carrier bindings to unavailable', () {
+    const factory = NexaHttpNativeDataSourceFactory();
 
     expect(
       factory.create,
@@ -113,25 +46,49 @@ void main() {
             )
             .having(
               (error) => error.diagnostics?['stage'],
-              'diagnostics.stage',
+              'stage',
               'native_bindings_create',
             )
             .having(
               (error) => error.diagnostics?['error'],
-              'diagnostics.error',
+              'error',
+              contains('plugin registration'),
+            ),
+      ),
+    );
+  });
+
+  test('normalizes native binding construction failures to unavailable', () {
+    final factory = NexaHttpNativeDataSourceFactory(
+      resolveBindings: _FakeBindings.new,
+      createDataSource: (_) => throw ArgumentError('missing native symbol'),
+    );
+
+    expect(
+      factory.create,
+      throwsA(
+        isA<NexaHttpException>()
+            .having(
+              (error) => error.diagnostics?['stage'],
+              'stage',
+              'native_bindings_create',
+            )
+            .having(
+              (error) => error.diagnostics?['error'],
+              'error',
               contains('missing native symbol'),
             ),
       ),
     );
   });
 
-  test('passes through an existing typed HTTP Failure', () {
+  test('passes through an existing typed HTTP failure', () {
     final expected = NexaHttpException(
       kind: NexaHttpFailureKind.internal,
       message: 'already normalized',
     );
     final factory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: DynamicLibrary.process,
+      resolveBindings: _FakeBindings.new,
       createDataSource: (_) => throw expected,
     );
 
@@ -139,35 +96,34 @@ void main() {
   });
 }
 
-final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
-  _FakeNexaHttpNativeDataSource(this.library);
+final class _FakeBindings implements NexaHttpBindings {
+  @override
+  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 
-  final DynamicLibrary library;
+  @override
+  Pointer<NativeFunction<Void Function(Pointer<NexaHttpBinaryResult>)>>
+  get nexaHttpBinaryResultFreeAddress => nullptr;
+
+  @override
+  Pointer<NativeFunction<Void Function(Pointer<Char>)>>
+  get nexaHttpStringFreeAddress => nullptr;
+}
+
+final class _FakeNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
+  _FakeNexaHttpNativeDataSource(this.bindings);
+
+  final NexaHttpBindings bindings;
 
   @override
   void closeClient(int clientId) {}
-
   @override
   void dispose() {}
-
   @override
   int createClient(NativeHttpClientConfigDto config) => 1;
-
   @override
   Future<TransportResponse> execute(
     int clientId,
     NativeHttpRequestDto request, {
     RegisterCancelRequest? onCancelReady,
-  }) async {
-    throw UnimplementedError();
-  }
-}
-
-final class _FakeRuntime implements NexaHttpNativeRuntime {
-  _FakeRuntime(this._open);
-
-  final DynamicLibrary Function() _open;
-
-  @override
-  DynamicLibrary open() => _open();
+  }) async => throw UnimplementedError();
 }

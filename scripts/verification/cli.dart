@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../workspace_bootstrap.dart';
+import '../native_payload_identity.dart';
 import 'catalog.dart';
 import 'candidate_adapter.dart';
 import 'candidate_set.dart';
@@ -322,14 +323,20 @@ Future<int> runVerificationCli(
   required VerificationCliWriter writeStderr,
   String? workspaceRoot,
   VerificationCommandRunner? runCommand,
-  VerificationExecutionCheckRunner? verifyAbi,
+  VerificationNativeAbiCheckRunner? verifyAbi,
   VerificationExecutionCheckRunner? verifyDevelopmentPath,
-  VerificationExecutionCheckRunner? verifyExternalConsumer,
+  VerificationExternalConsumerCheckRunner? verifyExternalConsumer,
+  VerificationArtifactUniquenessCheckRunner? verifyArtifactUniqueness,
   CandidateSetLoader? candidateSetLoader,
   VerifiedCandidateConsumer? verifyCandidateAbi,
-  VerifiedCandidateConsumer? verifyCandidateRuntime,
+  VerifiedCandidateRuntimeConsumer? verifyCandidateRuntime,
+  CandidateBuiltPayloadVerifier? verifyCandidateBuiltPayload,
+  CandidateNativePayloadIdentityDigester? candidateIdentityDigester,
+  ExternalRuntimeProofMarkerTracker? runtimeProofTracker,
 }) async {
   final command = parseVerificationCliCommand(arguments);
+  final resolvedRuntimeProofTracker =
+      runtimeProofTracker ?? ExternalRuntimeProofMarkerTracker();
   if (command.name == 'bootstrap') {
     if (command.arguments.isNotEmpty) {
       throw const VerificationCliUsageError('Usage: bootstrap');
@@ -354,7 +361,11 @@ Future<int> runVerificationCli(
     final checkId = VerificationCheckId(command.arguments.first);
     final checkArguments = command.arguments.skip(1).toList(growable: false);
     final resolvedWorkspaceRoot = workspaceRoot ?? Directory.current.path;
-    final resolvedRunCommand = _resolveCommandRunner(runCommand, writeStderr);
+    final resolvedRunCommand = _resolveCommandRunner(
+      runCommand,
+      writeStderr,
+      resolvedRuntimeProofTracker,
+    );
     final staticCatalog = VerificationCatalog(
       buildStaticChecks(
         workspaceRoot: resolvedWorkspaceRoot,
@@ -385,7 +396,9 @@ Future<int> runVerificationCli(
       runCommand: (_) async {},
       verifyAbi: (_) async {},
       verifyDevelopmentPath: (_) async {},
-      verifyExternalConsumer: (_) async {},
+      verifyExternalConsumer: (_, _) async {},
+      verifyArtifactUniqueness: (_) async =>
+          const <VerificationRuntimePayloadProof>[],
     ).map((check) => check.id).toSet();
     if (integrationIds.contains(checkId)) {
       final input = parseIntegrationCliInput(checkArguments);
@@ -395,16 +408,38 @@ Future<int> runVerificationCli(
         );
       }
       ExternalConsumerVerificationSession? externalSession;
-      Future<void> runExternal(VerificationExecutionId executionId) async {
-        final runner =
-            verifyExternalConsumer ??
-            (externalSession ??= await createExternalConsumerSession(
-              workspaceRoot: resolvedWorkspaceRoot,
-              fixtureUrl: input.fixtureUrl,
-              deviceIds: input.deviceIds,
-              runCommand: resolvedRunCommand,
-            )).runner;
-        await runner(executionId);
+      Future<void> runExternal(
+        VerificationExecutionId executionId,
+        List<VerifiedNativeArtifactIdentity> preparedIdentities,
+      ) async {
+        if (verifyExternalConsumer != null) {
+          await verifyExternalConsumer(executionId, preparedIdentities);
+          return;
+        }
+        externalSession ??= await createExternalConsumerSession(
+          workspaceRoot: resolvedWorkspaceRoot,
+          fixtureUrl: input.fixtureUrl,
+          deviceIds: input.deviceIds,
+          runCommand: resolvedRunCommand,
+          runtimeProofTracker: resolvedRuntimeProofTracker,
+          preparedArtifactProofs: _preparedArtifactProofs(preparedIdentities),
+        );
+        await externalSession!.runner(executionId);
+      }
+
+      Future<List<VerificationRuntimePayloadProof>> runUniqueness(
+        VerificationExecutionId executionId,
+      ) async {
+        if (verifyArtifactUniqueness != null) {
+          return verifyArtifactUniqueness(executionId);
+        }
+        final session = externalSession;
+        if (session == null) {
+          throw StateError(
+            'Artifact uniqueness requires the clean-host build session.',
+          );
+        }
+        return session.verifyArtifactUniqueness(executionId);
       }
 
       final catalog = VerificationCatalog(
@@ -420,6 +455,7 @@ Future<int> runVerificationCli(
                 resolvedRunCommand,
               ),
           verifyExternalConsumer: runExternal,
+          verifyArtifactUniqueness: runUniqueness,
         ),
       );
       final plan = VerificationPlanner(
@@ -437,7 +473,8 @@ Future<int> runVerificationCli(
       executionRows: candidateRows,
       verifyCandidateSet: (_) async {},
       verifyCandidateAbi: (_) async {},
-      verifyCandidateRuntime: (_) async {},
+      verifyCandidateRuntime: (_) async =>
+          const <VerificationRuntimePayloadProof>[],
     ).map((check) => check.id).toSet();
     if (candidateIds.contains(checkId)) {
       final input = parseCandidateCliInput(checkArguments);
@@ -465,7 +502,15 @@ Future<int> runVerificationCli(
               fixtureUrl: input.fixtureUrl,
               deviceId: input.deviceId,
               runCommand: resolvedRunCommand,
+              runtimeProofTracker: resolvedRuntimeProofTracker,
+              verifyBuiltPayload:
+                  verifyCandidateBuiltPayload ?? _verifyBuiltCandidatePayload,
+              identityDigest:
+                  candidateIdentityDigester ??
+                  nexaHttpNativePayloadIdentitySha256,
             ),
+        identityDigest:
+            candidateIdentityDigester ?? nexaHttpNativePayloadIdentitySha256,
       );
       final catalog = VerificationCatalog(
         buildCandidateChecks(
@@ -497,6 +542,7 @@ Future<int> runVerificationCli(
             fixtureUrl: input.integration.fixtureUrl,
             deviceIds: input.integration.deviceIds,
             runCommand: resolvedRunCommand,
+            runtimeProofTracker: resolvedRuntimeProofTracker,
           ),
         ),
       ]);
@@ -538,7 +584,11 @@ Future<int> runVerificationCli(
       commandName: command.name,
     );
     final resolvedWorkspaceRoot = workspaceRoot ?? Directory.current.path;
-    final resolvedRunCommand = _resolveCommandRunner(runCommand, writeStderr);
+    final resolvedRunCommand = _resolveCommandRunner(
+      runCommand,
+      writeStderr,
+      resolvedRuntimeProofTracker,
+    );
     final catalog = VerificationCatalog(
       buildStaticChecks(
         workspaceRoot: resolvedWorkspaceRoot,
@@ -575,7 +625,9 @@ Future<int> runVerificationCli(
           runCommand: (_) async {},
           verifyAbi: (_) async {},
           verifyDevelopmentPath: (_) async {},
-          verifyExternalConsumer: (_) async {},
+          verifyExternalConsumer: (_, _) async {},
+          verifyArtifactUniqueness: (_) async =>
+              const <VerificationRuntimePayloadProof>[],
         ),
       );
       verifyAggregateCoverage(
@@ -594,16 +646,46 @@ Future<int> runVerificationCli(
     final input = parseIntegrationCliInput(command.arguments);
     final resolvedWorkspaceRoot = workspaceRoot ?? Directory.current.path;
     final executionRows = buildIntegrationExecutionRows();
-    final resolvedRunCommand = _resolveCommandRunner(runCommand, writeStderr);
+    final resolvedRunCommand = _resolveCommandRunner(
+      runCommand,
+      writeStderr,
+      resolvedRuntimeProofTracker,
+    );
     ExternalConsumerVerificationSession? externalSession;
-    final resolvedExternalConsumer =
-        verifyExternalConsumer ??
-        (externalSession = await createExternalConsumerSession(
-          workspaceRoot: resolvedWorkspaceRoot,
-          fixtureUrl: input.fixtureUrl,
-          deviceIds: input.deviceIds,
-          runCommand: resolvedRunCommand,
-        )).runner;
+    Future<void> runExternal(
+      VerificationExecutionId executionId,
+      List<VerifiedNativeArtifactIdentity> preparedIdentities,
+    ) async {
+      if (verifyExternalConsumer != null) {
+        await verifyExternalConsumer(executionId, preparedIdentities);
+        return;
+      }
+      externalSession ??= await createExternalConsumerSession(
+        workspaceRoot: resolvedWorkspaceRoot,
+        fixtureUrl: input.fixtureUrl,
+        deviceIds: input.deviceIds,
+        runCommand: resolvedRunCommand,
+        runtimeProofTracker: resolvedRuntimeProofTracker,
+        preparedArtifactProofs: _preparedArtifactProofs(preparedIdentities),
+      );
+      await externalSession!.runner(executionId);
+    }
+
+    Future<List<VerificationRuntimePayloadProof>> runUniqueness(
+      VerificationExecutionId executionId,
+    ) async {
+      if (verifyArtifactUniqueness != null) {
+        return verifyArtifactUniqueness(executionId);
+      }
+      final session = externalSession;
+      if (session == null) {
+        throw StateError(
+          'Artifact uniqueness requires the clean-host build session.',
+        );
+      }
+      return session.verifyArtifactUniqueness(executionId);
+    }
+
     final catalog = VerificationCatalog(
       buildIntegrationChecks(
         workspaceRoot: resolvedWorkspaceRoot,
@@ -616,7 +698,8 @@ Future<int> runVerificationCli(
               resolvedWorkspaceRoot,
               resolvedRunCommand,
             ),
-        verifyExternalConsumer: resolvedExternalConsumer,
+        verifyExternalConsumer: runExternal,
+        verifyArtifactUniqueness: runUniqueness,
       ),
     );
     final plan = VerificationPlanner(
@@ -634,6 +717,10 @@ Future<int> runVerificationCli(
               .toList(growable: false),
           completedCheckIds: result.completedCheckIds,
           status: VerificationCoverageStatus.passed,
+          preparedArtifactProofs: _preparedArtifactProofs(
+            result.preparedArtifactIdentities,
+          ),
+          runtimePayloadProofs: result.runtimePayloadProofs,
         ),
       );
     } finally {
@@ -650,7 +737,8 @@ Future<int> runVerificationCli(
           executionRows: executionRows,
           verifyCandidateSet: (_) async {},
           verifyCandidateAbi: (_) async {},
-          verifyCandidateRuntime: (_) async {},
+          verifyCandidateRuntime: (_) async =>
+              const <VerificationRuntimePayloadProof>[],
         ),
       );
       verifyAggregateCoverage(
@@ -668,7 +756,11 @@ Future<int> runVerificationCli(
     }
     final input = parseCandidateCliInput(command.arguments);
     final resolvedWorkspaceRoot = workspaceRoot ?? Directory.current.path;
-    final resolvedRunCommand = _resolveCommandRunner(runCommand, writeStderr);
+    final resolvedRunCommand = _resolveCommandRunner(
+      runCommand,
+      writeStderr,
+      resolvedRuntimeProofTracker,
+    );
     final runners = CandidateVerificationRunners(
       verifySet:
           candidateSetLoader ??
@@ -688,7 +780,15 @@ Future<int> runVerificationCli(
             fixtureUrl: input.fixtureUrl,
             deviceId: input.deviceId,
             runCommand: resolvedRunCommand,
+            runtimeProofTracker: resolvedRuntimeProofTracker,
+            verifyBuiltPayload:
+                verifyCandidateBuiltPayload ?? _verifyBuiltCandidatePayload,
+            identityDigest:
+                candidateIdentityDigester ??
+                nexaHttpNativePayloadIdentitySha256,
           ),
+      identityDigest:
+          candidateIdentityDigester ?? nexaHttpNativePayloadIdentitySha256,
     );
     final catalog = VerificationCatalog(
       buildCandidateChecks(
@@ -712,12 +812,45 @@ Future<int> runVerificationCli(
             .toList(growable: false),
         completedCheckIds: result.completedCheckIds,
         status: VerificationCoverageStatus.passed,
+        preparedArtifactProofs: await runners.preparedProofs(input.executionId),
+        runtimePayloadProofs: result.runtimePayloadProofs,
       ),
     );
     return 0;
   }
   throw VerificationCliUsageError(
     'Workspace command is not implemented yet: ${command.name}',
+  );
+}
+
+Future<List<VerificationRuntimePayloadProof>> _verifyBuiltCandidatePayload(
+  VerificationExecutionId executionId,
+  ExternalConsumerVerificationSession session,
+  List<VerificationPreparedArtifactProof> preparedArtifactProofs,
+) {
+  return session.verifyArtifactUniqueness(executionId);
+}
+
+List<VerificationPreparedArtifactProof> _preparedArtifactProofs(
+  List<VerifiedNativeArtifactIdentity> identities,
+) {
+  return List<VerificationPreparedArtifactProof>.unmodifiable(
+    <VerificationPreparedArtifactProof>[
+      for (final identity in identities)
+        VerificationPreparedArtifactProof(
+          target: VerificationNativeTargetTuple(
+            targetOS: identity.target.targetOS,
+            targetArchitecture: identity.target.targetArchitecture,
+            targetSdk: identity.target.targetSdk,
+            rustTarget: identity.target.rustTargetTriple,
+          ),
+          nativeAssetId: identity.nativeAssetId,
+          absolutePreparedFile: identity.file.absolute.path,
+          sha256: identity.sha256,
+          identitySha256: identity.identitySha256,
+          sourceIdentity: identity.sourceIdentity,
+        ),
+    ],
   );
 }
 
@@ -792,11 +925,15 @@ Future<List<VerificationCoverageReport>> _readCoverageReports(
 VerificationCommandRunner _resolveCommandRunner(
   VerificationCommandRunner? runCommand,
   VerificationCliWriter writeStderr,
+  ExternalRuntimeProofMarkerTracker runtimeProofTracker,
 ) {
   return runCommand ??
       (verificationCommand) => runVerificationCommand(
         verificationCommand,
-        onStdoutLine: writeStderr,
+        onStdoutLine: (line) {
+          runtimeProofTracker.observeLine(line);
+          writeStderr(line);
+        },
         onStderrLine: writeStderr,
       );
 }

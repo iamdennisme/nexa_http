@@ -102,6 +102,32 @@ Future<void> verifyNexaHttpNativeAbiArtifacts(
   );
 }
 
+Future<Set<String>> readNexaHttpNativeSymbols(
+  File file, {
+  required String platform,
+  NexaHttpNativeSymbolCommandRunner runSymbolCommand =
+      _runNexaHttpNativeSymbolCommand,
+  Map<String, String>? environment,
+}) async {
+  final artifact = _NexaHttpNativeAbiArtifact(
+    file: file,
+    platform: platform,
+    targets: <String>[platform],
+    buildScriptName: 'the canonical target build script',
+  );
+  final attempt = await _readNativeSymbols(
+    _symbolCommandsForArtifact(artifact, environment ?? Platform.environment),
+    runSymbolCommand,
+  );
+  if (attempt.result == null) {
+    throw StateError(
+      'Unable to inspect native symbols for ${file.path}: '
+      '${attempt.errors.join(' | ')}',
+    );
+  }
+  return nexaHttpSymbolsFromToolOutput(attempt.result!.stdout);
+}
+
 Future<void> _verifyNativeAbiArtifacts(
   List<_NexaHttpNativeAbiArtifact> artifacts, {
   required Map<String, String> resolvedEnvironment,
@@ -192,6 +218,11 @@ List<_NexaHttpNativeAbiArtifact> _nativeAbiArtifactsForHost(
     NexaHttpNativeAbiHost.windows => const <String>{'windows'},
   };
   final artifactsByPath = <String, _NexaHttpNativeAbiArtifact>{};
+  final executionId = switch (host) {
+    NexaHttpNativeAbiHost.android => 'android-linux',
+    NexaHttpNativeAbiHost.apple => 'apple-macos',
+    NexaHttpNativeAbiHost.windows => 'windows-x64',
+  };
 
   for (final target in nexaHttpSupportedNativeTargets) {
     if (!targetOperatingSystems.contains(target.targetOS)) {
@@ -201,9 +232,11 @@ List<_NexaHttpNativeAbiArtifact> _nativeAbiArtifactsForHost(
       p.absolute(
         p.join(
           workspaceRoot,
-          'packages',
-          'nexa_http_native_${target.targetOS}',
-          target.packagedRelativePath,
+          '.dart_tool',
+          'nexa_http_native',
+          'integration',
+          executionId,
+          target.releaseAssetFileName,
         ),
       ),
     );

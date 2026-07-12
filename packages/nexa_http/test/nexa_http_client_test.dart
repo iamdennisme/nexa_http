@@ -1,4 +1,3 @@
-import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:nexa_http/nexa_http.dart';
@@ -10,6 +9,8 @@ import 'package:nexa_http/src/internal/body/response_body_owner.dart';
 import 'package:nexa_http/src/internal/transport/transport_response.dart';
 import 'package:nexa_http/src/native_bridge/nexa_http_native_data_source_factory.dart';
 import 'package:test/test.dart';
+
+import 'support/fake_native_bindings.dart';
 
 void main() {
   tearDown(() {
@@ -46,7 +47,7 @@ void main() {
       ],
     );
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () => DynamicLibrary.process(),
+      resolveBindings: FakeNativeBindings.new,
       createDataSource: (_) => dataSource,
     );
     NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
@@ -89,8 +90,7 @@ void main() {
         ],
       );
       final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-        loadDynamicLibrary: ({String? explicitPath}) =>
-            DynamicLibrary.process(),
+        resolveBindings: FakeNativeBindings.new,
         createDataSource: (_) => dataSource,
       );
       NexaHttpTestingOverrides.installNativeDataSourceFactory(
@@ -124,7 +124,7 @@ void main() {
 
   test('blocks new executions after the client is closed', () async {
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () => DynamicLibrary.process(),
+      resolveBindings: FakeNativeBindings.new,
       createDataSource: (_) =>
           _FakeNativeDataSource(executeResponses: const <TransportResponse>[]),
     );

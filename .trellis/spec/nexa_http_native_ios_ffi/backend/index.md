@@ -16,7 +16,7 @@
 
 - [ ] 修改 `src/lib.rs` C ABI export 时同步 core FFI 和 Dart bindings。
 - [ ] 修改 `src/proxy_source.rs` 的 SystemConfiguration mapping 时更新 `tests/proxy_settings.rs`；修改纯解析规则时更新 `nexa_http_native_apple_proxy` tests。
-- [ ] 修改 framework/dylib 命名时同步 iOS hook、podspec 和 release manifest tests。
+- [ ] 修改 framework/dylib 命名或 target triple 时同步 canonical target matrix、iOS hook、typed build script、release manifest 和 verification tests；Podspec 不拥有 native artifact copy/preserve authority。
 
 ## Quality Check
 

@@ -3,6 +3,7 @@ import 'package:test/test.dart';
 import '../../scripts/verification/catalog.dart';
 import '../../scripts/verification/checks/candidate_checks.dart';
 import '../../scripts/verification/model.dart';
+import '../../scripts/verification/report.dart';
 import '../../scripts/verification/target_matrix.dart';
 
 void main() {
@@ -14,7 +15,8 @@ void main() {
           executionRows: buildReleaseCandidateExecutionRows(),
           verifyCandidateSet: (_) async {},
           verifyCandidateAbi: (_) async {},
-          verifyCandidateRuntime: (_) async {},
+          verifyCandidateRuntime: (_) async =>
+              const <VerificationRuntimePayloadProof>[],
         ),
       );
 

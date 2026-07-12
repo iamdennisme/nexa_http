@@ -15,7 +15,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  nexa_http_native_ios: 4a4fcbd2e6e821a1a0ab835991ae621dada04936
+  nexa_http_native_ios: bc2a4e8ba9cc80717f1c8b6a356a015a51f65d66
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
 

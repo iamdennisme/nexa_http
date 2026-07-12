@@ -1,13 +1,26 @@
 import 'model.dart';
 import 'planner.dart';
+import 'report.dart';
 
 final class VerificationExecutionResult {
-  VerificationExecutionResult(List<VerificationCheckId> completedCheckIds)
-    : completedCheckIds = List<VerificationCheckId>.unmodifiable(
+  VerificationExecutionResult(
+    List<VerificationCheckId> completedCheckIds,
+    List<VerifiedNativeArtifactIdentity> preparedArtifactIdentities,
+    List<VerificationRuntimePayloadProof> runtimePayloadProofs,
+  ) : completedCheckIds = List<VerificationCheckId>.unmodifiable(
         completedCheckIds,
+      ),
+      preparedArtifactIdentities =
+          List<VerifiedNativeArtifactIdentity>.unmodifiable(
+            preparedArtifactIdentities,
+          ),
+      runtimePayloadProofs = List<VerificationRuntimePayloadProof>.unmodifiable(
+        runtimePayloadProofs,
       );
 
   final List<VerificationCheckId> completedCheckIds;
+  final List<VerifiedNativeArtifactIdentity> preparedArtifactIdentities;
+  final List<VerificationRuntimePayloadProof> runtimePayloadProofs;
 }
 
 final class VerificationExecutor {
@@ -29,6 +42,11 @@ final class VerificationExecutor {
       await action(context);
       completedCheckIds.add(node.check.id);
     }
-    return VerificationExecutionResult(completedCheckIds);
+    return VerificationExecutionResult(
+      completedCheckIds,
+      await context.preparedArtifactIdentitiesOrEmpty(),
+      await context
+          .runtimePayloadProofsOrEmpty<VerificationRuntimePayloadProof>(),
+    );
   }
 }

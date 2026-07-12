@@ -16,7 +16,7 @@
 
 - [ ] 修改 `src/lib.rs` C ABI export 时同步 core FFI 和 Dart bindings。
 - [ ] 修改 `src/proxy_source.rs` 的 SystemConfiguration mapping 时更新 `tests/proxy_settings.rs`；修改纯解析规则时更新 `nexa_http_native_apple_proxy` tests。
-- [ ] 修改构建产物名称、crate type 或 target triple 时同步 Dart build hook、CocoaPods 和 workspace verification。
+- [ ] 修改构建产物名称、crate type 或 target triple 时同步 canonical target matrix、Dart build hook、typed build script 和 workspace verification；CocoaPods 不拥有 native artifact copy/resource authority。
 
 ## Quality Check
 

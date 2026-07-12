@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../../scripts/native_artifact_uniqueness.dart';
 import '../../scripts/verification/external_consumer_adapter.dart';
 import '../../scripts/verification/command.dart';
 import '../../scripts/verification/model.dart';
+import '../../scripts/verification/report.dart';
 
 void main() {
   test(
@@ -18,9 +20,25 @@ void main() {
       expect(source, contains('.newCall(request).execute()'));
       expect(source, contains('await response.body!.string()'));
       expect(source, contains('await client.close()'));
-      expect(source, contains('NEXA_HTTP_RUNTIME_SMOKE_OK'));
+      const proofMarker =
+          'NEXA_HTTP_RUNTIME_PROOF '
+          '{"request_completed":true,"callback_received":true,'
+          '"body_consumed":true,"body_released":true,'
+          '"client_closed":true}';
+      expect(source, contains(proofMarker));
+      expect(source, isNot(contains('NEXA_HTTP_RUNTIME_SMOKE_OK')));
+      final requestCompleted = source.indexOf(
+        'await client.newCall(request).execute()',
+      );
+      final bodyConsumedAndReleased = source.indexOf(
+        'await response.body!.string()',
+      );
+      final clientClosed = source.indexOf('await client.close()');
+      expect(bodyConsumedAndReleased, greaterThan(requestCompleted));
+      expect(clientClosed, greaterThan(bodyConsumedAndReleased));
+      expect(source.indexOf(proofMarker), greaterThan(clientClosed));
       expect(source, contains("import 'dart:io';"));
-      expect(source, contains('exit(0)'));
+      expect(source, contains('exit(exitCode)'));
     },
   );
 
@@ -47,6 +65,32 @@ void main() {
     ]);
   });
 
+  test('Apple distribution resolves the single final app bundle', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'nexa_http_apple_distribution_',
+    );
+    addTearDown(() => root.delete(recursive: true));
+    final app = Directory(p.join(root.path, 'Runner.app'))..createSync();
+    await File(p.join(root.path, 'sibling.dylib')).writeAsString('stale');
+
+    final resolved = resolveSingleAppleAppBundle(root, targetOS: 'ios');
+
+    expect(resolved.absolute.path, app.absolute.path);
+  });
+
+  test('Android runtime build targets only the x64 emulator ABI', () {
+    final platform = externalConsumerPlatformsForExecution(
+      const VerificationExecutionId('android-linux'),
+    ).single;
+
+    expect(platform.buildArguments, <String>[
+      'build',
+      'apk',
+      '--debug',
+      '--target-platform=android-x64',
+    ]);
+  });
+
   test(
     'Apple consumer pipeline prepares source once and runs two platform smokes',
     () async {
@@ -70,12 +114,37 @@ void main() {
           prepareRuns += 1;
           return sourceRoot;
         },
-        runCommand: (command) async => commands.add(command),
+        runCommand: (command) async {
+          commands.add(command);
+          if (command.arguments case <String>[
+            'create',
+            '--platforms=macos',
+            _,
+            _,
+          ]) {
+            final runnerDirectory = Directory(
+              p.join(command.workingDirectory, 'macos', 'Runner'),
+            );
+            await runnerDirectory.create(recursive: true);
+            for (final name in <String>[
+              'DebugProfile.entitlements',
+              'Release.entitlements',
+            ]) {
+              await File(p.join(runnerDirectory.path, name)).writeAsString('''
+<plist version="1.0">
+<dict>
+</dict>
+</plist>
+''');
+            }
+          }
+        },
         runRuntimeSmoke:
             ({
               required fixtureDirectory,
               required platform,
               required fixtureUrl,
+              required environment,
             }) async {
               runtimePlatforms.add(platform.targetOS);
             },
@@ -99,9 +168,19 @@ void main() {
 
   test('runtime smoke uses an explicit device and fixture URL', () async {
     final commands = <VerificationCommand>[];
+    final proofTracker = ExternalRuntimeProofMarkerTracker();
     final runner = createFlutterRuntimeSmokeRunner(
-      (command) async => commands.add(command),
+      (command) async {
+        commands.add(command);
+        proofTracker.observeLine(
+          'flutter: NEXA_HTTP_RUNTIME_PROOF '
+          '{"request_completed":true,"callback_received":true,'
+          '"body_consumed":true,"body_released":true,'
+          '"client_closed":true}',
+        );
+      },
       deviceIdForTargetOS: (targetOS) => 'device-$targetOS',
+      proofTracker: proofTracker,
     );
     final fixture = Directory('/fixture/macos');
 
@@ -112,6 +191,7 @@ void main() {
         buildArguments: <String>[],
       ),
       fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
+      environment: const <String, String>{},
     );
 
     expect(commands.single.executable, 'flutter');
@@ -124,4 +204,327 @@ void main() {
       '--dart-define=NEXA_HTTP_FIXTURE_URL=http://127.0.0.1:8080/healthz',
     ]);
   });
+
+  test('runtime smoke rejects exit-zero without a proof marker', () async {
+    final runner = createFlutterRuntimeSmokeRunner(
+      (_) async {},
+      deviceIdForTargetOS: (_) => 'macos',
+      proofTracker: ExternalRuntimeProofMarkerTracker(),
+    );
+
+    await expectLater(
+      runner(
+        fixtureDirectory: Directory('/fixture/macos'),
+        platform: const ExternalConsumerPlatform(
+          targetOS: 'macos',
+          buildArguments: <String>[],
+        ),
+        fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
+        environment: const <String, String>{},
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test('runtime proof wins over a Flutter teardown connection error', () async {
+    final proofTracker = ExternalRuntimeProofMarkerTracker();
+    final runner = createFlutterRuntimeSmokeRunner(
+      (_) async {
+        proofTracker.observeLine(_runtimeProofMarkerLine);
+        throw ProcessException(
+          'flutter',
+          const <String>['run'],
+          'DDS failed',
+          1,
+        );
+      },
+      deviceIdForTargetOS: (_) => 'macos',
+      proofTracker: proofTracker,
+    );
+
+    await expectLater(
+      runner(
+        fixtureDirectory: Directory('/fixture/macos'),
+        platform: const ExternalConsumerPlatform(
+          targetOS: 'macos',
+          buildArguments: <String>[],
+        ),
+        fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
+        environment: const <String, String>{},
+      ),
+      completes,
+    );
+  });
+
+  test(
+    'uniqueness returns runtime proofs for the matching packaged digests',
+    () async {
+      const iosDigest =
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+      const macosDigest =
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+      final session = await _createAppleProofSession(
+        preparedArtifactProofs: <VerificationPreparedArtifactProof>[
+          _iosPreparedProof(iosDigest),
+          _macosPreparedProof(macosDigest),
+        ],
+        iosPackagedDigest: iosDigest,
+        macosPackagedDigest: macosDigest,
+      );
+      addTearDown(session.close);
+
+      await session.runner(const VerificationExecutionId('apple-macos'));
+      final proofs = await session.verifyArtifactUniqueness(
+        const VerificationExecutionId('apple-macos'),
+      );
+
+      expect(proofs, hasLength(2));
+      expect(proofs.map((proof) => proof.target.targetOS), <String>[
+        'ios',
+        'macos',
+      ]);
+      expect(proofs.map((proof) => proof.absolutePackagedFile), <String>[
+        '/packaged/ios.dylib',
+        '/packaged/macos.dylib',
+      ]);
+      expect(proofs.map((proof) => proof.sha256), <String>[
+        iosDigest,
+        macosDigest,
+      ]);
+      for (final proof in proofs) {
+        expect(proof.payloadCount, 1);
+        expect(proof.requestCompleted, isTrue);
+        expect(proof.callbackReceived, isTrue);
+        expect(proof.bodyConsumed, isTrue);
+        expect(proof.bodyReleased, isTrue);
+        expect(proof.clientClosed, isTrue);
+      }
+    },
+  );
+
+  test('uniqueness rejects a packaged digest with no prepared match', () async {
+    const preparedIosDigest =
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const packagedIosDigest =
+        'cccccccccccccccccccccccccccccccc'
+        'cccccccccccccccccccccccccccccccc';
+    const macosDigest =
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    final session = await _createAppleProofSession(
+      preparedArtifactProofs: <VerificationPreparedArtifactProof>[
+        _iosPreparedProof(preparedIosDigest),
+        _macosPreparedProof(macosDigest),
+      ],
+      iosPackagedDigest: packagedIosDigest,
+      macosPackagedDigest: macosDigest,
+    );
+    addTearDown(session.close);
+    await session.runner(const VerificationExecutionId('apple-macos'));
+
+    expect(
+      () => session.verifyArtifactUniqueness(
+        const VerificationExecutionId('apple-macos'),
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          allOf(contains('ios'), contains(packagedIosDigest)),
+        ),
+      ),
+    );
+  });
+
+  test('uniqueness rejects ambiguous prepared proofs', () async {
+    const iosDigest =
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const macosDigest =
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    final session = await _createAppleProofSession(
+      preparedArtifactProofs: <VerificationPreparedArtifactProof>[
+        _iosPreparedProof(iosDigest),
+        _iosPreparedProof(iosDigest),
+        _macosPreparedProof(macosDigest),
+      ],
+      iosPackagedDigest: iosDigest,
+      macosPackagedDigest: macosDigest,
+    );
+    addTearDown(session.close);
+    await session.runner(const VerificationExecutionId('apple-macos'));
+
+    expect(
+      () => session.verifyArtifactUniqueness(
+        const VerificationExecutionId('apple-macos'),
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          allOf(contains('ios'), contains('matching_prepared_proofs=2')),
+        ),
+      ),
+    );
+  });
+
+  test('macOS clean host enables outbound network access', () async {
+    final fixture = await Directory.systemTemp.createTemp(
+      'nexa_http_macos_entitlements_',
+    );
+    addTearDown(() => fixture.delete(recursive: true));
+    final runnerDirectory = Directory(p.join(fixture.path, 'macos', 'Runner'));
+    await runnerDirectory.create(recursive: true);
+    for (final name in <String>[
+      'DebugProfile.entitlements',
+      'Release.entitlements',
+    ]) {
+      await File(p.join(runnerDirectory.path, name)).writeAsString('''
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+</dict>
+</plist>
+''');
+    }
+
+    await enableMacosNetworkClientEntitlement(fixture);
+
+    for (final name in <String>[
+      'DebugProfile.entitlements',
+      'Release.entitlements',
+    ]) {
+      final contents = await File(
+        p.join(runnerDirectory.path, name),
+      ).readAsString();
+      expect(
+        RegExp(
+          r'<key>com\.apple\.security\.network\.client</key>',
+        ).allMatches(contents),
+        hasLength(1),
+      );
+      expect(contents, contains('<true/>'));
+    }
+  });
+}
+
+VerificationPreparedArtifactProof _iosPreparedProof(String digest) {
+  return VerificationPreparedArtifactProof(
+    target: VerificationNativeTargetTuple(
+      targetOS: 'ios',
+      targetArchitecture: 'arm64',
+      targetSdk: 'simulator',
+      rustTarget: 'aarch64-apple-ios-sim',
+    ),
+    nativeAssetId:
+        'package:nexa_http_native_ios/src/native/nexa_http_native_ffi.dart',
+    absolutePreparedFile: '/prepared/ios.dylib',
+    sha256: digest,
+    identitySha256: digest,
+    sourceIdentity: 'workspace',
+  );
+}
+
+VerificationPreparedArtifactProof _macosPreparedProof(String digest) {
+  return VerificationPreparedArtifactProof(
+    target: VerificationNativeTargetTuple(
+      targetOS: 'macos',
+      targetArchitecture: 'arm64',
+      targetSdk: null,
+      rustTarget: 'aarch64-apple-darwin',
+    ),
+    nativeAssetId:
+        'package:nexa_http_native_macos/src/native/nexa_http_native_ffi.dart',
+    absolutePreparedFile: '/prepared/macos.dylib',
+    sha256: digest,
+    identitySha256: digest,
+    sourceIdentity: 'workspace',
+  );
+}
+
+Future<ExternalConsumerVerificationSession> _createAppleProofSession({
+  required List<VerificationPreparedArtifactProof> preparedArtifactProofs,
+  required String iosPackagedDigest,
+  required String macosPackagedDigest,
+}) {
+  final runtimeProofTracker = ExternalRuntimeProofMarkerTracker();
+  return createExternalConsumerSession(
+    workspaceRoot: '/workspace',
+    fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
+    deviceIds: const <String, String>{'ios': 'ios-simulator', 'macos': 'macos'},
+    runCommand: (command) async {
+      if (command.arguments case <String>['run', ...]) {
+        runtimeProofTracker.observeLine(_runtimeProofMarkerLine);
+      }
+      if (command.arguments case <String>[
+        'create',
+        '--platforms=macos',
+        _,
+        _,
+      ]) {
+        await _writeMacosEntitlementFixtures(command.workingDirectory);
+      }
+      if (command.arguments case <String>['build', 'ios', ...]) {
+        await Directory(
+          p.join(
+            command.workingDirectory,
+            'build',
+            'ios',
+            'iphonesimulator',
+            'Runner.app',
+          ),
+        ).create(recursive: true);
+      }
+      if (command.arguments case <String>['build', 'macos', ...]) {
+        await Directory(
+          p.join(
+            command.workingDirectory,
+            'build',
+            'macos',
+            'Build',
+            'Products',
+            'Debug',
+            'Runner.app',
+          ),
+        ).create(recursive: true);
+      }
+    },
+    runtimeProofTracker: runtimeProofTracker,
+    preparedArtifactProofs: preparedArtifactProofs,
+    verifyUniquePayload: ({required distribution, required platform}) async {
+      return VerifiedNativePayload(
+        file: File('/packaged/$platform.dylib'),
+        sha256: platform == 'ios' ? iosPackagedDigest : macosPackagedDigest,
+        identitySha256: platform == 'ios'
+            ? iosPackagedDigest
+            : macosPackagedDigest,
+      );
+    },
+  );
+}
+
+const _runtimeProofMarkerLine =
+    'flutter: NEXA_HTTP_RUNTIME_PROOF '
+    '{"request_completed":true,"callback_received":true,'
+    '"body_consumed":true,"body_released":true,"client_closed":true}';
+
+Future<void> _writeMacosEntitlementFixtures(String fixturePath) async {
+  final runnerDirectory = Directory(p.join(fixturePath, 'macos', 'Runner'));
+  await runnerDirectory.create(recursive: true);
+  for (final name in <String>[
+    'DebugProfile.entitlements',
+    'Release.entitlements',
+  ]) {
+    await File(p.join(runnerDirectory.path, name)).writeAsString('''
+<plist version="1.0">
+<dict>
+</dict>
+</plist>
+''');
+  }
 }

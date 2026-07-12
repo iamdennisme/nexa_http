@@ -7,6 +7,148 @@ import '../../scripts/verification/model.dart';
 import '../../scripts/verification/target_matrix.dart';
 
 void main() {
+  test('canonical matrix fixes every native target identity field', () {
+    expect(
+      nexaHttpSupportedNativeTargets.map(
+        (target) => <String>[
+          target.targetOS,
+          target.targetArchitecture,
+          target.targetSdk ?? 'none',
+          target.rustTargetTriple,
+          target.sourceArtifactFileName,
+          target.releaseAssetFileName,
+          target.buildScriptName,
+          target.integrationExecutionId,
+          target.runner,
+          target.nativeAssetId,
+        ],
+      ),
+      const <List<String>>[
+        <String>[
+          'android',
+          'arm64',
+          'none',
+          'aarch64-linux-android',
+          'libnexa_http_native_android_ffi.so',
+          'nexa_http-native-android-arm64-v8a.so',
+          'build_native_android.sh',
+          'android-linux',
+          'ubuntu-latest',
+          'package:nexa_http_native_android/src/native/'
+              'nexa_http_native_ffi.dart',
+        ],
+        <String>[
+          'android',
+          'arm',
+          'none',
+          'armv7-linux-androideabi',
+          'libnexa_http_native_android_ffi.so',
+          'nexa_http-native-android-armeabi-v7a.so',
+          'build_native_android.sh',
+          'android-linux',
+          'ubuntu-latest',
+          'package:nexa_http_native_android/src/native/'
+              'nexa_http_native_ffi.dart',
+        ],
+        <String>[
+          'android',
+          'x64',
+          'none',
+          'x86_64-linux-android',
+          'libnexa_http_native_android_ffi.so',
+          'nexa_http-native-android-x86_64.so',
+          'build_native_android.sh',
+          'android-linux',
+          'ubuntu-latest',
+          'package:nexa_http_native_android/src/native/'
+              'nexa_http_native_ffi.dart',
+        ],
+        <String>[
+          'ios',
+          'arm64',
+          'iphoneos',
+          'aarch64-apple-ios',
+          'libnexa_http_native_ios_ffi.dylib',
+          'nexa_http-native-ios-arm64.dylib',
+          'build_native_ios.sh',
+          'apple-macos',
+          'macos-14',
+          'package:nexa_http_native_ios/src/native/nexa_http_native_ffi.dart',
+        ],
+        <String>[
+          'ios',
+          'arm64',
+          'iphonesimulator',
+          'aarch64-apple-ios-sim',
+          'libnexa_http_native_ios_ffi.dylib',
+          'nexa_http-native-ios-sim-arm64.dylib',
+          'build_native_ios.sh',
+          'apple-macos',
+          'macos-14',
+          'package:nexa_http_native_ios/src/native/nexa_http_native_ffi.dart',
+        ],
+        <String>[
+          'ios',
+          'x64',
+          'iphonesimulator',
+          'x86_64-apple-ios',
+          'libnexa_http_native_ios_ffi.dylib',
+          'nexa_http-native-ios-sim-x64.dylib',
+          'build_native_ios.sh',
+          'apple-macos',
+          'macos-14',
+          'package:nexa_http_native_ios/src/native/nexa_http_native_ffi.dart',
+        ],
+        <String>[
+          'macos',
+          'arm64',
+          'none',
+          'aarch64-apple-darwin',
+          'libnexa_http_native_macos_ffi.dylib',
+          'nexa_http-native-macos-arm64.dylib',
+          'build_native_macos.sh',
+          'apple-macos',
+          'macos-14',
+          'package:nexa_http_native_macos/src/native/nexa_http_native_ffi.dart',
+        ],
+        <String>[
+          'macos',
+          'x64',
+          'none',
+          'x86_64-apple-darwin',
+          'libnexa_http_native_macos_ffi.dylib',
+          'nexa_http-native-macos-x64.dylib',
+          'build_native_macos.sh',
+          'apple-macos',
+          'macos-14',
+          'package:nexa_http_native_macos/src/native/nexa_http_native_ffi.dart',
+        ],
+        <String>[
+          'windows',
+          'x64',
+          'none',
+          'x86_64-pc-windows-msvc',
+          'nexa_http_native_windows_ffi.dll',
+          'nexa_http-native-windows-x64.dll',
+          'build_native_windows.sh',
+          'windows-x64',
+          'windows-latest',
+          'package:nexa_http_native_windows/src/native/'
+              'nexa_http_native_ffi.dart',
+        ],
+      ],
+    );
+  });
+
+  test('different target tuples have different materialization paths', () {
+    final paths = nexaHttpSupportedNativeTargets
+        .map((target) => target.materializationRelativePath('debug'))
+        .toList(growable: false);
+
+    expect(paths, hasLength(paths.toSet().length));
+    expect(paths, everyElement(startsWith('debug/')));
+  });
+
   test('integration execution groups cover every canonical target once', () {
     final rows = buildIntegrationExecutionRows();
 

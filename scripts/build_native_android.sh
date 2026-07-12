@@ -3,7 +3,8 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/build_native_common.sh"
 
-PROFILE="$(normalize_profile "${1:-release}")"
+parse_native_build_args "$@"
+validate_requested_targets aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-21}"
 PACKAGE_ROOT="${REPO_ROOT}/packages/nexa_http_native_android"
 RUST_CRATE_DIR="${PACKAGE_ROOT}/native/nexa_http_native_android_ffi"
@@ -66,16 +67,14 @@ llvm_ar="${ndk_prebuilt_dir}/bin/llvm-ar"
 llvm_strip="${ndk_prebuilt_dir}/bin/llvm-strip"
 [[ -x "${llvm_strip}" ]] || die "Missing llvm-strip: ${llvm_strip}"
 
-targets=(
-  'aarch64-linux-android|arm64-v8a|aarch64-linux-android'
-  'armv7-linux-androideabi|armeabi-v7a|armv7a-linux-androideabi'
-  'x86_64-linux-android|x86_64|x86_64-linux-android'
-)
+ensure_rust_targets "${TARGETS[@]}"
 
-ensure_rust_targets aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-
-for entry in "${targets[@]}"; do
-  IFS='|' read -r triple abi linker_prefix <<<"${entry}"
+for triple in "${TARGETS[@]}"; do
+  case "${triple}" in
+    aarch64-linux-android) abi='arm64-v8a'; linker_prefix='aarch64-linux-android'; output_name='nexa_http-native-android-arm64-v8a.so' ;;
+    armv7-linux-androideabi) abi='armeabi-v7a'; linker_prefix='armv7a-linux-androideabi'; output_name='nexa_http-native-android-armeabi-v7a.so' ;;
+    x86_64-linux-android) abi='x86_64'; linker_prefix='x86_64-linux-android'; output_name='nexa_http-native-android-x86_64.so' ;;
+  esac
   linker="${ndk_prebuilt_dir}/bin/${linker_prefix}${ANDROID_API_LEVEL}-clang"
   [[ -x "${linker}" ]] || die "Missing linker: ${linker}"
 
@@ -104,10 +103,9 @@ for entry in "${targets[@]}"; do
   source_file="${WORKSPACE_CARGO_TARGET_DIR}/${triple}/${PROFILE}/libnexa_http_native_android_ffi.so"
   [[ -f "${source_file}" ]] || die "Expected output not found: ${source_file}"
 
-  destination_dir="${WORKSPACE_ROOT}/packages/nexa_http_native_android/android/src/main/jniLibs/${abi}"
-  mkdir -p "${destination_dir}"
-  cp "${source_file}" "${destination_dir}/libnexa_http_native.so"
-  "${llvm_strip}" --strip-unneeded "${destination_dir}/libnexa_http_native.so"
+  destination_file="${OUTPUT_DIR}/${output_name}"
+  atomic_copy "${source_file}" "${destination_file}"
+  "${llvm_strip}" --strip-unneeded "${destination_file}"
 done
 
-log 'Prepared Android native libraries in packages/nexa_http_native_android/android/src/main/jniLibs'
+log "Prepared Android native libraries in ${OUTPUT_DIR}"

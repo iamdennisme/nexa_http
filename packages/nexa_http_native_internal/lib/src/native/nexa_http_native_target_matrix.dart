@@ -2,29 +2,46 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
+
+const nexaHttpNativeAssetName = 'src/native/nexa_http_native_ffi.dart';
 
 final class NexaHttpNativeTarget {
   const NexaHttpNativeTarget({
     required this.targetOS,
     required this.targetArchitecture,
     required this.releaseAssetFileName,
-    required this.packagedRelativePath,
-    required this.packagedDirectoryRelativePath,
     required this.sourceArtifactFileName,
     required this.buildScriptName,
+    required this.carrierPackageName,
+    required this.integrationExecutionId,
+    required this.runner,
     this.targetSdk,
-    this.rustTargetTriple,
+    required this.rustTargetTriple,
+    this.nativeAssetName = nexaHttpNativeAssetName,
   });
 
   final String targetOS;
   final String targetArchitecture;
   final String? targetSdk;
   final String releaseAssetFileName;
-  final String packagedRelativePath;
-  final String packagedDirectoryRelativePath;
   final String sourceArtifactFileName;
   final String buildScriptName;
-  final String? rustTargetTriple;
+  final String carrierPackageName;
+  final String rustTargetTriple;
+  final String integrationExecutionId;
+  final String runner;
+  final String nativeAssetName;
+
+  String get nativeAssetId => 'package:$carrierPackageName/$nativeAssetName';
+
+  String materializationRelativePath(String profile) => p.join(
+    profile,
+    targetOS,
+    targetArchitecture,
+    targetSdk ?? 'none',
+    releaseAssetFileName,
+  );
 }
 
 final class NexaHttpNativeReleaseAssetDescriptor {
@@ -56,99 +73,103 @@ const nexaHttpSupportedNativeTargets = <NexaHttpNativeTarget>[
     targetOS: 'android',
     targetArchitecture: 'arm64',
     releaseAssetFileName: 'nexa_http-native-android-arm64-v8a.so',
-    packagedRelativePath:
-        'android/src/main/jniLibs/arm64-v8a/libnexa_http_native.so',
-    packagedDirectoryRelativePath: 'android/src/main/jniLibs',
     rustTargetTriple: 'aarch64-linux-android',
     sourceArtifactFileName: 'libnexa_http_native_android_ffi.so',
     buildScriptName: 'build_native_android.sh',
+    carrierPackageName: 'nexa_http_native_android',
+    integrationExecutionId: 'android-linux',
+    runner: 'ubuntu-latest',
   ),
   NexaHttpNativeTarget(
     targetOS: 'android',
     targetArchitecture: 'arm',
     releaseAssetFileName: 'nexa_http-native-android-armeabi-v7a.so',
-    packagedRelativePath:
-        'android/src/main/jniLibs/armeabi-v7a/libnexa_http_native.so',
-    packagedDirectoryRelativePath: 'android/src/main/jniLibs',
     rustTargetTriple: 'armv7-linux-androideabi',
     sourceArtifactFileName: 'libnexa_http_native_android_ffi.so',
     buildScriptName: 'build_native_android.sh',
+    carrierPackageName: 'nexa_http_native_android',
+    integrationExecutionId: 'android-linux',
+    runner: 'ubuntu-latest',
   ),
   NexaHttpNativeTarget(
     targetOS: 'android',
     targetArchitecture: 'x64',
     releaseAssetFileName: 'nexa_http-native-android-x86_64.so',
-    packagedRelativePath:
-        'android/src/main/jniLibs/x86_64/libnexa_http_native.so',
-    packagedDirectoryRelativePath: 'android/src/main/jniLibs',
     rustTargetTriple: 'x86_64-linux-android',
     sourceArtifactFileName: 'libnexa_http_native_android_ffi.so',
     buildScriptName: 'build_native_android.sh',
+    carrierPackageName: 'nexa_http_native_android',
+    integrationExecutionId: 'android-linux',
+    runner: 'ubuntu-latest',
   ),
   NexaHttpNativeTarget(
     targetOS: 'ios',
     targetArchitecture: 'arm64',
     targetSdk: 'iphoneos',
     releaseAssetFileName: 'nexa_http-native-ios-arm64.dylib',
-    packagedRelativePath: 'ios/Frameworks/libnexa_http_native-ios-arm64.dylib',
-    packagedDirectoryRelativePath: 'ios/Frameworks',
     rustTargetTriple: 'aarch64-apple-ios',
     sourceArtifactFileName: 'libnexa_http_native_ios_ffi.dylib',
     buildScriptName: 'build_native_ios.sh',
+    carrierPackageName: 'nexa_http_native_ios',
+    integrationExecutionId: 'apple-macos',
+    runner: 'macos-14',
   ),
   NexaHttpNativeTarget(
     targetOS: 'ios',
     targetArchitecture: 'arm64',
     targetSdk: 'iphonesimulator',
     releaseAssetFileName: 'nexa_http-native-ios-sim-arm64.dylib',
-    packagedRelativePath:
-        'ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib',
-    packagedDirectoryRelativePath: 'ios/Frameworks',
     rustTargetTriple: 'aarch64-apple-ios-sim',
     sourceArtifactFileName: 'libnexa_http_native_ios_ffi.dylib',
     buildScriptName: 'build_native_ios.sh',
+    carrierPackageName: 'nexa_http_native_ios',
+    integrationExecutionId: 'apple-macos',
+    runner: 'macos-14',
   ),
   NexaHttpNativeTarget(
     targetOS: 'ios',
     targetArchitecture: 'x64',
     targetSdk: 'iphonesimulator',
     releaseAssetFileName: 'nexa_http-native-ios-sim-x64.dylib',
-    packagedRelativePath:
-        'ios/Frameworks/libnexa_http_native-ios-sim-x64.dylib',
-    packagedDirectoryRelativePath: 'ios/Frameworks',
     rustTargetTriple: 'x86_64-apple-ios',
     sourceArtifactFileName: 'libnexa_http_native_ios_ffi.dylib',
     buildScriptName: 'build_native_ios.sh',
+    carrierPackageName: 'nexa_http_native_ios',
+    integrationExecutionId: 'apple-macos',
+    runner: 'macos-14',
   ),
   NexaHttpNativeTarget(
     targetOS: 'macos',
     targetArchitecture: 'arm64',
     releaseAssetFileName: 'nexa_http-native-macos-arm64.dylib',
-    packagedRelativePath: 'macos/Libraries/libnexa_http_native.dylib',
-    packagedDirectoryRelativePath: 'macos/Libraries',
     rustTargetTriple: 'aarch64-apple-darwin',
     sourceArtifactFileName: 'libnexa_http_native_macos_ffi.dylib',
     buildScriptName: 'build_native_macos.sh',
+    carrierPackageName: 'nexa_http_native_macos',
+    integrationExecutionId: 'apple-macos',
+    runner: 'macos-14',
   ),
   NexaHttpNativeTarget(
     targetOS: 'macos',
     targetArchitecture: 'x64',
     releaseAssetFileName: 'nexa_http-native-macos-x64.dylib',
-    packagedRelativePath: 'macos/Libraries/libnexa_http_native.dylib',
-    packagedDirectoryRelativePath: 'macos/Libraries',
     rustTargetTriple: 'x86_64-apple-darwin',
     sourceArtifactFileName: 'libnexa_http_native_macos_ffi.dylib',
     buildScriptName: 'build_native_macos.sh',
+    carrierPackageName: 'nexa_http_native_macos',
+    integrationExecutionId: 'apple-macos',
+    runner: 'macos-14',
   ),
   NexaHttpNativeTarget(
     targetOS: 'windows',
     targetArchitecture: 'x64',
     releaseAssetFileName: 'nexa_http-native-windows-x64.dll',
-    packagedRelativePath: 'windows/Libraries/nexa_http_native.dll',
-    packagedDirectoryRelativePath: 'windows/Libraries',
     rustTargetTriple: 'x86_64-pc-windows-msvc',
     sourceArtifactFileName: 'nexa_http_native_windows_ffi.dll',
     buildScriptName: 'build_native_windows.sh',
+    carrierPackageName: 'nexa_http_native_windows',
+    integrationExecutionId: 'windows-x64',
+    runner: 'windows-latest',
   ),
 ];
 
@@ -172,11 +193,7 @@ String builtArtifactPathForTarget(
   NexaHttpNativeTarget target, {
   String mode = 'debug',
 }) {
-  final triple = target.rustTargetTriple;
-  if (triple == null || triple.isEmpty) {
-    return '$sourceDir/target/$mode/${target.sourceArtifactFileName}';
-  }
-  return '$sourceDir/target/$triple/$mode/${target.sourceArtifactFileName}';
+  return '$sourceDir/target/${target.rustTargetTriple}/$mode/${target.sourceArtifactFileName}';
 }
 
 final nexaHttpNativeReleaseAssetDescriptors = nexaHttpSupportedNativeTargets

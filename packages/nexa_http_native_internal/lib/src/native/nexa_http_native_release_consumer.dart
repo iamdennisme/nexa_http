@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import 'nexa_http_native_target_matrix.dart';
@@ -30,7 +32,7 @@ final class NexaHttpNativeReleaseAsset {
 
 typedef NexaHttpNativeReleaseRefResolver =
     Future<NexaHttpNativeGitReleaseRef> Function(String packageRoot);
-typedef NexaHttpNativeFetchBytes = Future<List<int>> Function(Uri uri);
+typedef NexaHttpNativeFetchStream = Future<Stream<List<int>>> Function(Uri uri);
 
 final class NexaHttpNativeArtifactException implements Exception {
   const NexaHttpNativeArtifactException({
@@ -62,12 +64,13 @@ final class NexaHttpNativeArtifactException implements Exception {
 
 Future<File> materializeNexaHttpNativeReleaseArtifact({
   required String packageRoot,
+  required String outputDirectory,
   required String targetOS,
   required String targetArchitecture,
   required String? targetSdk,
   NexaHttpNativeReleaseRefResolver resolveReleaseRef =
       discoverNexaHttpNativeGitReleaseRef,
-  NexaHttpNativeFetchBytes fetchBytes = fetchNexaHttpNativeBytes,
+  NexaHttpNativeFetchStream fetchStream = fetchNexaHttpNativeStream,
 }) async {
   final target = findNexaHttpNativeTarget(
     targetOS: targetOS,
@@ -100,15 +103,14 @@ Future<File> materializeNexaHttpNativeReleaseArtifact({
     tag: releaseRef.tag,
   );
   final sdkRef = '${releaseRef.repositorySlug}@${releaseRef.tag}';
-  final manifestJson = utf8.decode(
-    await _runNexaHttpNativeArtifactStage(
-      stage: 'artifact download',
-      targetOS: targetOS,
-      targetArchitecture: targetArchitecture,
-      targetSdk: targetSdk,
-      sdkRef: sdkRef,
-      action: () => fetchBytes(manifestUri),
-    ),
+  final manifestJson = await _runNexaHttpNativeArtifactStage(
+    stage: 'artifact download',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: sdkRef,
+    action: () async =>
+        utf8.decoder.bind(await fetchStream(manifestUri)).join(),
   );
   final asset = _runNexaHttpNativeArtifactStageSync(
     stage: 'artifact verification',
@@ -123,81 +125,38 @@ Future<File> materializeNexaHttpNativeReleaseArtifact({
     ),
   );
 
-  final destination = File(p.join(packageRoot, target.packagedRelativePath));
-  if (destination.existsSync()) {
-    final currentDigest = await _runNexaHttpNativeArtifactStage(
-      stage: 'artifact verification',
-      targetOS: targetOS,
-      targetArchitecture: targetArchitecture,
-      targetSdk: targetSdk,
-      sdkRef: sdkRef,
-      action: () => sha256OfFile(destination),
-    );
-    if (currentDigest == asset.sha256) {
-      return destination;
-    }
-    await _runNexaHttpNativeArtifactStage(
-      stage: 'native packaging',
-      targetOS: targetOS,
-      targetArchitecture: targetArchitecture,
-      targetSdk: targetSdk,
-      sdkRef: sdkRef,
-      action: () => destination.delete(),
-    );
-  }
-
-  await _runNexaHttpNativeArtifactStage(
-    stage: 'native packaging',
-    targetOS: targetOS,
-    targetArchitecture: targetArchitecture,
-    targetSdk: targetSdk,
-    sdkRef: sdkRef,
-    action: () => destination.parent.create(recursive: true),
+  final destination = File(
+    p.join(outputDirectory, target.materializationRelativePath('release')),
   );
-  final bytes = await _runNexaHttpNativeArtifactStage(
-    stage: 'artifact download',
-    targetOS: targetOS,
-    targetArchitecture: targetArchitecture,
-    targetSdk: targetSdk,
-    sdkRef: sdkRef,
-    action: () => fetchBytes(asset.sourceUrl),
-  );
-  await _runNexaHttpNativeArtifactStage(
-    stage: 'native packaging',
-    targetOS: targetOS,
-    targetArchitecture: targetArchitecture,
-    targetSdk: targetSdk,
-    sdkRef: sdkRef,
-    action: () => destination.writeAsBytes(bytes, flush: true),
-  );
-
-  final downloadedDigest = await _runNexaHttpNativeArtifactStage(
+  return _runNexaHttpNativeArtifactStage(
     stage: 'artifact verification',
     targetOS: targetOS,
     targetArchitecture: targetArchitecture,
     targetSdk: targetSdk,
     sdkRef: sdkRef,
-    action: () => sha256OfFile(destination),
+    action: () => withNexaHttpNativeArtifactLock(destination, () async {
+      if (await _fileHasDigest(destination, asset.sha256)) {
+        return destination;
+      }
+      final stream = await _runNexaHttpNativeArtifactStage(
+        stage: 'artifact download',
+        targetOS: targetOS,
+        targetArchitecture: targetArchitecture,
+        targetSdk: targetSdk,
+        sdkRef: sdkRef,
+        action: () => fetchStream(asset.sourceUrl),
+      );
+      return _materializeStreamAtomically(
+        destination: destination,
+        stream: stream,
+        expectedDigest: asset.sha256,
+      );
+    }),
   );
-  if (downloadedDigest != asset.sha256) {
-    await destination.delete();
-    _throwNexaHttpNativeArtifactException(
-      stage: 'artifact verification',
-      targetOS: targetOS,
-      targetArchitecture: targetArchitecture,
-      targetSdk: targetSdk,
-      sdkRef: sdkRef,
-      underlyingError: StateError(
-        'Checksum mismatch for ${asset.fileName}: expected ${asset.sha256}, got $downloadedDigest.',
-      ),
-    );
-  }
-
-  return destination;
 }
 
 Future<File> materializeNexaHttpNativeCandidateArtifact({
-  required String packageRoot,
+  required String outputDirectory,
   required String targetOS,
   required String targetArchitecture,
   required String? targetSdk,
@@ -264,18 +223,120 @@ Future<File> materializeNexaHttpNativeCandidateArtifact({
       ),
     );
   }
-  final destination = File(p.join(packageRoot, target.packagedRelativePath));
+  final destination = File(
+    p.join(outputDirectory, target.materializationRelativePath('candidate')),
+  );
+  return withNexaHttpNativeArtifactLock(destination, () async {
+    if (await _fileHasDigest(destination, sourceDigest)) {
+      return destination;
+    }
+    return _materializeStreamAtomically(
+      destination: destination,
+      stream: source.openRead(),
+      expectedDigest: sourceDigest,
+    );
+  });
+}
+
+final Map<String, Future<void>> _artifactQueues = <String, Future<void>>{};
+
+Future<T> withNexaHttpNativeArtifactLock<T>(
+  File destination,
+  Future<T> Function() action,
+) async {
+  final key = destination.absolute.path;
+  final previous = _artifactQueues[key] ?? Future<void>.value();
+  final gate = Completer<void>();
+  final current = gate.future;
+  _artifactQueues[key] = current;
+  try {
+    await previous.catchError((_) {});
+  } catch (_) {}
   await destination.parent.create(recursive: true);
-  final temporary = File('${destination.path}.candidate.tmp');
-  if (temporary.existsSync()) {
-    await temporary.delete();
+  final lock = await File(
+    '${destination.path}.lock',
+  ).open(mode: FileMode.append);
+  try {
+    await lock.lock(FileLock.exclusive);
+    return await action();
+  } finally {
+    await lock.unlock();
+    await lock.close();
+    gate.complete();
+    if (identical(_artifactQueues[key], current)) {
+      _artifactQueues.remove(key);
+    }
   }
-  await source.copy(temporary.path);
-  if (destination.existsSync()) {
-    await destination.delete();
+}
+
+Future<bool> _fileHasDigest(File file, String expectedDigest) async {
+  return file.existsSync() && await sha256OfFile(file) == expectedDigest;
+}
+
+Future<File> _materializeStreamAtomically({
+  required File destination,
+  required Stream<List<int>> stream,
+  required String expectedDigest,
+}) async {
+  final temporary = File(
+    '${destination.path}.tmp.${pid}.${DateTime.now().microsecondsSinceEpoch}.${Random.secure().nextInt(1 << 32)}',
+  );
+  final output = temporary.openWrite(mode: FileMode.writeOnly);
+  final digestSink = _DigestSink();
+  final digestInput = sha256.startChunkedConversion(digestSink);
+  try {
+    await for (final chunk in stream) {
+      digestInput.add(chunk);
+      output.add(chunk);
+    }
+    digestInput.close();
+    await output.flush();
+    await output.close();
+    final actualDigest = digestSink.value.toString();
+    if (actualDigest != expectedDigest) {
+      throw StateError(
+        'Checksum mismatch: expected $expectedDigest, got $actualDigest.',
+      );
+    }
+    await _replaceFile(destination, temporary);
+    return destination;
+  } catch (_) {
+    digestInput.close();
+    await output.close();
+    if (temporary.existsSync()) {
+      await temporary.delete();
+    }
+    rethrow;
   }
-  await temporary.rename(destination.path);
-  return destination;
+}
+
+Future<void> _replaceFile(File destination, File temporary) async {
+  if (!destination.existsSync()) {
+    await temporary.rename(destination.path);
+    return;
+  }
+  final backup = File(
+    '${destination.path}.old.${pid}.${DateTime.now().microsecondsSinceEpoch}',
+  );
+  await destination.rename(backup.path);
+  try {
+    await temporary.rename(destination.path);
+    await backup.delete();
+  } catch (_) {
+    if (!destination.existsSync() && backup.existsSync()) {
+      await backup.rename(destination.path);
+    }
+    rethrow;
+  }
+}
+
+final class _DigestSink implements Sink<Digest> {
+  Digest? _value;
+  Digest get value => _value ?? (throw StateError('Digest is not complete.'));
+  @override
+  void add(Digest data) => _value = data;
+  @override
+  void close() {}
 }
 
 Future<T> _runNexaHttpNativeArtifactStage<T>({
@@ -490,20 +551,23 @@ String? parseGitHubRepositorySlug(String remoteUrl) {
   return null;
 }
 
-Future<List<int>> fetchNexaHttpNativeBytes(Uri uri) async {
+Future<Stream<List<int>>> fetchNexaHttpNativeStream(Uri uri) async {
   final client = HttpClient();
-  try {
-    final request = await client.getUrl(uri);
-    final response = await request.close();
-    if (response.statusCode != HttpStatus.ok) {
-      throw StateError(
-        'Failed to fetch native release asset from $uri: HTTP ${response.statusCode}.',
-      );
-    }
-    return consolidateHttpClientResponseBytes(response);
-  } finally {
+  final request = await client.getUrl(uri);
+  final response = await request.close();
+  if (response.statusCode != HttpStatus.ok) {
     client.close(force: true);
+    throw StateError(
+      'Failed to fetch native release asset from $uri: HTTP ${response.statusCode}.',
+    );
   }
+  return (() async* {
+    try {
+      yield* response;
+    } finally {
+      client.close(force: true);
+    }
+  })();
 }
 
 Future<String> _runGitAndReadStdout(
@@ -522,14 +586,4 @@ Future<String> _runGitAndReadStdout(
     );
   }
   return '${result.stdout}'.trim();
-}
-
-Future<List<int>> consolidateHttpClientResponseBytes(
-  HttpClientResponse response,
-) async {
-  final builder = BytesBuilder(copy: false);
-  await for (final chunk in response) {
-    builder.add(chunk);
-  }
-  return builder.takeBytes();
 }
