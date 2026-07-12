@@ -359,7 +359,7 @@ output.assets.code.add(
 - Carrier hook 必须直接消费 preparation 返回的 `File`；不得忽略返回值后在 asset bundle 中重新推导或硬编码路径。
 - Native Assets/CodeAsset 是唯一 packaging authority。CocoaPods resource bundle、carrier-owned `jniLibs`、CMake bundled-library copy、固定 bundle path 和备用 `DynamicLibrary` loader 不得作为第二 artifact source 存在。
 - Runtime symbol resolution 必须绑定到 CodeAsset 打包的同一 artifact identity；不得验证 A、运行 B。
-- Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android/Windows 的 identity digest 等于 raw digest；Apple framework 会被 Xcode改 install name并重签名，因此 identity digest固定为按 architecture排序后的 Mach-O `LC_UUID`集合的SHA-256，aggregate比较 identity digest而不是错误要求签名前后raw bytes相等。
+- Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android identity等于raw digest；Apple framework会被Xcode改install name并重签名，identity固定为按architecture排序的Mach-O `LC_UUID`集合SHA-256；Windows packaging会改变PE header/checksum/signature等非section bytes，identity固定为按section header顺序流式哈希machine、section name/virtual size/raw size/characteristics和section raw bytes。aggregate比较identity digest，两端raw值只用于审计。
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。

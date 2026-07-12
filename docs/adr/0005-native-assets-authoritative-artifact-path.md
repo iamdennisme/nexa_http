@@ -19,7 +19,7 @@ Flutter Native Assets/CodeAsset 是所有支持平台唯一权威的 native arti
 - Target matrix 必须成为 target identity、artifact file 和 release metadata 的单一事实来源。
 - Platform carrier 继续拥有 hook adapter 和 plugin registration，但不得再拥有第二套 artifact source 或 loader truth。
 - Release gate 必须在公开 release 前对同一候选 artifact 执行 ABI verification 和真实 clean-host runtime smoke。
-- Apple最终framework会被Xcode改写install name并重签名，不能用签名前后raw SHA相等作为同一性条件。验证必须同时保留两端raw SHA，并以Mach-O UUID集合的canonical identity SHA连接prepared与packaged payload；Android/Windows identity SHA等于raw SHA。
+- Apple最终framework会被Xcode改写install name并重签名，Windows packaging也会改变PE header/checksum/signature等非section bytes，因此不能用prepared/package raw SHA相等作为跨packaging同一性条件。验证必须同时保留两端raw SHA；Apple以Mach-O UUID集合、Windows以PE section metadata+raw section bytes的canonical identity SHA连接prepared与packaged payload；Android identity SHA等于raw SHA。
 - Runtime proof必须来自实际观测的结构化marker，artifact uniqueness必须限定到本轮最终App/APK ABI目录，不扫描同级中间产物。
 - 如果未来确有外部兼容约束需要双轨，必须先由 owner 明确批准并用新的 ADR 重新打开本决定；实现者不得自行增加“临时 fallback”。
 
