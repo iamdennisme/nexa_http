@@ -239,10 +239,15 @@ void main() {
     final commands = <VerificationCommand>[];
     final developmentExecutions = <VerificationExecutionId>[];
     final catalog = VerificationCatalog(<VerificationCheckDefinition>[
-      nativeBuildCheck(workspace.path, rows, (command) async {
-        commands.add(command);
-        await _writeRequestedArtifacts(command, rows);
-      }),
+      nativeBuildCheck(
+        workspace.path,
+        rows,
+        (command) async {
+          commands.add(command);
+          await _writeRequestedArtifacts(command, rows);
+        },
+        identityDigest: (file, {required platform}) => sha256OfFile(file),
+      ),
       developmentPathCheck(
         rows,
         (executionId) async => developmentExecutions.add(executionId),

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../native_artifact_uniqueness.dart';
+import '../native_payload_identity.dart';
 import 'command.dart';
 import 'model.dart';
 import 'report.dart';
@@ -224,11 +225,18 @@ Future<ExternalConsumerVerificationSession> createExternalConsumerSession({
             )
             .toList(growable: false);
         if (matches.length != 1) {
+          final diagnostics = await describeNativePayloadProofMismatch(
+            platform: platform.targetOS,
+            packagedPayload: packagedPayload,
+            preparedProofs: preparedProofs
+                .where((proof) => proof.target.targetOS == platform.targetOS)
+                .toList(growable: false),
+          );
           throw StateError(
             'Packaged Native Asset proof mismatch for '
             '${platform.targetOS}: digest=${packagedPayload.sha256}; '
             'identity_digest=${packagedPayload.identitySha256}; '
-            'matching_prepared_proofs=${matches.length}',
+            'matching_prepared_proofs=${matches.length}; $diagnostics',
           );
         }
         final prepared = matches.single;
@@ -251,6 +259,48 @@ Future<ExternalConsumerVerificationSession> createExternalConsumerSession({
       return List<VerificationRuntimePayloadProof>.unmodifiable(runtimeProofs);
     },
   );
+}
+
+Future<String> describeNativePayloadProofMismatch({
+  required String platform,
+  required VerifiedNativePayload packagedPayload,
+  required List<VerificationPreparedArtifactProof> preparedProofs,
+}) async {
+  final preparedDiagnostics = <Map<String, Object?>>[
+    for (final proof in preparedProofs)
+      <String, Object?>{
+        'target': proof.target.toJson(),
+        'path': proof.absolutePreparedFile,
+        'sha256': proof.sha256,
+        'identity_sha256': proof.identitySha256,
+      },
+  ];
+  final diagnostics = <String, Object?>{
+    'packaged_path': packagedPayload.file.absolute.path,
+    'prepared_proofs': preparedDiagnostics,
+  };
+  if (platform == 'windows') {
+    diagnostics['packaged_pe_sections'] = await _peSectionDiagnostics(
+      packagedPayload.file,
+    );
+    for (var index = 0; index < preparedProofs.length; index++) {
+      preparedDiagnostics[index]['pe_sections'] = await _peSectionDiagnostics(
+        File(preparedProofs[index].absolutePreparedFile),
+      );
+    }
+  }
+  return 'proof_diagnostics=${jsonEncode(diagnostics)}';
+}
+
+Future<Object> _peSectionDiagnostics(File file) async {
+  try {
+    return <Map<String, Object>>[
+      for (final section in await peNativePayloadSectionDigests(file))
+        section.toJson(),
+    ];
+  } on Object catch (error) {
+    return <String, Object>{'error': '$error'};
+  }
 }
 
 Future<VerifiedNativePayload> _verifyUniquePayload({

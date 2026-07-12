@@ -34,6 +34,60 @@ Future<String> peNativePayloadIdentitySha256(File file) async {
   return digest.toString();
 }
 
+final class PeNativePayloadSectionDigest {
+  const PeNativePayloadSectionDigest({
+    required this.machine,
+    required this.name,
+    required this.virtualSize,
+    required this.rawSize,
+    required this.characteristics,
+    required this.sha256,
+  });
+
+  final int machine;
+  final String name;
+  final int virtualSize;
+  final int rawSize;
+  final int characteristics;
+  final String sha256;
+
+  Map<String, Object> toJson() => <String, Object>{
+    'machine': machine,
+    'name': name,
+    'virtual_size': virtualSize,
+    'raw_size': rawSize,
+    'characteristics': characteristics,
+    'sha256': sha256,
+  };
+}
+
+Future<List<PeNativePayloadSectionDigest>> peNativePayloadSectionDigests(
+  File file,
+) async {
+  final sections = await _readPeSections(file);
+  return <PeNativePayloadSectionDigest>[
+    for (final section in sections)
+      PeNativePayloadSectionDigest(
+        machine: section.machine,
+        name: section.name,
+        virtualSize: section.virtualSize,
+        rawSize: section.rawSize,
+        characteristics: section.characteristics,
+        sha256: section.rawSize == 0
+            ? sha256OfString('')
+            : (await sha256
+                      .bind(
+                        file.openRead(
+                          section.rawOffset,
+                          section.rawOffset + section.rawSize,
+                        ),
+                      )
+                      .first)
+                  .toString(),
+      ),
+  ];
+}
+
 Future<List<_PeSection>> _readPeSections(File file) async {
   final handle = await file.open();
   try {

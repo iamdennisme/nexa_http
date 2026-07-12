@@ -57,6 +57,31 @@ UUID: F90D5B1B-8F07-359B-A87B-D467518F31B4 (arm64) /App/Frameworks/native
       isNot(await peNativePayloadIdentitySha256(first)),
     );
   });
+
+  test(
+    'PE section diagnostics expose metadata and streaming digests',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'nexa_http_pe_section_diagnostics_',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/payload.dll');
+      await file.writeAsBytes(_peFixture(section: const <int>[1, 2, 3, 4]));
+
+      final sections = await peNativePayloadSectionDigests(file);
+
+      expect(sections, hasLength(1));
+      expect(sections.single.machine, 0x8664);
+      expect(sections.single.name, '.text');
+      expect(sections.single.virtualSize, 4);
+      expect(sections.single.rawSize, 4);
+      expect(sections.single.characteristics, 0x60000020);
+      expect(
+        sections.single.sha256,
+        '9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a',
+      );
+    },
+  );
 }
 
 Uint8List _peFixture({

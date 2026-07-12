@@ -333,7 +333,14 @@ void main() {
         isA<StateError>().having(
           (error) => error.message,
           'message',
-          allOf(contains('ios'), contains(packagedIosDigest)),
+          allOf(
+            contains('ios'),
+            contains(packagedIosDigest),
+            contains('proof_diagnostics='),
+            contains('"prepared_proofs":'),
+            contains(preparedIosDigest),
+            contains('"path":"/prepared/ios.dylib"'),
+          ),
         ),
       ),
     );
