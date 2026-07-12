@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 typedef VerificationProcessLineHandler = void Function(String line);
 
 final class VerificationProcessResult {
@@ -25,8 +27,12 @@ final class VerificationProcessRunner {
     VerificationProcessLineHandler? onStderrLine,
   }) async {
     final stopwatch = Stopwatch()..start();
-    final process = await Process.start(
+    final resolvedExecutable = resolveVerificationProcessExecutable(
       executable,
+      environment: environment,
+    );
+    final process = await Process.start(
+      resolvedExecutable,
       arguments,
       workingDirectory: workingDirectory,
       environment: environment,
@@ -49,3 +55,26 @@ final class VerificationProcessRunner {
     );
   }
 }
+
+String resolveVerificationProcessExecutable(
+  String executable, {
+  bool? isWindows,
+  Map<String, String>? environment,
+  bool Function(String path) fileExists = _fileExists,
+}) {
+  if (!(isWindows ?? Platform.isWindows) || executable != 'flutter') {
+    return executable;
+  }
+
+  final resolvedEnvironment = environment ?? Platform.environment;
+  final flutterRoot = resolvedEnvironment['FLUTTER_ROOT']?.trim() ?? '';
+  if (flutterRoot.isNotEmpty) {
+    final flutterBatch = p.join(flutterRoot, 'bin', 'flutter.bat');
+    if (fileExists(flutterBatch)) {
+      return flutterBatch;
+    }
+  }
+  return 'flutter.bat';
+}
+
+bool _fileExists(String path) => File(path).existsSync();

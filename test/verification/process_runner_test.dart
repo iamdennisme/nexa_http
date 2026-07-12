@@ -1,11 +1,45 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../../scripts/verification/process_runner.dart';
 
 void main() {
+  test('Windows resolves flutter.bat from FLUTTER_ROOT', () {
+    final expected = p.join(r'D:\Flutter', 'bin', 'flutter.bat');
+
+    expect(
+      resolveVerificationProcessExecutable(
+        'flutter',
+        isWindows: true,
+        environment: const <String, String>{'FLUTTER_ROOT': r'D:\Flutter'},
+        fileExists: (path) => path == expected,
+      ),
+      expected,
+    );
+  });
+
+  test('Windows falls back to the PATH-resolvable flutter.bat name', () {
+    expect(
+      resolveVerificationProcessExecutable(
+        'flutter',
+        isWindows: true,
+        environment: const <String, String>{},
+        fileExists: (_) => false,
+      ),
+      'flutter.bat',
+    );
+  });
+
+  test('non-Windows executable names remain unchanged', () {
+    expect(
+      resolveVerificationProcessExecutable('flutter', isWindows: false),
+      'flutter',
+    );
+  });
+
   test('streams stdout before the process exits', () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
       'nexa_http_process_runner_',
