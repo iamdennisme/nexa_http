@@ -4,6 +4,7 @@ export 'src/native/nexa_http_native_types.dart';
 export 'src/native/nexa_http_native_target_matrix.dart';
 export 'src/native/nexa_http_native_release_manifest.dart';
 export 'src/native/nexa_http_native_release_consumer.dart';
+export 'src/native/nexa_http_native_shell.dart';
 export 'src/native/nexa_http_workspace_package.dart';
 
 import 'src/native/nexa_http_native_bindings.dart';

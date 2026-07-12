@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import 'nexa_http_native_release_consumer.dart';
+import 'nexa_http_native_shell.dart';
 import 'nexa_http_native_target_matrix.dart';
 import 'nexa_http_workspace_package.dart';
 
@@ -29,6 +30,8 @@ Future<File> prepareNexaHttpNativeCarrierArtifact({
   NexaHttpNativeReleaseRefResolver resolveReleaseRef =
       discoverNexaHttpNativeGitReleaseRef,
   NexaHttpNativeFetchStream fetchStream = fetchNexaHttpNativeStream,
+  NexaHttpNativeBashResolver resolveBashExecutable =
+      resolveNexaHttpNativeBashExecutable,
   Map<String, String>? environment,
 }) async {
   final target = findNexaHttpNativeTarget(
@@ -105,6 +108,7 @@ Future<File> prepareNexaHttpNativeCarrierArtifact({
       outputDirectory: outputDirectory,
       target: target,
       runProcess: runProcess,
+      resolveBashExecutable: resolveBashExecutable,
     );
   }
 
@@ -124,6 +128,8 @@ Future<File> prepareNexaHttpNativeWorkspaceArtifact({
   required String outputDirectory,
   required NexaHttpNativeTarget target,
   NexaHttpNativeProcessRunner runProcess = runNexaHttpNativeProcess,
+  NexaHttpNativeBashResolver resolveBashExecutable =
+      resolveNexaHttpNativeBashExecutable,
 }) async {
   final workspaceRoot = nexaHttpWorkspaceRootForPackage(packageRoot);
   final script = p.join(workspaceRoot, 'scripts', target.buildScriptName);
@@ -154,10 +160,11 @@ Future<File> prepareNexaHttpNativeWorkspaceArtifact({
       return destination;
     }
 
-    final result = await runProcess('bash', arguments);
+    final bashExecutable = await resolveBashExecutable();
+    final result = await runProcess(bashExecutable, arguments);
     if (result.exitCode != 0) {
       throw ProcessException(
-        'bash',
+        bashExecutable,
         arguments,
         '${result.stdout}${result.stderr}',
         result.exitCode,

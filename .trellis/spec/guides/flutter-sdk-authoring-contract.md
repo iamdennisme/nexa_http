@@ -160,6 +160,7 @@ Release transaction 必须由明确 version 和 commit SHA 启动，不得由 pu
 ### 3. Contracts
 
 - macOS 构建脚本必须通过 `xcrun --sdk macosx --show-sdk-path` 设置 `SDKROOT`，并给 C/C++ 编译 flags 加 `-isysroot ${SDKROOT}`。
+- Windows 上 Dart `Process.run('bash', ...)` 可能命中 WSL stub，不能作为 build-script interpreter。workspace hook 与 Verification Catalog 必须共同调用 `resolveNexaHttpNativeBashExecutable()`，定位 Git for Windows 的 `bin/bash.exe`；找不到时以 `native build toolchain resolution` 结构化失败，不得切到 WSL 或另一套 build path。
 - Rust target 准备必须先读取 `rustup target list --installed`，只安装缺失 target。
 - `rustup target add` 必须有有界超时；当前脚本使用 `run_with_timeout 600`。
 - build hook 不得要求宿主 App 在 Xcode、Podfile、Gradle 或 shell profile 中手工设置 SDK path、Rust target 或 C compiler。
@@ -168,6 +169,7 @@ Release transaction 必须由明确 version 和 commit SHA 启动，不得由 pu
 ### 4. Validation & Error Matrix
 
 - `xcrun` 不存在或 SDK path 不存在 -> 构建脚本失败，错误包含 `macOS SDK path`。
+- Windows 找不到 Git Bash -> 构建失败，错误包含 stage、platform、expected action 和已检查路径；不得调用 `C:\\Windows\\System32\\bash.exe`/WSL stub。
 - Rust target 缺失且下载超过 600 秒 -> 构建脚本失败，错误包含 `Command timed out` 和完整 `rustup target add` 命令。
 - `TargetConditionals.h` 缺失 -> 优先检查脚本是否设置 `SDKROOT`/`-isysroot`，不要把修复写成宿主 Xcode 配置步骤。
 
@@ -180,6 +182,7 @@ Release transaction 必须由明确 version 和 commit SHA 启动，不得由 pu
 ### 6. Tests Required
 
 - `bash -n scripts/build_native_common.sh scripts/build_native_macos.sh scripts/build_native_ios.sh scripts/build_native_android.sh scripts/build_native_windows.sh`
+- `fvm dart test packages/nexa_http_native_internal/test/nexa_http_native_shell_test.dart test/verification/integration_checks_test.dart`
 - `cargo fmt --all --check`
 - `cargo test --workspace`
 - Catalog `verify-integration` 对应 execution row，显式传入 fixture URL 与 device。

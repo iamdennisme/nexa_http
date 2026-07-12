@@ -51,7 +51,7 @@ void main() {
     final check = nativeBuildCheck(workspace.path, rows, (command) async {
       commands.add(command);
       await _writeRequestedArtifacts(command, rows);
-    });
+    }, resolveBashExecutable: () async => 'git-bash.exe');
     final catalog = VerificationCatalog(<VerificationCheckDefinition>[check]);
     final plan = VerificationPlanner(catalog).planSuite(
       VerificationSuiteId.verifyIntegration,
@@ -61,7 +61,7 @@ void main() {
     await const VerificationExecutor().execute(plan);
 
     expect(commands, hasLength(1));
-    expect(commands.single.executable, 'bash');
+    expect(commands.single.executable, 'git-bash.exe');
     expect(commands.single.arguments, <String>[
       p.join(workspace.absolute.path, 'scripts', 'build_native_android.sh'),
       'debug',

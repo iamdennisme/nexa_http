@@ -63,6 +63,8 @@ VerificationCheckDefinition nativeBuildCheck(
   VerificationCommandRunner runCommand, {
   VerificationNativePayloadIdentityDigester identityDigest =
       nexaHttpNativePayloadIdentitySha256,
+  NexaHttpNativeBashResolver resolveBashExecutable =
+      resolveNexaHttpNativeBashExecutable,
 }) {
   return VerificationCheckDefinition(
     id: const VerificationCheckId('native-build'),
@@ -86,6 +88,7 @@ VerificationCheckDefinition nativeBuildCheck(
         final buildScriptNames =
             row.targets.map((target) => target.buildScriptName).toSet().toList()
               ..sort();
+        final bashExecutable = await resolveBashExecutable();
         for (final buildScriptName in buildScriptNames) {
           final targets = row.targets
               .where((target) => target.buildScriptName == buildScriptName)
@@ -93,7 +96,7 @@ VerificationCheckDefinition nativeBuildCheck(
               .toList(growable: false);
           await runCommand(
             VerificationCommand(
-              executable: 'bash',
+              executable: bashExecutable,
               arguments: <String>[
                 p.join(absoluteWorkspaceRoot, 'scripts', buildScriptName),
                 'debug',

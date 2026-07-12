@@ -6,6 +6,7 @@
 - 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，并由 Windows runner 检查最终 PE exports。
 - Windows x64 target 变化必须同步 canonical target matrix、build hook、typed build script、release metadata 和 verification matrix。
 - 最终 runner distribution 必须只包含一个导出 canonical `nexa_http_*` ABI 的 payload；Windows `identity_sha256` 等于 packaged raw SHA。
+- workspace hook 与 Catalog 调用 shell build script 时必须复用 `resolveNexaHttpNativeBashExecutable()` 定位 Git for Windows；禁止裸 `Process.run('bash')` 命中 WSL stub。
 
 ## 禁止模式
 
@@ -19,4 +20,5 @@
 - `cargo test -p nexa_http_native_windows_ffi`
 - `fvm dart test packages/nexa_http_native_windows/test/build_hook_test.dart`
 - `fvm dart test test/native_artifact_uniqueness_test.dart test/verification/native_asset_hook_identity_test.dart`
+- `fvm dart test packages/nexa_http_native_internal/test/nexa_http_native_shell_test.dart test/verification/integration_checks_test.dart`
 - Catalog `verify-integration --execution windows-x64` 完整 suite。
