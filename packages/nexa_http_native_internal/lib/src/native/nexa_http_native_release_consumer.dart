@@ -196,6 +196,88 @@ Future<File> materializeNexaHttpNativeReleaseArtifact({
   return destination;
 }
 
+Future<File> materializeNexaHttpNativeCandidateArtifact({
+  required String packageRoot,
+  required String targetOS,
+  required String targetArchitecture,
+  required String? targetSdk,
+  required String candidateDirectory,
+  required String candidateRef,
+}) async {
+  final target = findNexaHttpNativeTarget(
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+  );
+  if (target == null) {
+    _throwNexaHttpNativeArtifactException(
+      stage: 'native target resolution',
+      targetOS: targetOS,
+      targetArchitecture: targetArchitecture,
+      targetSdk: targetSdk,
+      sdkRef: candidateRef,
+      underlyingError: StateError('Unsupported candidate native target'),
+    );
+  }
+  final candidateRoot = Directory(candidateDirectory).absolute;
+  final manifestFile = File(
+    p.join(candidateRoot.path, 'nexa_http_native_assets_manifest.json'),
+  );
+  final manifestJson = await _runNexaHttpNativeArtifactStage(
+    stage: 'candidate manifest read',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: candidateRef,
+    action: manifestFile.readAsString,
+  );
+  final asset = _runNexaHttpNativeArtifactStageSync(
+    stage: 'candidate verification',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: candidateRef,
+    action: () => parseNexaHttpNativeReleaseAssetFromManifest(
+      manifestJson: manifestJson,
+      manifestUri: manifestFile.uri,
+      target: target,
+    ),
+  );
+  final source = File(p.join(candidateRoot.path, asset.fileName));
+  final sourceDigest = await _runNexaHttpNativeArtifactStage(
+    stage: 'candidate verification',
+    targetOS: targetOS,
+    targetArchitecture: targetArchitecture,
+    targetSdk: targetSdk,
+    sdkRef: candidateRef,
+    action: () => sha256OfFile(source),
+  );
+  if (sourceDigest != asset.sha256) {
+    _throwNexaHttpNativeArtifactException(
+      stage: 'candidate verification',
+      targetOS: targetOS,
+      targetArchitecture: targetArchitecture,
+      targetSdk: targetSdk,
+      sdkRef: candidateRef,
+      underlyingError: StateError(
+        'Checksum mismatch for ${asset.fileName}: expected ${asset.sha256}, got $sourceDigest.',
+      ),
+    );
+  }
+  final destination = File(p.join(packageRoot, target.packagedRelativePath));
+  await destination.parent.create(recursive: true);
+  final temporary = File('${destination.path}.candidate.tmp');
+  if (temporary.existsSync()) {
+    await temporary.delete();
+  }
+  await source.copy(temporary.path);
+  if (destination.existsSync()) {
+    await destination.delete();
+  }
+  await temporary.rename(destination.path);
+  return destination;
+}
+
 Future<T> _runNexaHttpNativeArtifactStage<T>({
   required String stage,
   required String targetOS,

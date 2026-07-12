@@ -4,19 +4,17 @@ use nexa_http_native_ios_ffi::{IosProxySource, current_proxy_settings_for_test};
 
 #[test]
 fn ios_adapter_maps_systemconfiguration_values() {
-    let settings = current_proxy_settings_for_test(
-        true,
-        Some("proxy.example.com"),
-        Some(3128),
-        false,
-        None,
-        None,
-        false,
-        None,
-        None,
-        Vec::new(),
-        false,
-    );
+    let settings = current_proxy_settings_for_test(AppleProxySettings {
+        http: AppleProxyEntry {
+            enabled: true,
+            host: Some("proxy.example.com".to_string()),
+            port: Some(3128),
+        },
+        https: AppleProxyEntry::default(),
+        socks: AppleProxyEntry::default(),
+        exceptions: Vec::new(),
+        exclude_simple_hostnames: false,
+    });
 
     assert_eq!(
         settings.http.as_deref(),
@@ -35,3 +33,4 @@ fn ios_proxy_source_uses_construction_boundary_refresh() {
     let source = IosProxySource::new();
     assert_eq!(source.refresh_mode(), RefreshMode::ConstructionBoundary);
 }
+use nexa_http_native_apple_proxy::{AppleProxyEntry, AppleProxySettings};

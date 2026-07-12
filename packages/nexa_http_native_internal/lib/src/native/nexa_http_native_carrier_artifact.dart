@@ -18,6 +18,7 @@ Future<File> prepareNexaHttpNativeCarrierArtifact({
   NexaHttpNativeReleaseRefResolver resolveReleaseRef =
       discoverNexaHttpNativeGitReleaseRef,
   NexaHttpNativeFetchBytes fetchBytes = fetchNexaHttpNativeBytes,
+  Map<String, String>? environment,
 }) async {
   final target = findNexaHttpNativeTarget(
     targetOS: targetOS,
@@ -36,6 +37,28 @@ Future<File> prepareNexaHttpNativeCarrierArtifact({
       underlyingError: StateError(
         'Unsupported native target: os=$targetOS architecture=$targetArchitecture sdk=$targetSdk.',
       ),
+    );
+  }
+
+  final resolvedEnvironment = environment ?? Platform.environment;
+  final candidateDirectory =
+      resolvedEnvironment['NEXA_HTTP_NATIVE_CANDIDATE_DIR']?.trim() ?? '';
+  if (candidateDirectory.isNotEmpty) {
+    final candidateRef =
+        resolvedEnvironment['NEXA_HTTP_NATIVE_CANDIDATE_REF']?.trim() ?? '';
+    if (candidateRef.isEmpty) {
+      throw StateError(
+        'NEXA_HTTP_NATIVE_CANDIDATE_REF is required when '
+        'NEXA_HTTP_NATIVE_CANDIDATE_DIR is set.',
+      );
+    }
+    return materializeNexaHttpNativeCandidateArtifact(
+      packageRoot: packageRoot,
+      targetOS: target.targetOS,
+      targetArchitecture: target.targetArchitecture,
+      targetSdk: target.targetSdk,
+      candidateDirectory: candidateDirectory,
+      candidateRef: candidateRef,
     );
   }
 

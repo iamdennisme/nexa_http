@@ -1,286 +1,109 @@
-# nexa_http verification playbook
+# Verification playbook
 
-This document captures the current end-to-end verification workflow for `nexa_http`.
+The repository has one verification authority: the Catalog behind
+`scripts/workspace_tools.dart`. GitHub Actions loads its matrices and invokes
+complete suites; it does not compose checks itself.
 
-It is written so another AI agent or developer can run the same checks on another machine, including Windows.
+## Toolchain
 
-## Core rule
+- Flutter 3.41.5 / Dart 3.11.3 through FVM locally
+- Rust stable
+- The platform toolchain and a real Flutter device for the selected execution
 
-The monorepo has two main project layers:
-
-- Flutter SDK layer: packages, carrier hooks, artifact materialization, runtime loading, and consumer verification.
-- Native layer: shared Rust core, platform FFI crates, and native build scripts.
-
-Release assets, materialized native libraries, build hooks, and clean-host consumers are mechanisms connecting those two layers. They are not separate app-facing APIs.
-
-Flutter runtime integration should load the native library packaged by the carrier hook. App code does not consume native artifacts directly.
-
-Source compilation is still useful, but only as an explicit preparation step for repository maintainers.
-
-That means:
-
-- app/demo and external apps use normal Flutter package dependencies
-- carrier hooks resolve or materialize packaged binaries
-- Rust / NDK / platform toolchains are for preparing artifacts, not for normal app integration
-
-External apps declare both `nexa_http` and the target platform carrier package in `pubspec.yaml`, but runtime Dart code imports only `package:nexa_http/nexa_http.dart`.
-
-## Preparing local artifacts for repository development
-
-If you are debugging native code locally, prepare fresh artifacts first, then run the app.
-
-Platform-specific commands:
-
-### macOS
-
-```bash
-./scripts/build_native_macos.sh debug
-```
-
-### iOS
-
-```bash
-./scripts/build_native_ios.sh debug
-```
-
-### Windows
-
-```bash
-./scripts/build_native_windows.sh debug
-```
-
-### Android
-
-```bash
-./scripts/build_native_android.sh debug
-```
-
-After that, run the Flutter app normally. The app should consume the prepared binaries instead of rebuilding Rust during app integration.
-
-## Where native binaries are materialized
-
-Carrier build hooks are the integration point between published native download assets and Flutter build outputs.
-
-For a release consumer:
-
-1. The target platform carrier hook runs during `flutter build`.
-2. The hook calls `materializeNexaHttpNativeReleaseArtifact` from `nexa_http_native_internal`.
-3. The internal helper downloads `nexa_http_native_assets_manifest.json`.
-4. It selects the current target's `.so`, `.dylib`, or `.dll`.
-5. It downloads and verifies the native file.
-6. It writes the file to the carrier package layout from the target matrix.
-7. The carrier asset bundle returns a `CodeAsset` so Flutter can package the file.
-8. The carrier plugin registers the runtime loader used by `nexa_http`.
-
-Example macOS materialization:
-
-```text
-release asset: nexa_http-native-macos-arm64.dylib
-carrier layout: packages/nexa_http_native_macos/macos/Libraries/libnexa_http_native.dylib
-runtime loader: packages/nexa_http_native_macos/lib/src/nexa_http_native_macos_plugin.dart
-```
-
-External apps should not create or copy these files manually.
-
-## What this playbook verifies
-
-There are three different verification paths:
-
-1. **Workspace demo path**
-   - Uses the repository demo in `app/demo`
-   - Verifies local development flow
-2. **External consumer path**
-   - Uses a temporary Flutter app outside the workspace
-   - Verifies consumer-style integration through git dependencies
-3. **Manual git+tag consumer path**
-   - Uses a temporary Flutter app outside the workspace
-   - Verifies a real app that depends on a released tag
-
-## Prerequisites
-
-- Flutter toolchain managed by `fvm`
-- Rust toolchain installed
-- Platform toolchains available for the target you want to validate
-- Git access to `git@github.com:iamdennisme/nexa_http.git`
-
-## Repository-level checks
-
-Run these from the repository root:
+## Discover the execution matrix
 
 ```bash
 fvm dart pub get
-fvm dart test test/workspace_tools_test.dart test/workspace_demo_and_consumer_verification_test.dart test/workspace_package_layout_test.dart test/fixture_image_lookup_test.dart
-fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
-fvm dart run scripts/workspace_tools.dart verify-development-path
-fvm dart run scripts/workspace_tools.dart verify-external-consumer
+fvm dart run scripts/workspace_tools.dart matrix --suite verify-static
+fvm dart run scripts/workspace_tools.dart matrix --suite verify-integration
+fvm dart run scripts/workspace_tools.dart matrix --suite verify-release-candidate
 ```
 
-What they prove:
+Matrix stdout is JSON only. Diagnostics are written to stderr.
 
-- target matrix and release workflow stay aligned
-- the official demo still works as a workspace app
-- a temporary external consumer can resolve and build against the repository
+## Complete suites
 
-## Official demo verification
+Static verification:
 
-Start the local fixture server:
+```bash
+fvm dart run scripts/workspace_tools.dart verify-static \
+  --execution static-linux \
+  --report-out reports/static-linux.json
+```
+
+Integration verification starts the official platform build once, then reuses
+that output for ABI, development-path, and clean-host proofs:
 
 ```bash
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
+fvm dart run scripts/workspace_tools.dart verify-integration \
+  --execution apple-macos \
+  --fixture-url http://127.0.0.1:8080/healthz \
+  --device ios=<simulator-udid> \
+  --device macos=macos \
+  --report-out reports/apple-macos.json
 ```
 
-Then run the official demo:
+Android uses `http://10.0.2.2:8080/healthz` from the emulator. Windows uses
+`--device windows=windows`. Missing platform prerequisites fail the suite; they
+are never reported as skipped success.
 
-### macOS / Windows
+Candidate verification consumes an already staged, immutable local candidate
+set. It does not build or copy a second candidate set:
 
 ```bash
-cd app/demo
-fvm flutter pub get
-fvm flutter run -d macos
+fvm dart run scripts/workspace_tools.dart verify-release-candidate \
+  --execution candidate-macos \
+  --candidate-dir <staged-candidate-directory> \
+  --candidate-id <opaque-candidate-id> \
+  --candidate-digest <sha256> \
+  --sdk-ref <commit-or-sdk-ref> \
+  --fixture-url http://127.0.0.1:8080/healthz \
+  --device macos=macos \
+  --report-out reports/candidate-macos.json
 ```
 
-### Android emulator
+Android, iOS, macOS, and Windows candidate rows are all blocking.
 
-Use the Android emulator base URL:
+## Aggregate coverage
+
+After all matrix rows have uploaded their reports, validate the exact union
+without rerunning checks:
 
 ```bash
-cd app/demo
-fvm flutter pub get
-fvm flutter run -d <android-device-id> --dart-define=NEXA_HTTP_DEMO_BASE_URL=http://10.0.2.2:8080
+fvm dart run scripts/workspace_tools.dart verify-static \
+  --aggregate-reports reports/static
+fvm dart run scripts/workspace_tools.dart verify-integration \
+  --aggregate-reports reports/integration
+fvm dart run scripts/workspace_tools.dart verify-release-candidate \
+  --aggregate-reports reports/candidate
 ```
 
-### Android device
+Duplicate, missing, failed, or drifted reports block aggregation.
+
+## Atomic diagnostics
+
+`check` runs the same Catalog definition and its dependencies, but it is not a
+gate conclusion:
 
 ```bash
-adb reverse tcp:8080 tcp:8080
-cd app/demo
-fvm flutter pub get
-fvm flutter run -d <android-device-id> --dart-define=NEXA_HTTP_DEMO_BASE_URL=http://127.0.0.1:8080
+fvm dart run scripts/workspace_tools.dart check native-abi \
+  --execution android-linux \
+  --fixture-url http://10.0.2.2:8080/healthz \
+  --device android=emulator-5554
 ```
 
-## Manual git+tag consumer verification
-
-Create a temporary Flutter app outside the workspace and depend on a released tag.
-
-Set the tag under test:
-
-- Pick a real published release tag before creating the consumer app.
-- The examples below use `v1.0.2`, which is recorded in this playbook as known-good evidence.
-
-Example `pubspec.yaml` dependencies for macOS:
-
-```yaml
-dependencies:
-  flutter:
-    sdk: flutter
-  nexa_http:
-    git:
-      url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
-      path: packages/nexa_http
-  nexa_http_native_macos:
-    git:
-      url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
-      path: packages/nexa_http_native_macos
-```
-
-Then run:
+Regression testing against an already published ref remains diagnostic-only:
 
 ```bash
-fvm flutter pub get
-fvm flutter analyze
-fvm flutter test
-fvm flutter run -d macos --dart-define=NEXA_HTTP_GIT_TAG_DEMO_REQUEST_URL=https://www.baidu.com
+fvm dart run scripts/workspace_tools.dart check released-consumer \
+  --execution windows-x64 \
+  --repo-url https://github.com/iamdennisme/nexa_http.git \
+  --ref <real-release-tag> \
+  --fixture-url http://127.0.0.1:8080/healthz \
+  --device windows=windows
 ```
 
-For automatic one-shot verification, let the app print the request result and exit.
-
-Expected success output contains:
-
-```text
-NEXA_HTTP_GIT_TAG_DEMO_STATUS=200
-```
-
-## Important macOS note
-
-For a macOS app to issue outbound requests, its entitlements must include:
-
-- `com.apple.security.network.client`
-
-This is required for both workspace demos and standalone consumer demos.
-
-## Windows validation guidance
-
-A Windows machine or Windows runner should validate:
-
-```bash
-fvm dart pub get
-fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
-fvm dart run scripts/workspace_tools.dart verify-development-path
-```
-
-If you want a standalone Windows consumer app, create a Flutter Windows project and depend on:
-
-```yaml
-dependencies:
-  nexa_http:
-    git:
-      url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
-      path: packages/nexa_http
-  nexa_http_native_windows:
-    git:
-      url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
-      path: packages/nexa_http_native_windows
-```
-
-Then run:
-
-```bash
-fvm flutter pub get
-fvm flutter run -d windows
-```
-
-## Android validation guidance
-
-If an Android emulator is already running:
-
-```bash
-cd app/demo
-fvm flutter pub get
-fvm flutter run -d emulator-5554 --dart-define=NEXA_HTTP_DEMO_BASE_URL=http://10.0.2.2:8080
-```
-
-If no emulator is running:
-
-```bash
-fvm flutter emulators --launch Medium_Phone
-```
-
-Then rerun the command above.
-
-## Release validation
-
-After pushing a release tag, verify:
-
-- CI workflow on `main` passes
-- release workflow for the tag passes
-- release assets exist for Android / iOS / macOS / Windows
-- `nexa_http_native_assets_manifest.json` exists
-- `SHA256SUMS` exists
-- clean release consumers pass from an exact tag checkout, or with an explicit real ref:
-  ```bash
-  NEXA_HTTP_RELEASE_REF=v1.0.2 \
-  fvm dart run scripts/workspace_tools.dart verify-release-consumer
-  ```
-
-## Current known-good evidence
-
-Validated in this repository session:
-
-- `v1.0.2` release published successfully
-- external macOS git+tag consumer app built and ran
-- git+tag consumer request to `https://www.baidu.com` returned HTTP 200
-- workspace CI passed on macOS / Ubuntu / Windows after the Windows hook fix
+There is intentionally no public release workflow until the immutable release
+transaction is installed. Do not create a tag, draft release, prerelease, or
+GitHub Release as a substitute.

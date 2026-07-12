@@ -138,10 +138,14 @@ Flutter SDK 层：
 如果你在维护这个仓库，最常用的本地检查是：
 
 ```bash
-fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
-fvm dart run scripts/workspace_tools.dart verify-development-path
-fvm dart run scripts/workspace_tools.dart verify-external-consumer
+fvm dart run scripts/workspace_tools.dart verify-static --execution static-linux
+fvm dart run scripts/workspace_tools.dart matrix --suite verify-integration
+fvm dart run scripts/workspace_tools.dart check rust-format --execution static-linux
 ```
+
+`verify-integration` 与 `verify-release-candidate` 必须显式传入 Catalog matrix
+给出的 execution、fixture URL 和 device。原子 `check` 只用于诊断；CI 与发布门禁
+只能使用完整 suite。
 
 更完整的验证流程在 [`docs/verification-playbook.md`](./docs/verification-playbook.md)。
 

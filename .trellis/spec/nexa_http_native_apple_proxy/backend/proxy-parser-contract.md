@@ -69,7 +69,7 @@ pub fn parse_apple_proxy_settings(
 - `cargo test -p nexa_http_native_macos_ffi`：断言 macOS raw-value adapter wiring、runtime state 和 `RefreshMode::ConstructionBoundary`。
 - `cargo test -p nexa_http_native_ios_ffi`：断言 iOS raw-value adapter wiring、runtime state 和 `RefreshMode::ConstructionBoundary`。
 - `cargo test --workspace`：断言共享依赖未破坏 Android/Windows/core。
-- `fvm dart run scripts/workspace_tools.dart verify-development-path` 与 `verify-external-consumer`：断言新 crate 仍隐藏在既有动态库和标准 Flutter 构建链路后。
+- Catalog `verify-integration` Apple execution row：断言新 crate 仍隐藏在既有动态库和标准 Flutter 构建链路后。
 
 ### 7. Wrong vs Correct
 

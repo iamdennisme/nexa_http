@@ -6,6 +6,48 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
+  test(
+    'carrier consumes an explicit local candidate without fallback',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nexa_http_carrier_candidate_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      final candidateDir = Directory(p.join(tempDir.path, 'candidate'))
+        ..createSync();
+      const fileName = 'nexa_http-native-macos-arm64.dylib';
+      const contents = 'candidate-macos-arm64';
+      await File(p.join(candidateDir.path, fileName)).writeAsString(contents);
+      await File(
+        p.join(candidateDir.path, 'nexa_http_native_assets_manifest.json'),
+      ).writeAsString('''
+{"assets":[{"target_os":"macos","target_architecture":"arm64","file_name":"$fileName","source_url":"$fileName","sha256":"${sha256OfString(contents)}"}]}
+''');
+      final packageRoot = Directory(
+        p.join(tempDir.path, 'packages', 'nexa_http_native_macos'),
+      )..createSync(recursive: true);
+
+      final file = await prepareNexaHttpNativeCarrierArtifact(
+        packageRoot: packageRoot.path,
+        targetOS: 'macos',
+        targetArchitecture: 'arm64',
+        targetSdk: null,
+        environment: <String, String>{
+          'NEXA_HTTP_NATIVE_CANDIDATE_DIR': candidateDir.path,
+          'NEXA_HTTP_NATIVE_CANDIDATE_REF': 'candidate-42',
+        },
+        runProcess: (_, _) => throw StateError('workspace fallback used'),
+        resolveReleaseRef: (_) => throw StateError('release fallback used'),
+      );
+
+      expect(await file.readAsString(), contents);
+    },
+  );
+
   test('carrier artifact preparation materializes release artifact', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'nexa_http_carrier_release_',

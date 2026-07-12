@@ -15,6 +15,12 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::time::Duration;
 
+fn free_result<P: PlatformRuntimeState>(value: *mut NexaHttpBinaryResult) {
+    unsafe {
+        NexaHttpRuntime::<P>::binary_result_free(value);
+    }
+}
+
 #[derive(Clone, Default)]
 struct TestCapabilities;
 
@@ -51,7 +57,7 @@ fn repeated_requests_reuse_existing_client_without_refresh() {
 
     for _ in 0..5 {
         let result = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
+        free_result::<CountingCapabilities>(result);
     }
 
     assert_eq!(
@@ -78,11 +84,11 @@ fn steady_state_reuse_survives_multiple_request_batches() {
 
     for _ in 0..3 {
         let result = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
+        free_result::<CountingCapabilities>(result);
     }
     for _ in 0..2 {
         let result = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(result);
+        free_result::<CountingCapabilities>(result);
     }
 
     assert_eq!(
@@ -272,7 +278,7 @@ unsafe extern "C" fn capture_execute_async_thread(
         let thread_name = format!("{:?}", std::thread::current().id());
         let _ = sender.send(thread_name);
     }
-    NexaHttpRuntime::<TestCapabilities>::binary_result_free(result);
+    free_result::<TestCapabilities>(result);
 }
 
 unsafe extern "C" fn capture_execute_async_result(
@@ -385,7 +391,7 @@ fn client_default_headers_apply_when_request_omits_them() {
 
     unsafe {
         assert_eq!((*result).is_success, 1, "request should succeed");
-        NexaHttpRuntime::<TestCapabilities>::binary_result_free(result);
+        free_result::<TestCapabilities>(result);
     }
     assert!(
         request_text
@@ -429,7 +435,7 @@ fn request_headers_override_client_defaults() {
 
     unsafe {
         assert_eq!((*result).is_success, 1, "request should succeed");
-        NexaHttpRuntime::<TestCapabilities>::binary_result_free(result);
+        free_result::<TestCapabilities>(result);
     }
     let normalized = request_text.to_ascii_lowercase();
     assert!(
@@ -479,7 +485,7 @@ fn request_timeout_override_wins_over_client_default_timeout() {
             .to_string_lossy()
             .into_owned()
     };
-    NexaHttpRuntime::<TestCapabilities>::binary_result_free(timeout_result);
+    free_result::<TestCapabilities>(timeout_result);
     assert!(
         timeout_error.contains("\"code\":\"timeout\""),
         "client default timeout should apply when request timeout is unset",
@@ -520,7 +526,7 @@ fn request_timeout_override_wins_over_client_default_timeout() {
             1,
             "request timeout override should win over the client default timeout",
         );
-        NexaHttpRuntime::<TestCapabilities>::binary_result_free(override_result);
+        free_result::<TestCapabilities>(override_result);
     }
 }
 

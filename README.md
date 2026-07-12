@@ -140,10 +140,15 @@ Release builds publish native download assets on GitHub Releases. Carrier build 
 For maintainers, the most useful local checks are:
 
 ```bash
-fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
-fvm dart run scripts/workspace_tools.dart verify-development-path
-fvm dart run scripts/workspace_tools.dart verify-external-consumer
+fvm dart run scripts/workspace_tools.dart verify-static --execution static-linux
+fvm dart run scripts/workspace_tools.dart matrix --suite verify-integration
+fvm dart run scripts/workspace_tools.dart check rust-format --execution static-linux
 ```
+
+`verify-integration` and `verify-release-candidate` require the explicit
+execution, fixture URL, and device inputs printed by their Catalog matrices.
+Atomic `check` commands are diagnostics only; CI and release gates use complete
+suites.
 
 A fuller verification guide is in [`docs/verification-playbook.md`](./docs/verification-playbook.md).
 

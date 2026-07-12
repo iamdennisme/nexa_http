@@ -61,6 +61,54 @@ Future<void> verifyNexaHttpNativeAbi(
   final sdkVersion = _readSdkVersion(workspaceRoot);
   final gitRef = _readGitRef(resolvedEnvironment);
 
+  await _verifyNativeAbiArtifacts(
+    artifacts,
+    resolvedEnvironment: resolvedEnvironment,
+    runSymbolCommand: runSymbolCommand,
+    sdkVersion: sdkVersion,
+    gitRef: gitRef,
+  );
+}
+
+Future<void> verifyNexaHttpNativeAbiArtifacts(
+  String workspaceRoot, {
+  required Map<NexaHttpNativeTarget, File> artifacts,
+  NexaHttpNativeSymbolCommandRunner runSymbolCommand =
+      _runNexaHttpNativeSymbolCommand,
+  Map<String, String>? environment,
+}) async {
+  final resolvedEnvironment = environment ?? Platform.environment;
+  final inputs = <_NexaHttpNativeAbiArtifact>[
+    for (final entry in artifacts.entries)
+      _NexaHttpNativeAbiArtifact(
+        file: entry.value,
+        platform: entry.key.targetOS,
+        targets: <String>[
+          <String>[
+            entry.key.targetOS,
+            entry.key.targetArchitecture,
+            if (entry.key.targetSdk != null) entry.key.targetSdk!,
+          ].join('/'),
+        ],
+        buildScriptName: entry.key.buildScriptName,
+      ),
+  ]..sort((left, right) => left.file.path.compareTo(right.file.path));
+  await _verifyNativeAbiArtifacts(
+    inputs,
+    resolvedEnvironment: resolvedEnvironment,
+    runSymbolCommand: runSymbolCommand,
+    sdkVersion: _readSdkVersion(workspaceRoot),
+    gitRef: _readGitRef(resolvedEnvironment),
+  );
+}
+
+Future<void> _verifyNativeAbiArtifacts(
+  List<_NexaHttpNativeAbiArtifact> artifacts, {
+  required Map<String, String> resolvedEnvironment,
+  required NexaHttpNativeSymbolCommandRunner runSymbolCommand,
+  required String sdkVersion,
+  required String gitRef,
+}) async {
   for (final artifact in artifacts) {
     if (!artifact.file.existsSync()) {
       throw StateError(
@@ -336,7 +384,7 @@ String _readSdkVersion(String workspaceRoot) {
 }
 
 String _readGitRef(Map<String, String> environment) {
-  for (final key in <String>['GITHUB_SHA', 'NEXA_HTTP_RELEASE_REF']) {
+  for (final key in <String>['NEXA_HTTP_NATIVE_CANDIDATE_REF', 'GITHUB_SHA']) {
     final value = environment[key]?.trim();
     if (value != null && value.isNotEmpty) {
       return value;

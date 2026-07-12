@@ -22,7 +22,7 @@ macro_rules! export_nexa_http_ffi {
         }
 
         #[unsafe(no_mangle)]
-        pub extern "C" fn nexa_http_string_free(value: *mut ::std::ffi::c_char) {
+        pub unsafe extern "C" fn nexa_http_string_free(value: *mut ::std::ffi::c_char) {
             unsafe { $crate::api::ffi::string_free(value) };
         }
 
@@ -32,8 +32,10 @@ macro_rules! export_nexa_http_ffi {
         }
 
         #[unsafe(no_mangle)]
-        pub extern "C" fn nexa_http_request_body_free(body_ptr: *mut u8, body_len: usize) {
-            $crate::runtime::NexaHttpRuntime::<$state>::request_body_free(body_ptr, body_len);
+        pub unsafe extern "C" fn nexa_http_request_body_free(body_ptr: *mut u8, body_len: usize) {
+            unsafe {
+                $crate::runtime::NexaHttpRuntime::<$state>::request_body_free(body_ptr, body_len);
+            }
         }
 
         #[unsafe(no_mangle)]
@@ -57,18 +59,20 @@ macro_rules! export_nexa_http_ffi {
         }
 
         #[unsafe(no_mangle)]
-        pub extern "C" fn nexa_http_binary_result_free(
+        pub unsafe extern "C" fn nexa_http_binary_result_free(
             value: *mut $crate::api::ffi::NexaHttpBinaryResult,
         ) {
-            $crate::runtime::NexaHttpRuntime::<$state>::binary_result_free(value);
+            unsafe {
+                $crate::runtime::NexaHttpRuntime::<$state>::binary_result_free(value);
+            }
         }
 
         const _: extern "C" fn(*const $crate::api::ffi::NexaHttpClientConfigArgs) -> u64 =
             nexa_http_client_create;
         const _: extern "C" fn() -> *mut ::std::ffi::c_char = nexa_http_take_last_error_json;
-        const _: extern "C" fn(*mut ::std::ffi::c_char) = nexa_http_string_free;
+        const _: unsafe extern "C" fn(*mut ::std::ffi::c_char) = nexa_http_string_free;
         const _: extern "C" fn(usize) -> *mut u8 = nexa_http_request_body_alloc;
-        const _: extern "C" fn(*mut u8, usize) = nexa_http_request_body_free;
+        const _: unsafe extern "C" fn(*mut u8, usize) = nexa_http_request_body_free;
         const _: extern "C" fn(
             u64,
             u64,
@@ -77,7 +81,7 @@ macro_rules! export_nexa_http_ffi {
         ) -> u8 = nexa_http_client_execute_async;
         const _: extern "C" fn(u64, u64) -> u8 = nexa_http_client_cancel_request;
         const _: extern "C" fn(u64) = nexa_http_client_close;
-        const _: extern "C" fn(*mut $crate::api::ffi::NexaHttpBinaryResult) =
+        const _: unsafe extern "C" fn(*mut $crate::api::ffi::NexaHttpBinaryResult) =
             nexa_http_binary_result_free;
     };
 }

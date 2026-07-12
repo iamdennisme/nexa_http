@@ -21,4 +21,4 @@
 - [ ] `cargo clippy --no-deps -p nexa_http_native_apple_proxy --all-targets -- -D warnings` 通过。
 - [ ] `cargo test -p nexa_http_native_apple_proxy` 通过。
 - [ ] `cargo test -p nexa_http_native_macos_ffi` 和 `cargo test -p nexa_http_native_ios_ffi` 通过。
-- [ ] 触达 Rust dependency/package 边界时，`verify-development-path` 和 `verify-external-consumer` 通过。
+- [ ] 触达 Rust dependency/package 边界时，Catalog `verify-integration` 的 Apple execution row 通过。

@@ -9,6 +9,14 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::time::Duration;
 
+fn free_result<P: PlatformRuntimeState>(
+    value: *mut nexa_http_native_core::api::ffi::NexaHttpBinaryResult,
+) {
+    unsafe {
+        NexaHttpRuntime::<P>::binary_result_free(value);
+    }
+}
+
 #[test]
 fn proxy_settings_signature_is_stable() {
     let settings = ProxySettings::default();
@@ -139,13 +147,13 @@ fn unchanged_generation_keeps_proxy_state_on_the_steady_state_hot_path() {
     let calls_after_create = calls.load(Ordering::Relaxed);
 
     let warmup = execute_for_test(&runtime, client_id, request.as_args());
-    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
+    free_result::<SwitchingProxyCapabilities>(warmup);
 
     switch.store(true, Ordering::Relaxed);
     let after_drift = execute_for_test(&runtime, client_id, request.as_args());
-    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(after_drift);
+    free_result::<SwitchingProxyCapabilities>(after_drift);
     let later_steady_state = execute_for_test(&runtime, client_id, request.as_args());
-    NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(later_steady_state);
+    free_result::<SwitchingProxyCapabilities>(later_steady_state);
 
     assert_eq!(
         calls.load(Ordering::Relaxed),

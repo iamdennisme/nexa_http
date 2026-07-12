@@ -8,71 +8,51 @@ on:
       - main
 
 jobs:
-  verify-ubuntu:
+  catalog-matrices:
     runs-on: ubuntu-latest
+    outputs:
+      static: ${{ steps.matrix.outputs.static }}
+      integration: ${{ steps.matrix.outputs.integration }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - run: dart pub get
+      - id: matrix
+        shell: bash
+        run: |
+          echo "static=$(dart run scripts/workspace_tools.dart matrix --suite verify-static)" >> "$GITHUB_OUTPUT"
+          echo "integration=$(dart run scripts/workspace_tools.dart matrix --suite verify-integration)" >> "$GITHUB_OUTPUT"
+
+  static-suite:
+    needs: catalog-matrices
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.catalog-matrices.outputs.static) }}
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.41.5
       - uses: dtolnay/rust-toolchain@stable
+      - run: dart pub get
+      - run: >-
+          dart run scripts/workspace_tools.dart verify-static
+          --execution "${{ matrix.execution_id }}"
+          --report-out "reports/${{ matrix.execution_id }}.json"
+      - uses: actions/upload-artifact@v4
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
-      - uses: android-actions/setup-android@v3
-      - name: Install Android NDK
-        run: sdkmanager "ndk;29.0.14206865"
-      - name: Export Android environment
-        run: |
-          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
-      - name: Prepare Android native artifacts
-        run: ./scripts/build_native_android.sh debug
-      - name: Generated FFI binding verification
-        working-directory: packages/nexa_http
-        run: |
-          flutter pub get
-          dart run ffigen --config ffigen.yaml
-          git diff --ignore-all-space --exit-code -- lib/src/native_bridge/nexa_http_bindings_generated.dart
-      - name: Native ABI contract tests
-        run: |
-          dart pub get
-          dart test test/native_ffi_abi_contract_test.dart \
-            test/native_abi_verifier_test.dart \
-            test/workspace_demo_and_consumer_verification_test.dart
-      - name: Native ABI verification
-        run: dart run scripts/workspace_tools.dart verify-native-abi
-      - name: Workspace artifact verification
-        run: dart run scripts/workspace_tools.dart verify-artifact-consistency
-      - name: Development path verification
-        run: dart run scripts/workspace_tools.dart verify-development-path
-      - name: External consumer verification
-        run: dart run scripts/workspace_tools.dart verify-external-consumer
+          name: static-report-${{ matrix.execution_id }}
+          path: reports/${{ matrix.execution_id }}.json
 
-  verify-macos:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 3.41.5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin,aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
-      - name: Prepare Apple native artifacts
-        run: |
-          ./scripts/build_native_macos.sh debug
-          ./scripts/build_native_ios.sh debug
-      - name: Native ABI verification
-        run: dart run scripts/workspace_tools.dart verify-native-abi
-      - name: Workspace artifact verification
-        run: dart run scripts/workspace_tools.dart verify-artifact-consistency
-      - name: Development path verification
-        run: dart run scripts/workspace_tools.dart verify-development-path
-      - name: External consumer verification
-        run: dart run scripts/workspace_tools.dart verify-external-consumer
-
-  verify-windows:
-    runs-on: windows-latest
+  integration-suite:
+    needs: catalog-matrices
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.catalog-matrices.outputs.integration) }}
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: bash
@@ -82,15 +62,73 @@ jobs:
         with:
           flutter-version: 3.41.5
       - uses: dtolnay/rust-toolchain@stable
+      - run: dart pub get
+      - if: matrix.execution_id == 'android-linux'
+        uses: android-actions/setup-android@v3
+      - if: matrix.execution_id == 'android-linux'
+        run: sdkmanager "ndk;29.0.14206865"
+      - if: matrix.execution_id == 'android-linux'
+        run: |
+          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
+      - name: Start fixture server
+        run: dart run fixture_server/http_fixture_server.dart --port 8080 > fixture-server.log 2>&1 &
+      - if: matrix.execution_id == 'android-linux'
+        uses: reactivecircus/android-emulator-runner@v2
         with:
-          targets: x86_64-pc-windows-msvc
-      - name: Prepare Windows native artifacts
-        run: ./scripts/build_native_windows.sh debug
-      - name: Native ABI verification
-        run: dart run scripts/workspace_tools.dart verify-native-abi
-      - name: Workspace artifact verification
-        run: dart run scripts/workspace_tools.dart verify-artifact-consistency
-      - name: Development path verification
-        run: dart run scripts/workspace_tools.dart verify-development-path
-      - name: External consumer verification
-        run: dart run scripts/workspace_tools.dart verify-external-consumer
+          api-level: 35
+          arch: x86_64
+          script: >-
+            dart run scripts/workspace_tools.dart verify-integration
+            --execution android-linux
+            --fixture-url http://10.0.2.2:8080/healthz
+            --device android=emulator-5554
+            --report-out reports/android-linux.json
+      - if: matrix.execution_id == 'apple-macos'
+        name: Boot iOS simulator and run Apple suite
+        run: |
+          IOS_DEVICE_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
+          test -n "$IOS_DEVICE_ID"
+          xcrun simctl boot "$IOS_DEVICE_ID" || true
+          xcrun simctl bootstatus "$IOS_DEVICE_ID" -b
+          dart run scripts/workspace_tools.dart verify-integration \
+            --execution apple-macos \
+            --fixture-url http://127.0.0.1:8080/healthz \
+            --device "ios=$IOS_DEVICE_ID" \
+            --device macos=macos \
+            --report-out reports/apple-macos.json
+      - if: matrix.execution_id == 'windows-x64'
+        run: >-
+          dart run scripts/workspace_tools.dart verify-integration
+          --execution windows-x64
+          --fixture-url http://127.0.0.1:8080/healthz
+          --device windows=windows
+          --report-out reports/windows-x64.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: integration-report-${{ matrix.execution_id }}
+          path: reports/${{ matrix.execution_id }}.json
+
+  ci-gate:
+    needs:
+      - static-suite
+      - integration-suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - run: dart pub get
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: static-report-*
+          path: reports/static
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: integration-report-*
+          path: reports/integration
+          merge-multiple: true
+      - run: dart run scripts/workspace_tools.dart verify-static --aggregate-reports reports/static
+      - run: dart run scripts/workspace_tools.dart verify-integration --aggregate-reports reports/integration

@@ -21,32 +21,8 @@ impl ProxyConfigSource for MacosProxySource {
     }
 }
 
-pub fn current_proxy_settings_for_test(
-    http_enabled: bool,
-    http_host: Option<&str>,
-    http_port: Option<i32>,
-    https_enabled: bool,
-    https_host: Option<&str>,
-    https_port: Option<i32>,
-    socks_enabled: bool,
-    socks_host: Option<&str>,
-    socks_port: Option<i32>,
-    exceptions: Vec<String>,
-    exclude_simple_hostnames: bool,
-) -> ProxySettings {
-    proxy_settings_from_apple_values(
-        http_enabled,
-        http_host,
-        http_port,
-        https_enabled,
-        https_host,
-        https_port,
-        socks_enabled,
-        socks_host,
-        socks_port,
-        exceptions,
-        exclude_simple_hostnames,
-    )
+pub fn current_proxy_settings_for_test(values: AppleProxySettings) -> ProxySettings {
+    parse_apple_proxy_settings(values)
 }
 
 fn current_proxy_settings() -> ProxySettings {
@@ -59,40 +35,6 @@ fn current_proxy_settings() -> ProxySettings {
     {
         ProxySettings::default()
     }
-}
-
-fn proxy_settings_from_apple_values(
-    http_enabled: bool,
-    http_host: Option<&str>,
-    http_port: Option<i32>,
-    https_enabled: bool,
-    https_host: Option<&str>,
-    https_port: Option<i32>,
-    socks_enabled: bool,
-    socks_host: Option<&str>,
-    socks_port: Option<i32>,
-    exceptions: Vec<String>,
-    exclude_simple_hostnames: bool,
-) -> ProxySettings {
-    parse_apple_proxy_settings(AppleProxySettings {
-        http: AppleProxyEntry {
-            enabled: http_enabled,
-            host: http_host.map(|host| host.to_string()),
-            port: http_port,
-        },
-        https: AppleProxyEntry {
-            enabled: https_enabled,
-            host: https_host.map(|host| host.to_string()),
-            port: https_port,
-        },
-        socks: AppleProxyEntry {
-            enabled: socks_enabled,
-            host: socks_host.map(|host| host.to_string()),
-            port: socks_port,
-        },
-        exceptions,
-        exclude_simple_hostnames,
-    })
 }
 
 #[cfg(target_os = "macos")]
@@ -148,19 +90,25 @@ mod sysconfig {
             kSCPropNetProxiesExcludeSimpleHostnames
         });
 
-        proxy_settings_from_apple_values(
-            http_enabled,
-            http_host.as_deref(),
-            http_port,
-            https_enabled,
-            https_host.as_deref(),
-            https_port,
-            socks_enabled,
-            socks_host.as_deref(),
-            socks_port,
+        parse_apple_proxy_settings(AppleProxySettings {
+            http: AppleProxyEntry {
+                enabled: http_enabled,
+                host: http_host,
+                port: http_port,
+            },
+            https: AppleProxyEntry {
+                enabled: https_enabled,
+                host: https_host,
+                port: https_port,
+            },
+            socks: AppleProxyEntry {
+                enabled: socks_enabled,
+                host: socks_host,
+                port: socks_port,
+            },
             exceptions,
-            exclude_simple,
-        )
+            exclude_simple_hostnames: exclude_simple,
+        })
     }
 
     fn dictionary_bool(dictionary: CFDictionaryRef, key: CFStringRef) -> bool {

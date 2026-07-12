@@ -184,8 +184,7 @@ Release transaction 必须由明确 version 和 commit SHA 启动，不得由 pu
 - `bash -n scripts/build_native_common.sh scripts/build_native_macos.sh scripts/build_native_ios.sh scripts/build_native_android.sh scripts/build_native_windows.sh`
 - `cargo fmt --all --check`
 - `cargo test --workspace`
-- `fvm dart run scripts/workspace_tools.dart verify-external-consumer`
-- `fvm dart run scripts/workspace_tools.dart verify-development-path`
+- Catalog `verify-integration` 对应 execution row，显式传入 fixture URL 与 device。
 
 ### 7. Wrong vs Correct
 
@@ -213,35 +212,32 @@ flutter build macos
 
 ### 2. Signatures
 
-- `fvm dart run scripts/workspace_tools.dart verify-release-consumer`
-- 可选环境变量：`NEXA_HTTP_RELEASE_REF=<tag-or-ref>`
-- 可选环境变量：`NEXA_HTTP_RELEASE_REPO_URL=<git-url>`
+- `fvm dart run scripts/workspace_tools.dart check released-consumer --execution <id> --repo-url <url> --ref <real-ref> --fixture-url <url> --device <target-os>=<device-id>`
 
 ### 3. Contracts
 
-- `verify-release-consumer` 必须使用真实 release tag/ref，不能把 `vX.Y.Z` 占位符写入临时 consumer pubspec。
-- ref 解析顺序：显式 `NEXA_HTTP_RELEASE_REF`，否则当前 `HEAD` 的 exact tag。
-- 当前工作区未打 tag 时，release consumer 验证必须快速失败并提示设置 `NEXA_HTTP_RELEASE_REF`。
+- `released-consumer` 必须显式接收真实 repo URL 与 release tag/ref，不能把 `vX.Y.Z` 占位符写入临时 consumer pubspec。
+- 不允许从环境变量、当前 `HEAD` 或 exact tag 状态隐式猜测 ref。
 - 当前未发布改动不能用旧 tag 证明；旧 tag 只能证明已发布 release consumer 路径仍可用。
 - 本场景是已发布版本的诊断/回归检查，不属于 pre-publication Release Gate，不能替代 `verify-release-candidate`。
 
 ### 4. Validation & Error Matrix
 
-- `NEXA_HTTP_RELEASE_REF` 为空且 `HEAD` 没有 exact tag -> `StateError`，提示设置真实 ref。
+- repo URL 或 ref 为空 -> usage error，提示显式提供 typed input。
 - ref 是 `vX.Y.Z` -> `StateError`，提示不能使用占位符。
 - git ref 不存在 -> `flutter pub get` 失败，说明目标 release/tag 不存在或未推送。
 
 ### 5. Good/Base/Bad Cases
 
-- Good: `NEXA_HTTP_RELEASE_REF=v1.0.8 fvm dart run scripts/workspace_tools.dart verify-release-consumer`。
-- Base: 在 release tag checkout 上直接运行命令。
-- Bad: 在未打 tag 的开发分支上直接运行命令，并把 `vX.Y.Z` 当成通过条件。
+- Good: 通过 `check released-consumer` 显式传入真实 repo URL、release ref、execution、fixture URL 与 device。
+- Base: 对真实已发布 ref 运行诊断，并让宿主只依赖公开主包与目标 carrier。
+- Bad: 使用 `vX.Y.Z`、隐式环境变量或旧 top-level command 猜测 release ref。
 
 ### 6. Tests Required
 
-- `fvm dart test test/workspace_tools_test.dart`
-- `fvm dart test test/workspace_demo_and_consumer_verification_test.dart`
-- 对已发布 tag 运行 `NEXA_HTTP_RELEASE_REF=<tag> fvm dart run scripts/workspace_tools.dart verify-release-consumer`
+- `fvm dart test test/verification/cli_test.dart`
+- `fvm dart test test/verification/released_consumer_adapter_test.dart`
+- 对已发布 tag 运行 `check released-consumer` 诊断
 
 ### 7. Wrong vs Correct
 
@@ -254,8 +250,12 @@ ref: vX.Y.Z
 #### Correct
 
 ```bash
-NEXA_HTTP_RELEASE_REF=v1.0.8 \
-fvm dart run scripts/workspace_tools.dart verify-release-consumer
+fvm dart run scripts/workspace_tools.dart check released-consumer \
+  --execution windows-x64 \
+  --repo-url https://github.com/iamdennisme/nexa_http.git \
+  --ref v1.0.8 \
+  --fixture-url http://127.0.0.1:8080/healthz \
+  --device windows=windows
 ```
 
 ## Scenario: Carrier artifact preparation 保持 hook adapter-free
@@ -300,9 +300,8 @@ fvm dart run scripts/workspace_tools.dart verify-release-consumer
 - `fvm dart test packages/nexa_http_native_internal/test`
 - `fvm dart test packages/nexa_http_native_<platform>/test/build_hook_test.dart`，平台文件分开跑，避免测试内修改 `Directory.current` 互相影响。
 - `fvm dart test test/workspace_release_consistency_test.dart`
-- `fvm dart run scripts/workspace_tools.dart verify-artifact-consistency`
-- `fvm dart run scripts/workspace_tools.dart verify-development-path`
-- `fvm dart run scripts/workspace_tools.dart verify-external-consumer`
+- `fvm dart run scripts/workspace_tools.dart verify-static --execution static-linux`
+- Catalog `verify-integration` 对应 execution row，显式传入 fixture URL 与 device。
 
 ### 7. Wrong vs Correct
 
@@ -342,7 +341,7 @@ output.assets.code.add(await NexaHttpNativeMacosAssetBundle.resolve(input));
 - Artifact preparation：`prepareNexaHttpNativeCarrierArtifact({required String packageRoot, required String targetOS, required String targetArchitecture, required String? targetSdk}) -> Future<File>`。
 - Target identity：`NexaHttpNativeTarget(targetOS, targetArchitecture, targetSdk, releaseAssetFileName, packagedRelativePath, rustTargetTriple, sourceArtifactFileName, buildScriptName)`。
 - Native Asset identity：carrier 生成的 `CodeAsset` 必须使用项目唯一的 native asset name，并直接引用 preparation 返回的 `File`。
-- Verification：`verify-native-abi`、clean-host runtime smoke 和 release-candidate gate 必须检查同一 target artifact。
+- Verification：Catalog `native-abi` check、clean-host runtime smoke 和 release-candidate gate 必须检查同一 target artifact。
 
 ### 3. Contracts
 

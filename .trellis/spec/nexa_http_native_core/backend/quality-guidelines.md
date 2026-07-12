@@ -12,6 +12,7 @@
 - 所有 C ABI function 使用 `#[unsafe(no_mangle)] extern "C"`。
 - FFI pointer + len 输入必须在 Rust 侧显式校验 null/length 组合。
 - Native-owned bytes 只能有一个释放入口；`NativeHttpOwnedBody::free_raw_parts` 是 response body ownership 的核心规则。
+- Rust-visible raw-pointer release API 必须标记为 `unsafe` 并写 `# Safety`；导出的 `extern "C"` ABI symbol不变，但Rust函数类型必须如实表达调用前置条件。
 - Proxy refresh 策略通过 `RefreshMode` 表达，平台 crate 实现 `ProxyConfigSource`。
 - 测试 `ManagedProxyState` 保存的 raw snapshot 时使用 `current_proxy_snapshot()`；`current_platform_state()` 会合并进程级 proxy 环境变量，断言 view 内容时必须提供优先级更高的显式平台值或隔离 proxy 环境变量。
 
@@ -21,6 +22,7 @@
 - 不要在 runtime loader 或 executor 中搜索 workspace、pub-cache、release asset 或环境变量路径。
 - 不要新增隐藏 fallback：缺 artifact、缺 runtime registration、缺 explicit input 时必须结构化失败。
 - 不要为了让测试通过降低 FFI ownership 测试强度，例如只断言 callback 被调用但不验证 free。
+- 不要通过 `#[allow(clippy::not_unsafe_ptr_arg_deref)]` 隐藏raw pointer contract；修正unsafe边界和测试调用点。
 
 ## 真实例子
 
@@ -45,7 +47,7 @@ nexa_http_native_core::export_nexa_http_ffi! {
 }
 ```
 
-- 产物校验：`fvm dart run scripts/workspace_tools.dart verify-native-abi`
+- 产物校验：Catalog `check native-abi`，显式传入 execution、fixture URL 与 device。
 - canonical public symbols 位于 `scripts/native_abi_contract.dart`，必须与 `include/nexa_http_native.h` 和 generated Dart lookup 一致。
 
 ### 3. Contracts
@@ -79,11 +81,7 @@ nexa_http_native_core::export_nexa_http_ffi! {
 - `cargo fmt --all --check`
 - `cargo test --workspace`
 - 四个平台 FFI crate focused tests。
-- macOS runner: build macOS/iOS artifacts 后运行 `verify-native-abi`。
-- Ubuntu runner: build 三个 Android ABIs 后运行 `verify-native-abi`。
-- Windows runner: build x64 DLL 后运行 `verify-native-abi`。
-- `fvm dart run scripts/workspace_tools.dart verify-development-path`
-- `fvm dart run scripts/workspace_tools.dart verify-external-consumer`
+- macOS、Ubuntu、Windows runner 分别运行 Catalog `verify-integration` 对应 execution row；suite 内只 build 一次并复用给 ABI、development path 与 clean-host consumer。
 
 ### 7. Wrong vs Correct
 

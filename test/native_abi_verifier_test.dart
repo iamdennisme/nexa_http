@@ -58,6 +58,10 @@ void main() {
       () => verifyNexaHttpNativeAbi(
         workspace.path,
         host: NexaHttpNativeAbiHost.android,
+        environment: const <String, String>{
+          'NEXA_HTTP_RELEASE_REF': 'legacy-ref',
+          'NEXA_HTTP_NATIVE_CANDIDATE_REF': 'candidate-42',
+        },
         runSymbolCommand: (command) async {
           return NexaHttpNativeSymbolCommandResult(
             exitCode: 0,
@@ -97,7 +101,11 @@ void main() {
               'message',
               contains('sdk_version='),
             )
-            .having((error) => error.message, 'message', contains('git_ref='))
+            .having(
+              (error) => error.message,
+              'message',
+              contains('git_ref=candidate-42'),
+            )
             .having(
               (error) => error.message,
               'message',

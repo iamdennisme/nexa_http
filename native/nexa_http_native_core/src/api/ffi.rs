@@ -122,6 +122,12 @@ pub fn take_last_error_json() -> *mut c_char {
     }
 }
 
+/// Releases a string previously returned by the native API.
+///
+/// # Safety
+///
+/// `value` must be null or a pointer returned by `CString::into_raw` from this
+/// library, and it must not have been released before.
 pub unsafe fn string_free(value: *mut c_char) {
     if value.is_null() {
         return;
@@ -131,8 +137,14 @@ pub unsafe fn string_free(value: *mut c_char) {
     }
 }
 
+/// Creates a test result by copying `body_len` bytes from `body_ptr`.
+///
+/// # Safety
+///
+/// When `body_len` is non-zero, `body_ptr` must reference at least that many
+/// readable bytes for the duration of this call.
 #[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_test_binary_result_new_success(
+pub unsafe extern "C" fn nexa_http_test_binary_result_new_success(
     body_ptr: *const u8,
     body_len: usize,
     invalid_final_url: u8,
@@ -183,8 +195,13 @@ pub extern "C" fn nexa_http_test_binary_result_free_count(
         .unwrap_or(0)
 }
 
+/// Releases a test result returned by this library.
+///
+/// # Safety
+///
+/// `value` must be null or a live result pointer returned by this library.
 #[unsafe(no_mangle)]
-pub extern "C" fn nexa_http_test_binary_result_free(value: *mut NexaHttpBinaryResult) {
+pub unsafe extern "C" fn nexa_http_test_binary_result_free(value: *mut NexaHttpBinaryResult) {
     if value.is_null() {
         return;
     }
