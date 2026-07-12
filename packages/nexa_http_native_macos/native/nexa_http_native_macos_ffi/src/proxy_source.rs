@@ -1,6 +1,4 @@
-use nexa_http_native_apple_proxy::{
-    AppleProxyEntry, AppleProxySettings, parse_apple_proxy_settings,
-};
+use nexa_http_native_apple_proxy::{AppleProxySettings, parse_apple_proxy_settings};
 use nexa_http_native_core::platform::{ProxyConfigSource, ProxySettings, RefreshMode};
 #[derive(Clone, Debug, Default)]
 pub struct MacosProxySource;
@@ -45,6 +43,7 @@ mod sysconfig {
     use core_foundation::dictionary::{CFDictionaryGetValue, CFDictionaryRef};
     use core_foundation::number::{CFNumberGetValue, CFNumberRef, kCFNumberSInt32Type};
     use core_foundation::string::{CFString, CFStringRef};
+    use nexa_http_native_apple_proxy::AppleProxyEntry;
     use std::ffi::c_void;
     use std::ptr;
     use system_configuration_sys::dynamic_store_copy_specific::SCDynamicStoreCopyProxies;
