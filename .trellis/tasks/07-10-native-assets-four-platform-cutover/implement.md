@@ -90,7 +90,7 @@
 1. RED：runtime fixture必须通过carrier `@Native` binding执行真实request；manual loader source contract为absence。
 2. GREEN：保持v2 public API fixture，验证callback、body string consume、client close/exit。
 3. RED：Android/iOS/macOS/Windows report缺payload uniqueness或runtime proof任一字段失败。
-4. GREEN：扩展Catalog report/aggregate identity fields；Android marker在清空后的同device logcat中允许回收。
+4. GREEN：扩展Catalog report/aggregate identity fields；Android使用non-resident启动，成功fixture保持存活，并在清空后的同device filtered logcat中有界轮询marker。
 5. 在macOS本机执行Apple integration；Android/Windows由Actions blocking rows执行。
 
 ### Slice 9 — Documentation and final absence
@@ -113,11 +113,13 @@ fvm dart run scripts/workspace_tools.dart matrix --suite verify-integration
 fvm dart run scripts/workspace_tools.dart matrix --suite verify-release-candidate
 ```
 
-平台gate：
+本任务平台gate：
 
-- Android：`verify-integration --execution android-linux` + candidate Android row。
-- Apple：`verify-integration --execution apple-macos` + candidate iOS/macOS rows。
-- Windows：`verify-integration --execution windows-x64` + candidate Windows row。
+- Android：`verify-integration --execution android-linux`。
+- Apple：`verify-integration --execution apple-macos`。
+- Windows：`verify-integration --execution windows-x64`。
+
+真实candidate Android/iOS/macOS/Windows rows属于后续`07-10-immutable-release-candidate-transaction`，必须消费同一immutable candidate set；本任务只验证其Catalog matrix与identity contract，不伪造尚未执行的candidate通过状态。
 
 每个平台必须同时通过target build、exact ABI、artifact uniqueness、development path、clean-host runtime。
 
@@ -126,3 +128,10 @@ fvm dart run scripts/workspace_tools.dart matrix --suite verify-release-candidat
 - 每个RED/GREEN保持测试可解释，但只在完整四平台clean cutover后提交。
 - 任一平台仍需要traditional packaging/manual loader时不得提交兼容分支；返回本任务设计修复。
 - rollback只能整体revert最终work commit。
+
+## 5. Debug retrospective — Android runtime marker delivery
+
+- 根因分类：跨层契约与隐含假设。fixture生产marker，Flutter CLI/log bridge传输marker，verification消费marker；原实现把“等待2秒”误当成日志已被消费的确认。
+- 失败原因：第一次修复只扩大了producer退出前的flush窗口，没有建立consumer acknowledgment；API 35 runner高CPU与system ANR时固定窗口仍会失效。
+- 防复发机制：Android成功fixture不主动退出；runner使用non-resident启动和filtered logcat最多30秒有界轮询，先观测唯一完整marker再结束并清理fixture；回归测试覆盖延迟到达、零marker和重复marker。
+- 系统性结论：异步proof传递不得用固定sleep代替acknowledgment；退出码、App启动和DDS连接均不能替代业务lifecycle marker。

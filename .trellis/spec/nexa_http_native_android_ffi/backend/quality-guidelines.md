@@ -10,8 +10,8 @@
 - Android proxy source 使用 `RefreshMode::Polling`，当前轮询间隔由 `ANDROID_PROXY_REFRESH_INTERVAL = 15s` 集中定义。
 - `getprop` 只在 `#[cfg(target_os = "android")]` 代码中执行，非 Android 单元测试不得尝试运行系统命令。
 - Actions emulator row必须在suite前调用`scripts/wait_android_package_service.sh`并等待`adb shell service check package`成功；`sys.boot_completed=1`不是可安装APK的充分条件。
-- Android runtime marker采集必须在run前清空目标device logcat；Flutter stdout未捕获时只从同device本轮logcat回收，仍要求唯一完整marker。
-- Fixture打印marker后必须等待有界flush窗口再退出，避免Android log bridge丢失最后一行；process exit 0不构成runtime proof。
+- Android runtime marker采集必须在run前清空目标device logcat；使用`flutter run --no-resident`启动后，成功fixture保持存活，Flutter stdout未捕获时只对同device本轮`flutter:I`日志做最多30秒有界轮询，仍要求唯一完整marker；proof判定后best-effort force-stop fixture。
+- Fixture打印marker后不得主动退出或依赖固定flush sleep；验证端观测marker后才结束row。process exit 0不构成runtime proof。
 
 ## 禁止模式
 

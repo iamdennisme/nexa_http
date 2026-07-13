@@ -23,6 +23,16 @@ typedef ExternalRuntimeSmokeRunner =
 
 typedef ExternalDeviceIdResolver = String Function(String targetOS);
 
+typedef ExternalAndroidLogcatPollWait = Future<void> Function(Duration delay);
+
+Future<void> _waitForAndroidLogcatPoll(Duration delay) =>
+    Future<void>.delayed(delay);
+
+const _androidRuntimeProofPollLimit = 30;
+const _androidRuntimeProofPollInterval = Duration(seconds: 1);
+const _externalConsumerAndroidApplicationId =
+    'com.example.nexa_http_external_consumer_fixture';
+
 final class ExternalRuntimeProofMarkerTracker {
   static const marker = 'NEXA_HTTP_RUNTIME_PROOF ';
 
@@ -70,6 +80,8 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
   required ExternalDeviceIdResolver deviceIdForTargetOS,
   required ExternalRuntimeProofMarkerTracker proofTracker,
   Map<String, String> baseEnvironment = const <String, String>{},
+  ExternalAndroidLogcatPollWait waitForAndroidLogcatPoll =
+      _waitForAndroidLogcatPoll,
 }) {
   return ({
     required fixtureDirectory,
@@ -97,49 +109,91 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
     Object? flutterError;
     StackTrace? flutterStackTrace;
     try {
-      await runCommand(
-        VerificationCommand(
-          executable: 'flutter',
-          arguments: <String>[
-            'run',
-            '-d',
-            deviceId,
-            '--debug',
-            '--dart-define=NEXA_HTTP_FIXTURE_URL=$fixtureUrl',
-          ],
-          workingDirectory: fixtureDirectory.path,
-          environment: <String, String>{...baseEnvironment, ...environment},
-        ),
-      );
-    } on ProcessException catch (error, stackTrace) {
-      flutterError = error;
-      flutterStackTrace = stackTrace;
-    }
-    if (platform.targetOS == 'android' &&
-        proofTracker.proofCount == previousProofCount) {
-      await runCommand(
-        VerificationCommand(
-          executable: 'adb',
-          arguments: <String>['-s', deviceId, 'logcat', '-d', '-v', 'raw'],
-          workingDirectory: fixtureDirectory.path,
-          environment: <String, String>{...baseEnvironment, ...environment},
-        ),
-      );
-    }
-    if (proofTracker.proofCount == previousProofCount + 1) {
+      try {
+        await runCommand(
+          VerificationCommand(
+            executable: 'flutter',
+            arguments: <String>[
+              'run',
+              '-d',
+              deviceId,
+              '--debug',
+              if (platform.targetOS == 'android') '--no-resident',
+              '--dart-define=NEXA_HTTP_FIXTURE_URL=$fixtureUrl',
+            ],
+            workingDirectory: fixtureDirectory.path,
+            environment: <String, String>{...baseEnvironment, ...environment},
+          ),
+        );
+      } on ProcessException catch (error, stackTrace) {
+        flutterError = error;
+        flutterStackTrace = stackTrace;
+      }
+      if (platform.targetOS == 'android' &&
+          proofTracker.proofCount == previousProofCount) {
+        for (var poll = 0; poll < _androidRuntimeProofPollLimit; poll += 1) {
+          await runCommand(
+            VerificationCommand(
+              executable: 'adb',
+              arguments: <String>[
+                '-s',
+                deviceId,
+                'logcat',
+                '-d',
+                '-v',
+                'raw',
+                '-s',
+                'flutter:I',
+              ],
+              workingDirectory: fixtureDirectory.path,
+              environment: <String, String>{...baseEnvironment, ...environment},
+            ),
+          );
+          if (proofTracker.proofCount != previousProofCount) {
+            break;
+          }
+          if (poll + 1 < _androidRuntimeProofPollLimit) {
+            await waitForAndroidLogcatPoll(_androidRuntimeProofPollInterval);
+          }
+        }
+      }
+      if (proofTracker.proofCount == previousProofCount + 1) {
+        proofTracker.requireSingleProofSince(
+          previousProofCount,
+          targetOS: platform.targetOS,
+        );
+        return;
+      }
+      if (flutterError != null) {
+        Error.throwWithStackTrace(flutterError, flutterStackTrace!);
+      }
       proofTracker.requireSingleProofSince(
         previousProofCount,
         targetOS: platform.targetOS,
       );
-      return;
+    } finally {
+      if (platform.targetOS == 'android') {
+        try {
+          await runCommand(
+            VerificationCommand(
+              executable: 'adb',
+              arguments: <String>[
+                '-s',
+                deviceId,
+                'shell',
+                'am',
+                'force-stop',
+                _externalConsumerAndroidApplicationId,
+              ],
+              workingDirectory: fixtureDirectory.path,
+              environment: <String, String>{...baseEnvironment, ...environment},
+            ),
+          );
+        } on ProcessException {
+          // Cleanup is best-effort and cannot replace or mask runtime proof.
+        }
+      }
     }
-    if (flutterError != null) {
-      Error.throwWithStackTrace(flutterError, flutterStackTrace!);
-    }
-    proofTracker.requireSingleProofSince(
-      previousProofCount,
-      targetOS: platform.targetOS,
-    );
   };
 }
 
@@ -668,6 +722,7 @@ import 'package:nexa_http/nexa_http.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  runApp(const SizedBox.shrink());
   const fixtureUrl = String.fromEnvironment('NEXA_HTTP_FIXTURE_URL');
   if (fixtureUrl.isEmpty) {
     throw StateError('NEXA_HTTP_FIXTURE_URL is required');
@@ -698,6 +753,9 @@ Future<void> main() async {
   }
   if (exitCode == 0) {
     print('NEXA_HTTP_RUNTIME_PROOF {"request_completed":true,"callback_received":true,"body_consumed":true,"body_released":true,"client_closed":true}');
+    if (Platform.isAndroid) {
+      return;
+    }
     await Future<void>.delayed(const Duration(seconds: 2));
   }
   exit(exitCode);

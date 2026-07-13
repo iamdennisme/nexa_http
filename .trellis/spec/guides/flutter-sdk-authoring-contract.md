@@ -366,8 +366,8 @@ output.assets.code.add(
 - Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android与Windows的Flutter packaging都是byte-for-byte copy，identity必须等于raw digest；Apple framework会被Xcode改install name并重签名，identity固定为按architecture排序的Mach-O `LC_UUID`集合SHA-256。aggregate比较identity digest，两端raw值始终保留用于审计。
 - Workspace integration的Catalog native-build producer先把同一组target一次构建到共享workspace cache并记录fingerprint；development path、external consumer和carrier hook只能复用这些File，不得通过被hook剥离的环境变量传递prepared目录，也不得二次build同一tuple。
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
-- Android App可能在`flutter run`完成日志附着前输出marker；runtime row必须先对目标device执行`adb logcat -c`，CLI未观测marker时只允许从同一device的本轮`adb logcat -d -v raw`回收，仍要求恰好一条完整marker。
-- Runtime fixture输出成功marker后必须保留短暂异步flush窗口再`exit(0)`；Android Flutter log bridge可能丢弃紧邻process exit的最后一行，exit code本身不能替代marker。
+- Android App可能在`flutter run`完成日志附着前输出marker；runtime row必须先对目标device执行`adb logcat -c`，以`flutter run --no-resident`启动后让成功fixture保持存活，并对同一device的`flutter:I`日志执行最多30秒的有界轮询。仍要求恰好一条完整marker，不得扫描无关system日志或依赖固定sleep猜测日志已flush；proof判定结束后best-effort force-stop fixture，避免污染同device后续row。
+- Android fixture输出成功marker后不得主动`exit(0)`；由验证端观测marker后结束row。iOS/macOS/Windows可以在短暂flush窗口后退出，但任何平台的process exit code都不能替代marker。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。
 - Target matrix 是 target tuple、build target、source artifact、release file name 和 packaging identity 的单一事实来源。Workflow、shell、Gradle、Podspec、CMake 不得维护一份独立 target/path 表。
@@ -383,7 +383,7 @@ output.assets.code.add(
 - ABI verifier 检查的文件与 runtime smoke 加载的 artifact identity 不一致 -> 验证失败。
 - Workspace hook缺少或读到不匹配fingerprint -> 在共享cache中重建该tuple；不得读取旧integration目录或fallback到第二artifact source。
 - candidate directory/ref仅有一个、类型错误或路径不存在 -> hook直接失败；不得回退workspace/release source。
-- Android Flutter stdout无marker且清空后的同device logcat也无marker -> runtime失败；不得把App启动或DDS连接当作lifecycle proof。
+- Android Flutter stdout无marker且清空后的同device filtered logcat在有界轮询内也无marker -> runtime失败；不得把App启动、DDS连接或进程退出当作lifecycle proof。
 - Workspace build 产物 architecture 与请求 target 不一致 -> 验证失败，不得使用 host build 代替。
 - 搜索到已删除的 Pod resource bundle、legacy `jniLibs`/CMake copy 或固定 loader path -> 架构迁移未完成。
 
@@ -405,7 +405,7 @@ output.assets.code.add(
 - Runtime smoke：clean host 必须实际创建 client、执行 fixture HTTP request、接收 callback 并释放 response body。
 - Workspace reuse test：Catalog producer与两个不同hook output请求返回同一个共享cache File，build invocation保持一次；source或target tuple变化会失效。
 - Hook config test：candidate user-defines的相对目录按workspace pubspec base path解析，directory/ref成对传给preparer；自定义环境变量不参与contract。
-- Android marker test：先清空logcat，Flutter stdout缺marker时从同device logcat恢复本轮marker；旧marker与零marker均不通过。
+- Android marker test：先清空logcat，使用non-resident启动并让成功fixture存活，Flutter stdout缺marker时有界轮询同device的`flutter:I`日志；覆盖延迟到达、旧marker、零marker、重复marker和结束后的fixture清理。
 - Release gate：Android、iOS、macOS、Windows 全部通过候选 artifact runtime smoke 后才允许公开 release。
 - Legacy absence test：搜索并拒绝旧 resource bundle、固定 loader path、并行 `jniLibs`/CMake copy 和 fallback branch。
 

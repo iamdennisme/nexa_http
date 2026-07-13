@@ -39,10 +39,14 @@ void main() {
       expect(bodyConsumedAndReleased, greaterThan(requestCompleted));
       expect(clientClosed, greaterThan(bodyConsumedAndReleased));
       expect(source.indexOf(proofMarker), greaterThan(clientClosed));
+      final androidKeepAlive = source.indexOf(
+        'if (Platform.isAndroid) {\n      return;\n    }',
+      );
+      expect(androidKeepAlive, greaterThan(source.indexOf(proofMarker)));
       final markerFlushDelay = source.indexOf(
         'await Future<void>.delayed(const Duration(seconds: 2))',
       );
-      expect(markerFlushDelay, greaterThan(source.indexOf(proofMarker)));
+      expect(markerFlushDelay, greaterThan(androidKeepAlive));
       expect(source.indexOf('exit(exitCode)'), greaterThan(markerFlushDelay));
       expect(source, contains("import 'dart:io';"));
     },
@@ -303,16 +307,160 @@ void main() {
             '-d',
             'emulator-5554',
             '--debug',
+            '--no-resident',
             '--dart-define=NEXA_HTTP_FIXTURE_URL=http://10.0.2.2:8080/healthz',
           ],
         ],
         <Object>[
           'adb',
-          <String>['-s', 'emulator-5554', 'logcat', '-d', '-v', 'raw'],
+          <String>[
+            '-s',
+            'emulator-5554',
+            'logcat',
+            '-d',
+            '-v',
+            'raw',
+            '-s',
+            'flutter:I',
+          ],
+        ],
+        <Object>[
+          'adb',
+          <String>[
+            '-s',
+            'emulator-5554',
+            'shell',
+            'am',
+            'force-stop',
+            'com.example.nexa_http_external_consumer_fixture',
+          ],
         ],
       ],
     );
   });
+
+  test('Android runtime proof polls filtered logcat until delivery', () async {
+    final commands = <VerificationCommand>[];
+    final proofTracker = ExternalRuntimeProofMarkerTracker();
+    var logcatDumps = 0;
+    var waits = 0;
+    final runner = createFlutterRuntimeSmokeRunner(
+      (command) async {
+        commands.add(command);
+        if (command.executable == 'adb' &&
+            command.arguments.contains('logcat') &&
+            command.arguments.contains('-d')) {
+          logcatDumps += 1;
+          if (logcatDumps == 2) {
+            proofTracker.observeLine(_runtimeProofMarkerLine);
+          }
+        }
+      },
+      deviceIdForTargetOS: (_) => 'emulator-5554',
+      proofTracker: proofTracker,
+      waitForAndroidLogcatPoll: (_) async {
+        waits += 1;
+      },
+    );
+
+    await runner(
+      fixtureDirectory: Directory('/fixture/android'),
+      platform: const ExternalConsumerPlatform(
+        targetOS: 'android',
+        buildArguments: <String>[],
+      ),
+      fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+      environment: const <String, String>{},
+    );
+
+    expect(logcatDumps, 2);
+    expect(waits, 1);
+    expect(
+      commands
+          .where(
+            (command) =>
+                command.executable == 'adb' &&
+                command.arguments.contains('logcat') &&
+                command.arguments.contains('-d'),
+          )
+          .every(
+            (command) =>
+                command.arguments.length >= 2 &&
+                command.arguments[command.arguments.length - 2] == '-s' &&
+                command.arguments.last == 'flutter:I',
+          ),
+      isTrue,
+    );
+  });
+
+  test('Android runtime proof polling is bounded at thirty seconds', () async {
+    var logcatDumps = 0;
+    var waits = 0;
+    final runner = createFlutterRuntimeSmokeRunner(
+      (command) async {
+        if (command.executable == 'adb' &&
+            command.arguments.contains('logcat') &&
+            command.arguments.contains('-d')) {
+          logcatDumps += 1;
+        }
+      },
+      deviceIdForTargetOS: (_) => 'emulator-5554',
+      proofTracker: ExternalRuntimeProofMarkerTracker(),
+      waitForAndroidLogcatPoll: (_) async {
+        waits += 1;
+      },
+    );
+
+    await expectLater(
+      runner(
+        fixtureDirectory: Directory('/fixture/android'),
+        platform: const ExternalConsumerPlatform(
+          targetOS: 'android',
+          buildArguments: <String>[],
+        ),
+        fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+        environment: const <String, String>{},
+      ),
+      throwsA(isA<StateError>()),
+    );
+
+    expect(logcatDumps, 30);
+    expect(waits, 29);
+  });
+
+  test(
+    'Android runtime proof rejects duplicate markers from one logcat dump',
+    () async {
+      final proofTracker = ExternalRuntimeProofMarkerTracker();
+      final runner = createFlutterRuntimeSmokeRunner(
+        (command) async {
+          if (command.executable == 'adb' &&
+              command.arguments.contains('logcat') &&
+              command.arguments.contains('-d')) {
+            proofTracker
+              ..observeLine(_runtimeProofMarkerLine)
+              ..observeLine(_runtimeProofMarkerLine);
+          }
+        },
+        deviceIdForTargetOS: (_) => 'emulator-5554',
+        proofTracker: proofTracker,
+        waitForAndroidLogcatPoll: (_) async {},
+      );
+
+      await expectLater(
+        runner(
+          fixtureDirectory: Directory('/fixture/android'),
+          platform: const ExternalConsumerPlatform(
+            targetOS: 'android',
+            buildArguments: <String>[],
+          ),
+          fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+          environment: const <String, String>{},
+        ),
+        throwsA(isA<StateError>()),
+      );
+    },
+  );
 
   test(
     'uniqueness returns runtime proofs for the matching packaged digests',
