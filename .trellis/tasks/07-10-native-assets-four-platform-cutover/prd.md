@@ -24,12 +24,12 @@
 
 ## Acceptance Criteria
 
-- [ ] Android、iOS、macOS、Windows 全部由 Native Assets/CodeAsset 打包并通过正式 runtime loader 调用。
-- [ ] 每个支持 target 的 build output 仅存在一个 canonical ABI payload；macOS 不再包含两份约 15 MB native library。
+- [x] Android、iOS、macOS、Windows 全部由 Native Assets/CodeAsset 打包并通过正式 runtime loader 调用。
+- [x] 每个支持 target 的 build output 仅存在一个 canonical ABI payload；macOS 不再包含两份约 15 MB native library。
 - [x] 所有传统 packaging、fixed-path/manual loader、fallback、legacy binaries 和相关测试/文档均不存在。
 - [x] Target matrix tests 证明每个 tuple 驱动正确 Rust target、source file、asset identity 和 runner。
-- [ ] 最终 CodeAsset 对每个 target 通过 exact ABI missing/unexpected comparison。
-- [ ] 四个平台 clean host 实际完成 plugin registration、Native Asset loading、FFI client creation、fixture HTTP request、callback 和 body release。
+- [x] 最终 CodeAsset 对每个 target 通过 exact ABI missing/unexpected comparison。
+- [x] 四个平台 clean host 实际完成 plugin registration、Native Asset loading、FFI client creation、fixture HTTP request、callback 和 body release。
 - [x] 并发/重复/多架构 build 隔离测试通过，没有共享目录删除竞态。
 - [x] Catalog 的 integration/candidate checks 只消费最终 Native Asset identity。
 
@@ -37,7 +37,9 @@
 
 - 本机 Apple blocking row 已在共享workspace fingerprint cache切换后重新通过：schema v2、`status=passed`，覆盖5个prepared targets、iOS/macOS各1个最终payload和两次完整runtime lifecycle proof；carrier hook未重复native build。
 - Apple prepared/package raw SHA 因 Xcode install-name rewrite 与 codesign 不同；两端 raw SHA 均保留，Mach-O `LC_UUID` 集合派生的 `identity_sha256` 一致。
-- Android 与 Windows clean-host runtime proof 必须由 `.github/workflows/ci.yml` 的动态 `android-linux` / `windows-x64` blocking rows 完成；未取得对应 schema v2 report 前，本任务保持 `in_progress`，不得把平台缺失当作 pass 或归档任务。
+- GitHub Actions run `29224569319`（head `d6398583084e4a0503077d13dd1158cd7af76f9b`）全部通过，包含Catalog matrix、static、Android、Apple、Windows与最终`ci-gate`。
+- schema v2 reports全部为`status=passed`：Android 3个prepared targets与1个x64 runtime payload；Apple 5个prepared targets与iOS/macOS各1个runtime payload；Windows 1个prepared target与1个runtime payload。所有runtime均`payload_count=1`且request/callback/body consumed/body released/client closed五项为`true`。
+- Android与Windows prepared/package raw SHA及`identity_sha256`精确相等；Apple prepared/package raw SHA按Xcode rewrite/codesign设计不同，但Mach-O identity精确相等。三份report再次通过本地aggregate解析。
 
 ## Out of Scope
 
