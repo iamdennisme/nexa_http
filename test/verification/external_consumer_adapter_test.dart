@@ -122,6 +122,74 @@ void main() {
   });
 
   test(
+    'Android pipeline builds once with the fixture URL then reuses the APK',
+    () async {
+      final tempRoot = await Directory.systemTemp.createTemp(
+        'nexa_http_android_pipeline_',
+      );
+      addTearDown(() async => tempRoot.delete(recursive: true));
+      final sourceRoot = Directory(p.join(tempRoot.path, 'source'))
+        ..createSync();
+      final commands = <VerificationCommand>[];
+      final proofTracker = ExternalRuntimeProofMarkerTracker();
+      Future<void> runCommand(VerificationCommand command) async {
+        commands.add(command);
+        if (command.executable == 'adb' &&
+            command.arguments.contains('logcat') &&
+            command.arguments.contains('-d')) {
+          proofTracker.observeLine(_runtimeProofMarkerLine);
+        }
+      }
+
+      final runner = createExternalConsumerRunner(
+        fixtureRoot: Directory(p.join(tempRoot.path, 'fixtures')),
+        fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+        prepareSource: (_) async => sourceRoot,
+        runCommand: runCommand,
+        runRuntimeSmoke: createFlutterRuntimeSmokeRunner(
+          runCommand,
+          deviceIdForTargetOS: (_) => 'emulator-5554',
+          proofTracker: proofTracker,
+          waitForAndroidLogcatPoll: (_) async {},
+        ),
+      );
+
+      await runner(const VerificationExecutionId('android-linux'));
+
+      final flutterBuilds = commands
+          .where(
+            (command) =>
+                command.executable == 'flutter' &&
+                command.arguments.firstOrNull == 'build',
+          )
+          .toList(growable: false);
+      expect(flutterBuilds, hasLength(1));
+      expect(
+        flutterBuilds.single.arguments,
+        contains(
+          '--dart-define=NEXA_HTTP_FIXTURE_URL=http://10.0.2.2:8080/healthz',
+        ),
+      );
+      expect(
+        commands.where(
+          (command) =>
+              command.executable == 'flutter' &&
+              command.arguments.firstOrNull == 'run',
+        ),
+        isEmpty,
+      );
+      expect(
+        commands.where(
+          (command) =>
+              command.executable == 'adb' &&
+              command.arguments.contains('install'),
+        ),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
     'Apple consumer pipeline prepares source once and runs two platform smokes',
     () async {
       final tempRoot = await Directory.systemTemp.createTemp(
@@ -318,17 +386,30 @@ void main() {
       <List<Object>>[
         <Object>[
           'adb',
+          <String>[
+            '-s',
+            'emulator-5554',
+            'install',
+            '-t',
+            '-r',
+            '/fixture/android/build/app/outputs/flutter-apk/app-debug.apk',
+          ],
+        ],
+        <Object>[
+          'adb',
           <String>['-s', 'emulator-5554', 'logcat', '-c'],
         ],
         <Object>[
-          'flutter',
+          'adb',
           <String>[
-            'run',
-            '-d',
+            '-s',
             'emulator-5554',
-            '--debug',
-            '--no-resident',
-            '--dart-define=NEXA_HTTP_FIXTURE_URL=http://10.0.2.2:8080/healthz',
+            'shell',
+            'am',
+            'start',
+            '-W',
+            '-n',
+            'com.example.nexa_http_external_consumer_fixture/.MainActivity',
           ],
         ],
         <Object>[

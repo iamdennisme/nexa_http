@@ -118,7 +118,7 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - Windows `dumpbin /exports` 的 banner/path 可能包含以 `nexa_http_` 开头的临时目录名；symbol parser只接受工具输出行尾的symbol token，不得把`Dump of file <path>`当成unexpected export。
 - Android emulator的`sys.boot_completed=1`不保证package manager已ready；Actions row必须先调用`scripts/wait_android_package_service.sh`有界等待`adb shell service check package`成功，超时直接失败，不得把后续install失败包装成SDK runtime失败。
 - Android Actions row使用轻量`aosp_atd` image；三target native build通过Catalog在`pre-emulator-launch-script`完成，避免emulator与Cargo争抢CPU。完整suite随后复用workspace fingerprint cache；发现第二次native build或prepared copy即为性能contract失败。
-- Android runtime marker可能早于Flutter CLI日志附着；row必须在run前清空目标device logcat，以`flutter run --no-resident`启动并让成功fixture保持存活。stdout缺marker时只允许最多60次有界轮询同device的`flutter:I`日志；真实ATD冷启动曾在第30次之后才完成callback，不能把该抖动误判为SDK失败。仍无单一完整marker则失败。proof判定后best-effort force-stop fixture，cleanup失败不得冒充或覆盖proof结果。
+- Android runtime必须复用external-consumer阶段唯一一次`flutter build apk`产生的APK；该build注入fixture URL，runtime只执行`adb install -t -r`、清空目标device logcat和`adb shell am start -W`，不得调用`flutter run`触发第二次Gradle assemble/debug attach。启动后只允许最多60次有界轮询同device的`flutter:I`日志；真实ATD冷启动曾在第30次之后才完成callback。仍无单一完整marker则失败，proof判定后best-effort force-stop fixture，cleanup失败不得冒充或覆盖proof结果。
 - Android fixture不得在`print(NEXA_HTTP_RUNTIME_PROOF ...)`后主动退出，也不得用固定sleep推断日志已flush；验证端必须先观测完整marker。任何平台仍以marker内容而不是退出码判定通过。
 - candidate缺artifact、存在未知artifact、manifest/SHA256SUMS/实际bytes不一致 -> candidate set失败。
 - 缺device、fixture URL、candidate identity/digest/SDK ref -> CLI usage失败。

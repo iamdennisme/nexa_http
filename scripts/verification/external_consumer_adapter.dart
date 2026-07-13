@@ -96,38 +96,74 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
       );
     }
     final previousProofCount = proofTracker.proofCount;
-    if (platform.targetOS == 'android') {
-      await runCommand(
-        VerificationCommand(
-          executable: 'adb',
-          arguments: <String>['-s', deviceId, 'logcat', '-c'],
-          workingDirectory: fixtureDirectory.path,
-          environment: <String, String>{...baseEnvironment, ...environment},
-        ),
-      );
-    }
     Object? flutterError;
     StackTrace? flutterStackTrace;
     try {
-      try {
+      if (platform.targetOS == 'android') {
+        final commandEnvironment = <String, String>{
+          ...baseEnvironment,
+          ...environment,
+        };
         await runCommand(
           VerificationCommand(
-            executable: 'flutter',
+            executable: 'adb',
             arguments: <String>[
-              'run',
-              '-d',
+              '-s',
               deviceId,
-              '--debug',
-              if (platform.targetOS == 'android') '--no-resident',
-              '--dart-define=NEXA_HTTP_FIXTURE_URL=$fixtureUrl',
+              'install',
+              '-t',
+              '-r',
+              _androidDebugApk(fixtureDirectory).path,
             ],
             workingDirectory: fixtureDirectory.path,
-            environment: <String, String>{...baseEnvironment, ...environment},
+            environment: commandEnvironment,
           ),
         );
-      } on ProcessException catch (error, stackTrace) {
-        flutterError = error;
-        flutterStackTrace = stackTrace;
+        await runCommand(
+          VerificationCommand(
+            executable: 'adb',
+            arguments: <String>['-s', deviceId, 'logcat', '-c'],
+            workingDirectory: fixtureDirectory.path,
+            environment: commandEnvironment,
+          ),
+        );
+        await runCommand(
+          VerificationCommand(
+            executable: 'adb',
+            arguments: <String>[
+              '-s',
+              deviceId,
+              'shell',
+              'am',
+              'start',
+              '-W',
+              '-n',
+              '$_externalConsumerAndroidApplicationId/.MainActivity',
+            ],
+            workingDirectory: fixtureDirectory.path,
+            environment: commandEnvironment,
+          ),
+        );
+      } else {
+        try {
+          await runCommand(
+            VerificationCommand(
+              executable: 'flutter',
+              arguments: <String>[
+                'run',
+                '-d',
+                deviceId,
+                '--debug',
+                '--dart-define=NEXA_HTTP_FIXTURE_URL=$fixtureUrl',
+              ],
+              workingDirectory: fixtureDirectory.path,
+              environment: <String, String>{...baseEnvironment, ...environment},
+            ),
+          );
+        } on ProcessException catch (error, stackTrace) {
+          flutterError = error;
+          flutterStackTrace = stackTrace;
+        }
       }
       if (platform.targetOS == 'android' &&
           proofTracker.proofCount == previousProofCount) {
@@ -453,7 +489,11 @@ ExternalConsumerRunner createExternalConsumerRunner({
       await runCommand(
         VerificationCommand(
           executable: 'flutter',
-          arguments: platform.buildArguments,
+          arguments: <String>[
+            ...platform.buildArguments,
+            if (platform.targetOS == 'android')
+              '--dart-define=NEXA_HTTP_FIXTURE_URL=$fixtureUrl',
+          ],
           workingDirectory: fixtureDirectory.path,
           environment: executionEnvironment,
         ),
@@ -474,16 +514,7 @@ Future<Directory> _finalDistributionDirectory(
   String targetOS,
 ) async {
   if (targetOS == 'android') {
-    final apk = File(
-      p.join(
-        fixture.path,
-        'build',
-        'app',
-        'outputs',
-        'flutter-apk',
-        'app-debug.apk',
-      ),
-    );
+    final apk = _androidDebugApk(fixture);
     final extracted = Directory(p.join(fixture.path, '.nexa_http_apk_payload'));
     if (extracted.existsSync()) {
       await extracted.delete(recursive: true);
@@ -532,6 +563,17 @@ Future<Directory> _finalDistributionDirectory(
   }
   return root;
 }
+
+File _androidDebugApk(Directory fixtureDirectory) => File(
+  p.join(
+    fixtureDirectory.path,
+    'build',
+    'app',
+    'outputs',
+    'flutter-apk',
+    'app-debug.apk',
+  ),
+);
 
 Directory resolveSingleAppleAppBundle(
   Directory productsRoot, {
