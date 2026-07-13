@@ -18,9 +18,11 @@ Android、iOS、macOS、Windows 的 ABI 和 clean-host runtime gate 必须消费
 
 唯一实现入口是 `.github/workflows/release-native-assets.yml`。`pull_request` 只运行不可发布 rehearsal；`workflow_dispatch` 只接受 `version`、完整 40 位 `commit_sha` 和 `publish`。Workflow 的 fragment matrix 与四平台 candidate matrix 都从 Verification Catalog 动态生成，YAML 不拥有 target triple、build script 或 asset filename。
 
+`workflow_dispatch`不得先checkout或执行`commit_sha`中的仓库代码，再让该代码证明自身属于main。Workflow必须先checkout可信default branch，并在纯Git preflight中校验raw SHA格式、commit存在且属于`origin/<default-branch>`历史；只有通过后才checkout批准commit并运行Dart transaction validator。后续Dart preflight保留为纵深校验，但不是信任根。
+
 Candidate identity 固定为 `candidate:gha:<run-id>:<artifact-id>:<candidate-digest>`。三个 build fragment 直接 merge 到最终 candidate directory，manifest 与 `SHA256SUMS` 只生成一次；gate 与 publisher 都按精确 artifact ID 各下载一次，不创建第二棵 candidate tree。
 
-Publisher 通过单一 release transaction CLI 重新执行 preflight、原名上传和 GitHub Release asset digest 核对。它先创建包含 candidate ID/digest 事务 marker 的 annotated tag object 与精确 tag ref，再创建包含同一隐藏 marker 的 Release；tag 与 Release 分别记录 ownership。若创建 public state 后上传或 digest proof 失败，只补偿删除 ownership 已确认属于本事务的 Release 与 tag，cleanup 失败必须成为显式错误。补偿不是 fallback 或第二发布入口。
+Publisher 通过单一 release transaction CLI 重新执行 preflight、原名上传和 GitHub Release asset digest 核对。它先创建包含 candidate ID/digest 事务 marker 的 annotated tag object 与精确 tag ref，再创建包含同一隐藏 marker 的 Release；tag 与 Release 分别记录 ownership。若创建 public state 后上传或 digest proof 失败，只补偿删除 ownership 已确认属于本事务的 Release 与 tag。由于create响应失败后远端状态可能延迟可见，单次“不存在”不能结束补偿；最多三轮ownership查询/删除中必须得到跨重试窗口的稳定absence，任一ownership/error都会重置确认。cleanup失败必须成为显式错误。补偿不是 fallback 或第二发布入口。
 
 ## 后果
 

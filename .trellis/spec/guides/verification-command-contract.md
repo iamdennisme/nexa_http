@@ -118,7 +118,7 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - Windows `dumpbin /exports` 的 banner/path 可能包含以 `nexa_http_` 开头的临时目录名；symbol parser只接受工具输出行尾的symbol token，不得把`Dump of file <path>`当成unexpected export。
 - Android emulator的`sys.boot_completed=1`不保证package manager已ready；Actions row必须先调用`scripts/wait_android_package_service.sh`有界等待`adb shell service check package`成功，超时直接失败，不得把后续install失败包装成SDK runtime失败。
 - Android Actions row使用轻量`aosp_atd` image；三target native build通过Catalog在`pre-emulator-launch-script`完成，避免emulator与Cargo争抢CPU。完整suite随后复用workspace fingerprint cache；发现第二次native build或prepared copy即为性能contract失败。
-- Android runtime marker可能早于Flutter CLI日志附着；row必须在run前清空目标device logcat，以`flutter run --no-resident`启动并让成功fixture保持存活。stdout缺marker时只允许最多30秒有界轮询同device的`flutter:I`日志；仍无单一完整marker则失败。proof判定后best-effort force-stop fixture，cleanup失败不得冒充或覆盖proof结果。
+- Android runtime marker可能早于Flutter CLI日志附着；row必须在run前清空目标device logcat，以`flutter run --no-resident`启动并让成功fixture保持存活。stdout缺marker时只允许最多60次有界轮询同device的`flutter:I`日志；真实ATD冷启动曾在第30次之后才完成callback，不能把该抖动误判为SDK失败。仍无单一完整marker则失败。proof判定后best-effort force-stop fixture，cleanup失败不得冒充或覆盖proof结果。
 - Android fixture不得在`print(NEXA_HTTP_RUNTIME_PROOF ...)`后主动退出，也不得用固定sleep推断日志已flush；验证端必须先观测完整marker。任何平台仍以marker内容而不是退出码判定通过。
 - candidate缺artifact、存在未知artifact、manifest/SHA256SUMS/实际bytes不一致 -> candidate set失败。
 - 缺device、fixture URL、candidate identity/digest/SDK ref -> CLI usage失败。
@@ -185,24 +185,29 @@ workflow_dispatch(version, commit_sha, publish)
 
 - `pull_request` 的 version 从六个 package pubspec 的唯一一致值派生，commit 必须精确等于 checkout PR head；它不要求未合并 head 已属于 `origin/main`，并且结构上永远不能运行 publisher。
 - `workflow_dispatch` 的 version 必须是无 `v` 前缀、无前导零、无首尾空白的稳定 semver；commit 必须是无首尾空白的完整 40 位 SHA、精确解析且属于 `origin/main`。`publish=false`仍运行完整candidate与四平台gate。Raw dispatch input必须先映射到step env，再以quoted shell variable传入CLI；禁止把`${{ inputs.* }}`直接插入`run:`脚本。
+- Dispatch必须先checkout可信default branch，并在任何supplied-commit Dart/pub/build代码执行前用Git校验raw SHA格式、commit object存在和`origin/<default-branch>`ancestry；通过后才checkout该SHA。Supplied commit中的Dart membership check只能作为纵深复核，不能作为自身的信任根。
 - Fragment execution 只接受 canonical integration matrix 的 `android-linux`、`apple-macos`、`windows-x64` 投影。Targets、Rust triples、build scripts、runner 和 filenames 不进入 YAML/CLI 参数。
 - Assembly 直接使用 fragment merge directory 作为最终 candidate directory。精确九个 asset 后只生成一次 manifest 与 `SHA256SUMS`，candidate digest 为排序后的 `<filename>:<file-sha256>\n` 的 SHA-256。
+- Gate与publisher按精确artifact ID下载final candidate时必须启用扁平合并，让九个asset与两个metadata文件直接位于`candidate/`根目录；不得保留Actions默认的artifact-name子目录，也不得下载后再copy/rename一棵candidate tree。
 - Final Actions artifact ID、`candidate_id=gha:<run-id>:<artifact-id>`、candidate digest 和批准 commit 必须原样传到 Android、iOS、macOS、Windows report。Prepared proof source identity 固定为 `candidate:<candidate-id>:<64位小写digest>`，四个 row 的每个 proof 必须完全相同。
 - 全workflow默认`contents: read`；只有`publisher` job拥有`contents: write`，且条件同时满足`workflow_dispatch`、`publish=true`、aggregate success。
-- Publisher只下载精确final artifact一次，重新验证version/commit/main membership/tag/release absence/candidate/manifest URL/checksum/文件覆盖，随后原名上传11个文件并核对GitHub asset API的`sha256:` digest。它必须用candidate ID/digest marker显式创建annotated tag ref与Release，分别记录ownership；失败时只清理本事务确认为owned的状态，cleanup失败不得吞掉。不得build、rename、copy第二套candidate或重新生成metadata。
+- Publisher只下载精确final artifact一次，重新验证version/commit/main membership/tag/release absence/candidate/manifest URL/checksum/文件覆盖，随后原名上传11个文件并核对GitHub asset API的`sha256:` digest。它必须用candidate ID/digest marker显式创建annotated tag ref与Release，分别记录ownership；失败时只清理本事务确认为owned的状态。Create响应不确定时，远端ownership可能延迟可见：最多三轮query/delete中必须跨重试窗口得到稳定absence，任何owned/error都重置确认；cleanup失败不得吞掉。不得build、rename、copy第二套candidate或重新生成metadata。
 - 未声明CLI option直接usage error。禁止legacy/fallback/compatibility option、tag-triggered workflow、第二publisher、deprecated alias、forwarder和双轨中间态；release架构切换只能一次完成，rollback只能整体revert。
 - 性能边界：每个build-script group每事务只执行一次；assembly不创建第二candidate tree；gate/publisher不native build；九个native asset digest复用verified candidate结果，publisher只额外读取两个小型metadata文件。
 
 ### 4. Validation & Error Matrix
 
 - version带`v`、prerelease、缩写、数字前导零或首尾空白，或SHA非40位/含首尾空白 -> input parse失败。
+- supplied commit在trusted Git preflight中不存在或不属于default branch历史 -> checkout supplied commit和任何仓库Dart代码执行之前失败。
 - 六包version不一致、commit解析漂移、dispatch commit不属于main -> transaction preflight失败。
 - tag或Release已存在 -> build/publish前失败；不得覆盖或复用旧public state。
 - fragment output非空、缺文件、含unknown file或跨execution asset -> fragment失败。
 - candidate缺/多asset、metadata已存在、manifest/checksum/bytes不一致或candidate digest漂移 -> assembly/gate/publisher失败。
+- exact artifact下载落入`candidate/<artifact-name>/...`而不是`candidate/...` -> workflow contract失败；不得在verification中递归猜测或增加兼容目录探测。
 - release-candidate source identity使用旧`candidate:<id>`、缺ID、digest非64位小写hex，或任一proof identity不同 -> aggregate失败；integration的`workspace` identity不受此格式约束。
 - 任一平台report缺失、空文件、failed、lifecycle不完整或runtime/prepared identity不匹配 -> aggregate失败，publisher skipped。
 - GitHub远端asset name/digest集合与本地11文件不完全一致 -> publish失败，并删除本事务ownership已确认的Release与tag；任一cleanup失败必须在最终错误中报告。
+- ambiguous tag/Release create后ownership首次不可见、后续可见 -> cleanup继续重试并删除owned state；单次false/false不得判定成功。
 - gate失败或`publish=false` -> 不创建tag、draft、prerelease或Release，只保留私有diagnostic artifacts。
 
 ### 5. Good/Base/Bad Cases
@@ -216,7 +221,7 @@ workflow_dispatch(version, commit_sha, publish)
 - `fvm dart test test/release_transaction_test.dart test/release_transaction_cli_test.dart test/release_publication_gateway_test.dart`
 - `fvm dart test test/verification/candidate_adapter_test.dart test/verification/report_test.dart test/verification/ci_workflow_test.dart`
 - `actionlint .github/workflows/release-native-assets.yml`
-- Workflow contract必须检查精确job set/needs DAG、唯一`contents: write`、动态matrix、artifact ID flow、完整gate参数、report aggregate、publisher no-build/no-copy/no-regeneration和旧authority absence。
+- Workflow contract必须检查精确job set/needs DAG、唯一`contents: write`、dispatch trusted ancestry preflight早于supplied checkout/代码执行、动态matrix、artifact ID flow、exact artifact下载扁平落入candidate根目录、完整gate参数、report aggregate、publisher no-build/no-copy/no-regeneration和旧authority absence。
 - PR rehearsal必须记录run ID，并证明四平台row、aggregate成功、publisher skipped、远端tag/Release/draft/prerelease集合无新增。
 - Failure drill使用不可发布的无效input或`publish=false`路径，必须证明没有新增public state。
 

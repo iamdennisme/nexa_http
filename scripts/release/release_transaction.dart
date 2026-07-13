@@ -444,8 +444,6 @@ Future<ValidatedReleasePublisherCandidate> publishReleaseCandidate({
   final transactionMarker =
       'candidate=${validated.candidate.candidateId};'
       'digest=${validated.candidate.digest}';
-  var tagCreated = false;
-  var releaseCreated = false;
   try {
     await publicationGateway.createTag(
       repository: repository,
@@ -453,13 +451,11 @@ Future<ValidatedReleasePublisherCandidate> publishReleaseCandidate({
       commitSha: input.commitSha,
       transactionMarker: transactionMarker,
     );
-    tagCreated = true;
     await publicationGateway.createRelease(
       repository: repository,
       tag: input.tag,
       transactionMarker: transactionMarker,
     );
-    releaseCreated = true;
     await publicationGateway.uploadAssets(
       repository: repository,
       tag: input.tag,
@@ -488,8 +484,6 @@ Future<ValidatedReleasePublisherCandidate> publishReleaseCandidate({
       input: input,
       transactionMarker: transactionMarker,
       publicationGateway: publicationGateway,
-      releaseCreated: releaseCreated,
-      tagCreated: tagCreated,
     );
     if (cleanupErrors.isNotEmpty) {
       Error.throwWithStackTrace(
@@ -509,35 +503,38 @@ Future<List<Object>> _cleanupReleaseTransactionState({
   required ReleaseTransactionInput input,
   required String transactionMarker,
   required ReleasePublicationGateway publicationGateway,
-  required bool releaseCreated,
-  required bool tagCreated,
 }) async {
   final cleanupErrors = <Object>[];
+  var absenceConfirmed = false;
   for (var attempt = 1; attempt <= 3; attempt++) {
     cleanupErrors.clear();
-    var releaseOwned = releaseCreated;
-    var tagOwned = tagCreated;
+    var releaseOwned = false;
+    var tagOwned = false;
     try {
-      releaseOwned =
-          releaseOwned ||
-          await publicationGateway.ownsRelease(
-            repository: repository,
-            tag: input.tag,
-            transactionMarker: transactionMarker,
-          );
+      releaseOwned = await publicationGateway.ownsRelease(
+        repository: repository,
+        tag: input.tag,
+        transactionMarker: transactionMarker,
+      );
+      if (releaseOwned) {
+        absenceConfirmed = false;
+      }
     } catch (error) {
+      absenceConfirmed = false;
       cleanupErrors.add(error);
     }
     try {
-      tagOwned =
-          tagOwned ||
-          await publicationGateway.ownsTag(
-            repository: repository,
-            tag: input.tag,
-            commitSha: input.commitSha,
-            transactionMarker: transactionMarker,
-          );
+      tagOwned = await publicationGateway.ownsTag(
+        repository: repository,
+        tag: input.tag,
+        commitSha: input.commitSha,
+        transactionMarker: transactionMarker,
+      );
+      if (tagOwned) {
+        absenceConfirmed = false;
+      }
     } catch (error) {
+      absenceConfirmed = false;
       cleanupErrors.add(error);
     }
     if (releaseOwned) {
@@ -546,8 +543,8 @@ Future<List<Object>> _cleanupReleaseTransactionState({
           repository: repository,
           tag: input.tag,
         );
-        releaseCreated = false;
       } catch (error) {
+        absenceConfirmed = false;
         cleanupErrors.add(error);
       }
     }
@@ -557,38 +554,59 @@ Future<List<Object>> _cleanupReleaseTransactionState({
           repository: repository,
           tag: input.tag,
         );
-        tagCreated = false;
       } catch (error) {
+        absenceConfirmed = false;
         cleanupErrors.add(error);
       }
     }
+    bool? releaseStillOwned;
+    bool? tagStillOwned;
     try {
-      final releaseStillOwned = await publicationGateway.ownsRelease(
+      releaseStillOwned = await publicationGateway.ownsRelease(
         repository: repository,
         tag: input.tag,
         transactionMarker: transactionMarker,
       );
-      final tagStillOwned = await publicationGateway.ownsTag(
+      if (releaseStillOwned) {
+        absenceConfirmed = false;
+      }
+    } catch (error) {
+      absenceConfirmed = false;
+      cleanupErrors.add(error);
+    }
+    try {
+      tagStillOwned = await publicationGateway.ownsTag(
         repository: repository,
         tag: input.tag,
         commitSha: input.commitSha,
         transactionMarker: transactionMarker,
       );
-      if (!releaseStillOwned && !tagStillOwned) {
+      if (tagStillOwned) {
+        absenceConfirmed = false;
+      }
+    } catch (error) {
+      absenceConfirmed = false;
+      cleanupErrors.add(error);
+    }
+    if (releaseStillOwned == false && tagStillOwned == false) {
+      if (absenceConfirmed) {
         return const <Object>[];
       }
+      absenceConfirmed = true;
+    } else if (releaseStillOwned == true || tagStillOwned == true) {
       cleanupErrors.add(
         StateError(
           'Owned release state still exists after cleanup attempt $attempt',
         ),
       );
-    } catch (error) {
-      cleanupErrors.add(error);
     }
     if (attempt < 3) {
       await Future<void>.delayed(Duration(milliseconds: 250 * attempt));
     }
   }
+  cleanupErrors.add(
+    StateError('Unable to confirm stable absence of owned release state'),
+  );
   return List<Object>.unmodifiable(cleanupErrors);
 }
 

@@ -245,38 +245,56 @@ void main() {
     },
   );
 
-  test('Android prepared proofs reuse the verified artifact digest', () async {
-    final androidTargets = nexaHttpSupportedNativeTargets
-        .where((target) => target.targetOS == 'android')
-        .toList(growable: false);
-    final digest = List<String>.filled(64, 'a').join();
-    final candidate = VerifiedCandidateSet(
-      candidateDirectory: Directory('/candidate'),
-      candidateId: 'gha:42:314',
-      sdkRef: '20c3786',
-      digest: List<String>.filled(64, 'd').join(),
-      artifactDigests: <String, String>{
-        for (final target in androidTargets)
-          target.releaseAssetFileName: digest,
-      },
-      artifactFiles: <String, File>{
-        for (final target in androidTargets)
-          target.releaseAssetFileName: File(
-            '/candidate/${target.releaseAssetFileName}',
+  test(
+    'Android and Windows prepared proofs reuse the verified artifact digest',
+    () async {
+      final directIdentityPlatforms = <String, VerificationExecutionId>{
+        'android': const VerificationExecutionId('candidate-android'),
+        'windows': const VerificationExecutionId('candidate-windows'),
+      };
+      final directIdentityTargets = nexaHttpSupportedNativeTargets
+          .where(
+            (target) => directIdentityPlatforms.containsKey(target.targetOS),
+          )
+          .toList(growable: false);
+      final digest = List<String>.filled(64, 'a').join();
+      final candidate = VerifiedCandidateSet(
+        candidateDirectory: Directory('/candidate'),
+        candidateId: 'gha:42:314',
+        sdkRef: '20c3786',
+        digest: List<String>.filled(64, 'd').join(),
+        artifactDigests: <String, String>{
+          for (final target in directIdentityTargets)
+            target.releaseAssetFileName: digest,
+        },
+        artifactFiles: <String, File>{
+          for (final target in directIdentityTargets)
+            target.releaseAssetFileName: File(
+              '/candidate/${target.releaseAssetFileName}',
+            ),
+        },
+      );
+
+      for (final entry in directIdentityPlatforms.entries) {
+        final proofs = await createCandidatePreparedArtifactProofs(
+          candidate,
+          entry.value,
+          identityDigest: (file, {required platform}) => throw StateError(
+            '$platform must reuse the verified candidate digest',
           ),
-      },
-    );
+        );
 
-    final proofs = await createCandidatePreparedArtifactProofs(
-      candidate,
-      const VerificationExecutionId('candidate-android'),
-      identityDigest: (file, {required platform}) =>
-          throw StateError('Android must not rehash candidate assets'),
-    );
-
-    expect(proofs, hasLength(3));
-    expect(proofs.map((proof) => proof.identitySha256), everyElement(digest));
-  });
+        final expectedTargetCount = directIdentityTargets
+            .where((target) => target.targetOS == entry.key)
+            .length;
+        expect(proofs, hasLength(expectedTargetCount));
+        expect(
+          proofs.map((proof) => proof.identitySha256),
+          everyElement(digest),
+        );
+      }
+    },
+  );
 
   test('verified candidate retains its original directory handle', () {
     final candidateDirectory = Directory('/staged/candidate');

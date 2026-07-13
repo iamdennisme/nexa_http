@@ -393,7 +393,42 @@ void main() {
     );
   });
 
-  test('Android runtime proof polling is bounded at thirty seconds', () async {
+  test(
+    'Android runtime proof tolerates a slow ATD callback delivery',
+    () async {
+      final proofTracker = ExternalRuntimeProofMarkerTracker();
+      var logcatDumps = 0;
+      final runner = createFlutterRuntimeSmokeRunner(
+        (command) async {
+          if (command.executable == 'adb' &&
+              command.arguments.contains('logcat') &&
+              command.arguments.contains('-d')) {
+            logcatDumps += 1;
+            if (logcatDumps == 45) {
+              proofTracker.observeLine(_runtimeProofMarkerLine);
+            }
+          }
+        },
+        deviceIdForTargetOS: (_) => 'emulator-5554',
+        proofTracker: proofTracker,
+        waitForAndroidLogcatPoll: (_) async {},
+      );
+
+      await runner(
+        fixtureDirectory: Directory('/fixture/android'),
+        platform: const ExternalConsumerPlatform(
+          targetOS: 'android',
+          buildArguments: <String>[],
+        ),
+        fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+        environment: const <String, String>{},
+      );
+
+      expect(logcatDumps, 45);
+    },
+  );
+
+  test('Android runtime proof polling is bounded at sixty attempts', () async {
     var logcatDumps = 0;
     var waits = 0;
     final runner = createFlutterRuntimeSmokeRunner(
@@ -424,8 +459,8 @@ void main() {
       throwsA(isA<StateError>()),
     );
 
-    expect(logcatDumps, 30);
-    expect(waits, 29);
+    expect(logcatDumps, 60);
+    expect(waits, 59);
   });
 
   test(

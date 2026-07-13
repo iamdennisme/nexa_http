@@ -28,7 +28,7 @@ typedef ExternalAndroidLogcatPollWait = Future<void> Function(Duration delay);
 Future<void> _waitForAndroidLogcatPoll(Duration delay) =>
     Future<void>.delayed(delay);
 
-const _androidRuntimeProofPollLimit = 30;
+const _androidRuntimeProofPollLimit = 60;
 const _androidRuntimeProofPollInterval = Duration(seconds: 1);
 const _externalConsumerAndroidApplicationId =
     'com.example.nexa_http_external_consumer_fixture';

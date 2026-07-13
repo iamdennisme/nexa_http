@@ -367,7 +367,7 @@ output.assets.code.add(
 - Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android与Windows的Flutter packaging都是byte-for-byte copy，identity必须等于raw digest；Apple framework会被Xcode改install name并重签名，identity固定为按architecture排序的Mach-O `LC_UUID`集合SHA-256。aggregate比较identity digest，两端raw值始终保留用于审计。
 - Workspace integration的Catalog native-build producer先把同一组target一次构建到共享workspace cache并记录fingerprint；development path、external consumer和carrier hook只能复用这些File，不得通过被hook剥离的环境变量传递prepared目录，也不得二次build同一tuple。
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
-- Android App可能在`flutter run`完成日志附着前输出marker；runtime row必须先对目标device执行`adb logcat -c`，以`flutter run --no-resident`启动后让成功fixture保持存活，并对同一device的`flutter:I`日志执行最多30秒的有界轮询。仍要求恰好一条完整marker，不得扫描无关system日志或依赖固定sleep猜测日志已flush；proof判定结束后best-effort force-stop fixture，避免污染同device后续row。
+- Android App可能在`flutter run`完成日志附着前输出marker；runtime row必须先对目标device执行`adb logcat -c`，以`flutter run --no-resident`启动后让成功fixture保持存活，并对同一device的`flutter:I`日志执行最多60次有界轮询。真实ATD冷启动可能在第30次之后才交付callback，因此不得沿用过短边界制造假失败；仍要求恰好一条完整marker，不得扫描无关system日志或依赖固定sleep猜测日志已flush；proof判定结束后best-effort force-stop fixture，避免污染同device后续row。
 - Android fixture输出成功marker后不得主动`exit(0)`；由验证端观测marker后结束row。iOS/macOS/Windows可以在短暂flush窗口后退出，但任何平台的process exit code都不能替代marker。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。

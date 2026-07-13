@@ -83,11 +83,32 @@ void main() {
     );
   });
 
-  test(
-    'dispatch rejects surrounding whitespace before normalization',
-    () async {
+  for (final input in <({String name, String version, String commitSha})>[
+    (
+      name: 'leading version whitespace',
+      version: ' 2.0.0',
+      commitSha: List<String>.filled(40, 'a').join(),
+    ),
+    (
+      name: 'trailing version whitespace',
+      version: '2.0.0 ',
+      commitSha: List<String>.filled(40, 'a').join(),
+    ),
+    (
+      name: 'leading commit whitespace',
+      version: '2.0.0',
+      commitSha: ' ${List<String>.filled(40, 'a').join()}',
+    ),
+    (
+      name: 'trailing commit whitespace',
+      version: '2.0.0',
+      commitSha: '${List<String>.filled(40, 'a').join()} ',
+    ),
+  ]) {
+    test('dispatch rejects ${input.name} before normalization', () async {
       final workspace = await _createWorkspaceVersions('2.0.0');
       addTearDown(() => workspace.delete(recursive: true));
+      var preflightStarted = false;
 
       await expectLater(
         runReleaseTransactionCli(
@@ -100,11 +121,14 @@ void main() {
             '--repository',
             'iamdennisme/nexa_http',
             '--version',
-            ' 2.0.0',
+            input.version,
             '--commit-sha',
-            List<String>.filled(40, 'a').join(),
+            input.commitSha,
           ],
-          resolveCommit: (sha) async => sha,
+          resolveCommit: (sha) async {
+            preflightStarted = true;
+            return sha;
+          },
           isCommitOnMain: (_) async => true,
           tagExists: (_) async => false,
           releaseExists: (_) async => false,
@@ -113,8 +137,9 @@ void main() {
         ),
         throwsA(isA<ReleaseTransactionCliUsageError>()),
       );
-    },
-  );
+      expect(preflightStarted, isFalse);
+    });
+  }
 
   test(
     'build-fragment projects one canonical execution into its output',

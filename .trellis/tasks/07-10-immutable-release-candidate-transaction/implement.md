@@ -12,9 +12,10 @@
 ### Slice 1 — Transaction input and release metadata
 
 1. RED：拒绝带`v`version、非semver、非40位SHA、package versions不一致、commit不可解析/不属于main历史。
-2. GREEN：新增聚焦release transaction module和薄CLI，输出normalized version/tag/commit/base URL。
-3. RED：existing tag或Release任一存在失败；PR rehearsal commit/version解析与dispatch显式输入分离。
-4. GREEN：实现read-only preflight，不创建任何远端状态。
+2. RED：dispatch不得checkout或执行supplied commit中的validator后再证明其main membership；trusted default-branch preflight必须先完成。
+3. GREEN：新增可信Git ancestry preflight，再checkout批准commit；聚焦release transaction module和薄CLI继续输出normalized version/tag/commit/base URL并做纵深复核。
+4. RED：existing tag或Release任一存在失败；PR rehearsal commit/version解析与dispatch显式输入分离。
+5. GREEN：实现read-only preflight，不创建任何远端状态。
 
 ### Slice 2 — Canonical release fragment builder
 
@@ -57,8 +58,8 @@
 
 1. RED：publisher source出现Cargo/build script/manifest regeneration/rename即失败。
 2. GREEN：publisher只下载candidate、重新验证、检查existing state并上传原文件。
-3. RED：remote asset name/digest不等于candidate失败；partial publish cleanup contract必须可测试。
-4. GREEN：实现gh command adapter/脚本与best-effort transaction compensation。
+3. RED：remote asset name/digest不等于candidate失败；partial publish cleanup必须覆盖create响应失败后ownership延迟可见的`false → true`序列。
+4. GREEN：实现gh command adapter/脚本与marker-owned transaction compensation；最多三轮并要求稳定absence，不能把单次404当作清理完成。
 
 ### Slice 8 — Failure drill, docs and absence
 

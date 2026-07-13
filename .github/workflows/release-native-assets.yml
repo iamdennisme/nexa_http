@@ -36,9 +36,51 @@ jobs:
       fragment_matrix: ${{ steps.matrices.outputs.fragment_matrix }}
       candidate_matrix: ${{ steps.matrices.outputs.candidate_matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout PR head for rehearsal
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.commit_sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Checkout trusted default branch for dispatch
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+      - name: Authorize dispatch commit
+        if: github.event_name == 'workflow_dispatch'
+        id: authorize-dispatch-commit
+        shell: bash
+        env:
+          RELEASE_COMMIT_INPUT: ${{ inputs.commit_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_COMMIT_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit_sha must be a canonical 40-character lowercase commit SHA"
+            exit 1
+          fi
+          git fetch --no-tags --prune origin \
+            "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if ! resolved_commit=$(git rev-parse --verify "${RELEASE_COMMIT_INPUT}^{commit}"); then
+            echo "::error::commit_sha does not resolve to a commit"
+            exit 1
+          fi
+          if [[ "$resolved_commit" != "$RELEASE_COMMIT_INPUT" ]]; then
+            echo "::error::commit_sha must identify the commit object directly"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$RELEASE_COMMIT_INPUT" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "::error::commit_sha must be an ancestor of the trusted default branch"
+            exit 1
+          fi
+          echo "commit_sha=$RELEASE_COMMIT_INPUT" >> "$GITHUB_OUTPUT"
+      - name: Checkout authorized dispatch commit
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.authorize-dispatch-commit.outputs.commit_sha }}
           fetch-depth: 0
       - uses: subosito/flutter-action@v2
         with:
@@ -192,6 +234,7 @@ jobs:
         with:
           artifact-ids: ${{ needs.assemble-candidate.outputs.artifact_id }}
           path: candidate
+          merge-multiple: true
       - name: Start fixture server
         run: dart run fixture_server/http_fixture_server.dart --port 8080 > fixture-server.log 2>&1 &
       - if: matrix.execution_id == 'candidate-ios'
@@ -285,6 +328,7 @@ jobs:
         with:
           artifact-ids: ${{ needs.assemble-candidate.outputs.artifact_id }}
           path: candidate
+          merge-multiple: true
       - run: >-
           dart run scripts/release_transaction.dart publish
           --workspace-root .

@@ -479,6 +479,8 @@ void main() {
 
         expect(gateway.deletedReleases, <String>['v2.0.0']);
         expect(gateway.deletedTags, <String>['v2.0.0']);
+        expect(gateway.releaseOwnershipChecks, greaterThanOrEqualTo(2));
+        expect(gateway.tagOwnershipChecks, greaterThanOrEqualTo(2));
       },
     );
 
@@ -562,6 +564,184 @@ void main() {
         expect(gateway.deletedTags, <String>['v2.0.0']);
       },
     );
+
+    test(
+      'uncertain release response waits for stable absence before cleanup completes',
+      () async {
+        final workspace = await _createWorkspaceVersions('2.0.0');
+        final candidate = await _createCandidateAssets();
+        addTearDown(() => workspace.delete(recursive: true));
+        addTearDown(() => candidate.delete(recursive: true));
+        final assembly = await assembleReleaseCandidate(
+          candidateDirectory: candidate.path,
+          version: '2.0.0',
+          repository: 'iamdennisme/nexa_http',
+        );
+        final gateway = _RecordingReleasePublicationGateway(
+          const <String, String>{},
+          failAfterReleaseCreation: true,
+          releaseOwnershipResponses: <bool>[false, false, true],
+        );
+
+        await expectLater(
+          publishReleaseCandidate(
+            workspaceRoot: workspace.path,
+            repository: 'iamdennisme/nexa_http',
+            input: ReleaseTransactionInput.parse(
+              version: '2.0.0',
+              commitSha: _repeat('f', 40),
+            ),
+            candidateDirectory: candidate.path,
+            candidateId: 'gha:42:314',
+            candidateDigest: assembly.digest,
+            resolveCommit: (sha) async => sha,
+            isCommitOnMain: (_) async => true,
+            tagExists: (_) async => false,
+            releaseExists: (_) async => false,
+            publicationGateway: gateway,
+          ),
+          throwsA(isA<StateError>()),
+        );
+
+        expect(gateway.deletedReleases, <String>['v2.0.0']);
+        expect(gateway.releaseOwned, isFalse);
+        expect(gateway.tagOwned, isFalse);
+      },
+    );
+
+    test(
+      'uncertain tag response waits for stable absence before cleanup completes',
+      () async {
+        final workspace = await _createWorkspaceVersions('2.0.0');
+        final candidate = await _createCandidateAssets();
+        addTearDown(() => workspace.delete(recursive: true));
+        addTearDown(() => candidate.delete(recursive: true));
+        final assembly = await assembleReleaseCandidate(
+          candidateDirectory: candidate.path,
+          version: '2.0.0',
+          repository: 'iamdennisme/nexa_http',
+        );
+        final gateway = _RecordingReleasePublicationGateway(
+          const <String, String>{},
+          failTagResponseAfterCreation: true,
+          tagOwnershipResponses: <bool>[false, false, true],
+        );
+
+        await expectLater(
+          publishReleaseCandidate(
+            workspaceRoot: workspace.path,
+            repository: 'iamdennisme/nexa_http',
+            input: ReleaseTransactionInput.parse(
+              version: '2.0.0',
+              commitSha: _repeat('f', 40),
+            ),
+            candidateDirectory: candidate.path,
+            candidateId: 'gha:42:314',
+            candidateDigest: assembly.digest,
+            resolveCommit: (sha) async => sha,
+            isCommitOnMain: (_) async => true,
+            tagExists: (_) async => false,
+            releaseExists: (_) async => false,
+            publicationGateway: gateway,
+          ),
+          throwsA(isA<StateError>()),
+        );
+
+        expect(gateway.deletedReleases, isEmpty);
+        expect(gateway.deletedTags, <String>['v2.0.0']);
+        expect(gateway.releaseOwned, isFalse);
+        expect(gateway.tagOwned, isFalse);
+      },
+    );
+
+    test('transaction cleanup retries until owned state disappears', () async {
+      final workspace = await _createWorkspaceVersions('2.0.0');
+      final candidate = await _createCandidateAssets();
+      addTearDown(() => workspace.delete(recursive: true));
+      addTearDown(() => candidate.delete(recursive: true));
+      final assembly = await assembleReleaseCandidate(
+        candidateDirectory: candidate.path,
+        version: '2.0.0',
+        repository: 'iamdennisme/nexa_http',
+      );
+      final gateway = _RecordingReleasePublicationGateway(
+        const <String, String>{},
+        releaseDeleteFailures: 1,
+      );
+
+      await expectLater(
+        publishReleaseCandidate(
+          workspaceRoot: workspace.path,
+          repository: 'iamdennisme/nexa_http',
+          input: ReleaseTransactionInput.parse(
+            version: '2.0.0',
+            commitSha: _repeat('f', 40),
+          ),
+          candidateDirectory: candidate.path,
+          candidateId: 'gha:42:314',
+          candidateDigest: assembly.digest,
+          resolveCommit: (sha) async => sha,
+          isCommitOnMain: (_) async => true,
+          tagExists: (_) async => false,
+          releaseExists: (_) async => false,
+          publicationGateway: gateway,
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(gateway.deletedReleases, <String>['v2.0.0', 'v2.0.0']);
+      expect(gateway.releaseOwned, isFalse);
+      expect(gateway.tagOwned, isFalse);
+    });
+
+    test(
+      'transaction cleanup failure is surfaced after three attempts',
+      () async {
+        final workspace = await _createWorkspaceVersions('2.0.0');
+        final candidate = await _createCandidateAssets();
+        addTearDown(() => workspace.delete(recursive: true));
+        addTearDown(() => candidate.delete(recursive: true));
+        final assembly = await assembleReleaseCandidate(
+          candidateDirectory: candidate.path,
+          version: '2.0.0',
+          repository: 'iamdennisme/nexa_http',
+        );
+        final gateway = _RecordingReleasePublicationGateway(
+          const <String, String>{},
+          releaseDeleteFailures: 3,
+        );
+
+        await expectLater(
+          publishReleaseCandidate(
+            workspaceRoot: workspace.path,
+            repository: 'iamdennisme/nexa_http',
+            input: ReleaseTransactionInput.parse(
+              version: '2.0.0',
+              commitSha: _repeat('f', 40),
+            ),
+            candidateDirectory: candidate.path,
+            candidateId: 'gha:42:314',
+            candidateDigest: assembly.digest,
+            resolveCommit: (sha) async => sha,
+            isCommitOnMain: (_) async => true,
+            tagExists: (_) async => false,
+            releaseExists: (_) async => false,
+            publicationGateway: gateway,
+          ),
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              contains('transaction cleanup also failed'),
+            ),
+          ),
+        );
+
+        expect(gateway.deletedReleases, hasLength(3));
+        expect(gateway.releaseOwned, isTrue);
+        expect(gateway.tagOwned, isFalse);
+      },
+    );
   });
 }
 
@@ -569,19 +749,30 @@ final class _RecordingReleasePublicationGateway
     implements ReleasePublicationGateway {
   _RecordingReleasePublicationGateway(
     this.remoteDigests, {
+    this.failTagResponseAfterCreation = false,
     this.failAfterTagCreation = false,
     this.failAfterReleaseCreation = false,
-  });
+    this.releaseDeleteFailures = 0,
+    List<bool> releaseOwnershipResponses = const <bool>[],
+    List<bool> tagOwnershipResponses = const <bool>[],
+  }) : releaseOwnershipResponses = List<bool>.of(releaseOwnershipResponses),
+       tagOwnershipResponses = List<bool>.of(tagOwnershipResponses);
 
   final Map<String, String> remoteDigests;
+  final bool failTagResponseAfterCreation;
   final bool failAfterTagCreation;
   final bool failAfterReleaseCreation;
+  int releaseDeleteFailures;
+  final List<bool> releaseOwnershipResponses;
+  final List<bool> tagOwnershipResponses;
   bool tagOwned = false;
   bool releaseOwned = false;
   final List<String> createdTags = <String>[];
   final List<String> uploadedFileNames = <String>[];
   final List<String> deletedReleases = <String>[];
   final List<String> deletedTags = <String>[];
+  int releaseOwnershipChecks = 0;
+  int tagOwnershipChecks = 0;
 
   @override
   Future<void> createTag({
@@ -592,6 +783,9 @@ final class _RecordingReleasePublicationGateway
   }) async {
     createdTags.add(tag);
     tagOwned = true;
+    if (failTagResponseAfterCreation) {
+      throw StateError('tag response failed after creation');
+    }
   }
 
   @override
@@ -615,6 +809,10 @@ final class _RecordingReleasePublicationGateway
     required String tag,
   }) async {
     deletedReleases.add(tag);
+    if (releaseDeleteFailures > 0) {
+      releaseDeleteFailures--;
+      throw StateError('transient release deletion failure');
+    }
     releaseOwned = false;
   }
 
@@ -638,7 +836,13 @@ final class _RecordingReleasePublicationGateway
     required String repository,
     required String tag,
     required String transactionMarker,
-  }) async => releaseOwned;
+  }) async {
+    releaseOwnershipChecks++;
+    if (releaseOwnershipResponses.isNotEmpty) {
+      return releaseOwnershipResponses.removeAt(0);
+    }
+    return releaseOwned;
+  }
 
   @override
   Future<bool> ownsTag({
@@ -646,7 +850,13 @@ final class _RecordingReleasePublicationGateway
     required String tag,
     required String commitSha,
     required String transactionMarker,
-  }) async => tagOwned;
+  }) async {
+    tagOwnershipChecks++;
+    if (tagOwnershipResponses.isNotEmpty) {
+      return tagOwnershipResponses.removeAt(0);
+    }
+    return tagOwned;
+  }
 
   @override
   Future<void> uploadAssets({

@@ -13,6 +13,8 @@
 - `pull_request`：事务rehearsal。commit固定为PR head，version从checkout后的`packages/nexa_http/pubspec.yaml`读取，publish永久为false，所有job保持`contents: read`。
 - `workflow_dispatch`：显式输入`version`、完整40位`commit_sha`、`publish`。`publish=false`运行完整候选与gate；`publish=true`才允许唯一publisher job取得`contents: write`。
 
+Dispatch的信任顺序固定为：先checkout可信default branch，在该上下文只用Git校验raw SHA格式、commit存在与`origin/<default-branch>`ancestry；通过后才checkout批准commit并执行其中的Dart validator/build/gate/publisher代码。不能让待验证commit中的validator证明它自身可信。
+
 不存在tag push、release event、workflow_run promotion或第二发布脚本。PR rehearsal只是同一DAG的不可发布测试入口，不是发布authority。
 
 ## 3. Transaction identity
@@ -90,7 +92,7 @@ Publisher必须`needs` aggregate gate，并且条件精确为`workflow_dispatch 
 5. 用已验证文件原名创建`v<version>` GitHub Release，target为批准commit；不build、不rename、不补文件。
 6. 通过GitHub release asset API的remote digest核对每个上传文件。
 
-若publisher在创建public state后失败，只清理由本次事务创建的release/tag；cleanup不是fallback或第二发布路径，而是事务补偿。Gate失败时publisher根本不启动，因此不会有tag、draft、prerelease或Release。
+若publisher在创建public state后失败，只清理由本次事务创建的release/tag；cleanup不是fallback或第二发布路径，而是事务补偿。Create API响应失败属于不确定结果，远端marker可能延迟可见，因此补偿不能在第一次false/false查询后退出：最多三轮中必须跨重试窗口确认稳定absence，期间一旦看到owned state或查询/删除错误就重置absence确认。Gate失败时publisher根本不启动，因此不会有tag、draft、prerelease或Release。
 
 ## 8. Failure and concurrency
 
