@@ -102,7 +102,7 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - `runtime_payloads`每项包含同一target/asset identity、绝对packaged file、raw`sha256`、`identity_sha256`、`payload_count=1`及request/callback/body consumed/body released/client closed五个true字段。
 - aggregate只读report并按canonical matrix校验9个target、Android/iOS/macOS/Windows四个平台、无重复/未知tuple，以及runtime和prepared的`identity_sha256`一致。Apple以Mach-O UUID集合连接身份；Android与Windows identity等于raw SHA。两端raw SHA始终保留用于审计。
 - aggregate mode 只读取 report，不执行任何 check、build 或 fixture materialization。
-- build hook不接收自定义`NEXA_HTTP_*`环境变量。candidate runtime consumer必须把`candidate_directory`与`candidate_ref`写入临时consumer pubspec的`hooks.user_defines.<carrier>`；缺任一项或校验失败直接阻断，不fallback到workspace/release source。
+- build hook不接收自定义`NEXA_HTTP_*`环境变量。candidate runtime consumer必须把`candidate_directory`与`candidate_ref`写入临时consumer pubspec的`hooks.user_defines.<carrier>`；absolute directory必须序列化为跨平台`file:` URI，不能直接写Windows盘符路径；缺任一项或校验失败直接阻断，不fallback到workspace/release source。
 - integration native-build producer与workspace hook共享`.dart_tool/nexa_http_native/workspace/debug`及fingerprint sidecar；producer每个build-script group只启动一次，后续development/external consumer不得重复native build或复制一份prepared set。
 - workspace fingerprint扫描必须排除native crate的`target/`、`build/`、`.dart_tool/`生成树，保持O(source inputs)而不是O(build outputs × target count)。
 - `VerifiedCandidateSet` 保留原始 candidate directory 与 verified file handles；ABI/runtime consumer不得创建第二份 candidate set。

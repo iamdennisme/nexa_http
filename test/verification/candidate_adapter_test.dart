@@ -387,7 +387,7 @@ void main() {
       expect(consumerPubspec, contains('nexa_http_native_macos:'));
       expect(
         consumerPubspec,
-        contains('candidate_directory: "/staged/candidate"'),
+        contains('candidate_directory: "file:///staged/candidate"'),
       );
       expect(consumerPubspec, contains('candidate_ref: "20c3786"'));
       expect(

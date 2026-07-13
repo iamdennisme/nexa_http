@@ -64,6 +64,26 @@ void main() {
     expect(pubspec, isNot(contains('nexa_http_native_macos:')));
   });
 
+  test(
+    'candidate hook path serializes a Windows absolute path as a file URI',
+    () {
+      final pubspec = buildPathConsumerPubspec(
+        r'D:\a\nexa_http\nexa_http',
+        targetOS: 'windows',
+        candidateDirectory: r'D:\a\nexa_http\nexa_http\candidate',
+        candidateRef: '20c3786',
+      );
+
+      expect(
+        pubspec,
+        contains(
+          'candidate_directory: "file:///D:/a/nexa_http/nexa_http/candidate"',
+        ),
+      );
+      expect(pubspec, isNot(contains(r'candidate_directory: "D:\\a')));
+    },
+  );
+
   test('Apple execution keeps iOS and macOS consumer proofs separate', () {
     final platforms = externalConsumerPlatformsForExecution(
       const VerificationExecutionId('apple-macos'),

@@ -352,7 +352,7 @@ output.assets.code.add(
 
 - Artifact preparation：`prepareNexaHttpNativeCarrierArtifact({required String packageRoot, required String outputDirectory, required String targetOS, required String targetArchitecture, required String? targetSdk}) -> Future<File>`。
 - Workspace cache：`nexaHttpNativeWorkspaceOutputDirectory(workspaceRoot)`、`nexaHttpNativeWorkspaceArtifactFile(workspaceRoot, target)`和`recordNexaHttpNativeWorkspaceArtifactFingerprint(workspaceRoot, target)`。
-- Candidate hook defines：`candidate_directory`与`candidate_ref`必须成对出现在`hooks.user_defines.<carrier>`；hook通过`input.userDefines.path(...)`解析directory，通过`input.userDefines[...]`读取ref。
+- Candidate hook defines：`candidate_directory`与`candidate_ref`必须成对出现在`hooks.user_defines.<carrier>`；producer必须把absolute directory序列化为`file:` URI，hook通过`input.userDefines.path(...)`解析directory，通过`input.userDefines[...]`读取ref。
 - Target identity：`NexaHttpNativeTarget(targetOS, targetArchitecture, targetSdk, rustTargetTriple, sourceArtifactFileName, releaseAssetFileName, buildScriptName, integrationExecutionId, runner, nativeAssetName)`。
 - Runtime registration：`registerNexaHttpNativeBindings(NexaHttpNativeBindingsFactory(assetId, create))`；同 ID 幂等，不同 ID 冲突失败，bindings 按 isolate lazy once。
 - Native Asset identity：carrier 生成的 `CodeAsset` 必须使用项目唯一的 native asset name，并直接引用 preparation 返回的 `File`。
@@ -371,6 +371,7 @@ output.assets.code.add(
 - Android fixture输出成功marker后不得主动`exit(0)`；由验证端观测marker后结束row。iOS/macOS/Windows可以在短暂flush窗口后退出，但任何平台的process exit code都不能替代marker。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。
+- Candidate consumer pubspec中的path define必须跨平台使用`file:` URI，例如Windows `D:\a\repo\candidate`写成`file:///D:/a/repo/candidate`。不得把带盘符和反斜杠的原生Windows绝对路径直接写入YAML；`HookInputUserDefines.path()`按URI-reference解析该值，直接写原生路径会让盘符被当成scheme并使Native Assets build失败。
 - Target matrix 是 target tuple、build target、source artifact、release file name 和 packaging identity 的单一事实来源。Workflow、shell、Gradle、Podspec、CMake 不得维护一份独立 target/path 表。
 - 迁移必须在同一个任务内删除所有旧 packaging/loading 代码、测试和文档。不提供 fallback，不接受“先双轨、后续再清理”。
 - clean cutover 不允许 deprecated alias、forwarder、compatibility wrapper 或“临时”双轨；rollback 只能整体 revert 完整变更。
@@ -384,6 +385,7 @@ output.assets.code.add(
 - ABI verifier 检查的文件与 runtime smoke 加载的 artifact identity 不一致 -> 验证失败。
 - Workspace hook缺少或读到不匹配fingerprint -> 在共享cache中重建该tuple；不得读取旧integration目录或fallback到第二artifact source。
 - candidate directory/ref仅有一个、类型错误或路径不存在 -> hook直接失败；不得回退workspace/release source。
+- Windows candidate directory以`D:\...`原生路径而不是`file:///D:/...`写入user-defines -> hook path解析或Native Assets build失败；修复producer序列化，不得增加另一路径探测或fallback。
 - Android Flutter stdout无marker且清空后的同device filtered logcat在有界轮询内也无marker -> runtime失败；不得把App启动、DDS连接或进程退出当作lifecycle proof。
 - Workspace build 产物 architecture 与请求 target 不一致 -> 验证失败，不得使用 host build 代替。
 - 搜索到已删除的 Pod resource bundle、legacy `jniLibs`/CMake copy 或固定 loader path -> 架构迁移未完成。
@@ -405,7 +407,7 @@ output.assets.code.add(
 - ABI test：对最终 CodeAsset artifact 做 exact missing/unexpected symbol comparison。
 - Runtime smoke：clean host 必须实际创建 client、执行 fixture HTTP request、接收 callback 并释放 response body。
 - Workspace reuse test：Catalog producer与两个不同hook output请求返回同一个共享cache File，build invocation保持一次；source或target tuple变化会失效。
-- Hook config test：candidate user-defines的相对目录按workspace pubspec base path解析，directory/ref成对传给preparer；自定义环境变量不参与contract。
+- Hook config test：candidate user-defines的相对目录按workspace pubspec base path解析，absolute POSIX/Windows目录由consumer producer序列化为`file:` URI，directory/ref成对传给preparer；自定义环境变量不参与contract。
 - Android marker test：先清空logcat，使用non-resident启动并让成功fixture存活，Flutter stdout缺marker时有界轮询同device的`flutter:I`日志；覆盖延迟到达、旧marker、零marker、重复marker和结束后的fixture清理。
 - Release gate：Android、iOS、macOS、Windows 全部通过候选 artifact runtime smoke 后才允许公开 release。
 - Legacy absence test：搜索并拒绝旧 resource bundle、固定 loader path、并行 `jniLibs`/CMake copy 和 fallback branch。
@@ -425,6 +427,13 @@ try {
 }
 ```
 
+```yaml
+hooks:
+  user_defines:
+    nexa_http_native_windows:
+      candidate_directory: "D:\\a\\repo\\candidate"
+```
+
 #### Correct
 
 ```dart
@@ -435,6 +444,13 @@ output.assets.code.add(
     file: artifact,
   ),
 );
+```
+
+```yaml
+hooks:
+  user_defines:
+    nexa_http_native_windows:
+      candidate_directory: "file:///D:/a/repo/candidate"
 ```
 
 Runtime、ABI verification 和 clean-host smoke 必须解析并使用这个 CodeAsset 所代表的同一 artifact identity。

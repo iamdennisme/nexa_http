@@ -661,7 +661,7 @@ String buildPathConsumerPubspec(
 hooks:
   user_defines:
     $carrier:
-      $nexaHttpNativeCandidateDirectoryDefine: ${jsonEncode(resolvedCandidateDirectory)}
+      $nexaHttpNativeCandidateDirectoryDefine: ${jsonEncode(_candidateDirectoryUserDefine(resolvedCandidateDirectory))}
       $nexaHttpNativeCandidateRefDefine: ${jsonEncode(resolvedCandidateRef)}
 ''';
   return '''
@@ -680,6 +680,14 @@ dependencies:
     path: ${p.join(sourceRoot, 'packages', carrier)}
 $hookDefines
 ''';
+}
+
+String _candidateDirectoryUserDefine(String candidateDirectory) {
+  final windowsPaths = p.Context(style: p.Style.windows);
+  if (windowsPaths.isAbsolute(candidateDirectory)) {
+    return windowsPaths.toUri(candidateDirectory).toString();
+  }
+  return Directory(candidateDirectory).absolute.uri.toString();
 }
 
 Future<void> enableMacosNetworkClientEntitlement(

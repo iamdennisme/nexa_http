@@ -538,7 +538,10 @@ void main() {
       for (final command in commands) {
         expect(command.environment, isEmpty);
       }
-      expect(consumerPubspec, contains('candidate_directory: "/candidate"'));
+      expect(
+        consumerPubspec,
+        contains('candidate_directory: "file:///candidate"'),
+      );
       expect(consumerPubspec, contains('candidate_ref: "20c3786"'));
       expect(
         (jsonDecode(await reportFile.readAsString()) as Map)['suite_id'],
