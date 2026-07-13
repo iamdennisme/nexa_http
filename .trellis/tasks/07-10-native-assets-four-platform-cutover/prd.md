@@ -35,7 +35,7 @@
 
 ## Verification status
 
-- 本机 Apple blocking row 已通过：`.dart_tool/verification/reports/apple-macos.json` 为 schema v2、`status=passed`，覆盖 5 个 prepared targets、iOS/macOS 各 1 个最终 payload 和两次完整 runtime lifecycle proof。
+- 本机 Apple blocking row 已在共享workspace fingerprint cache切换后重新通过：schema v2、`status=passed`，覆盖5个prepared targets、iOS/macOS各1个最终payload和两次完整runtime lifecycle proof；carrier hook未重复native build。
 - Apple prepared/package raw SHA 因 Xcode install-name rewrite 与 codesign 不同；两端 raw SHA 均保留，Mach-O `LC_UUID` 集合派生的 `identity_sha256` 一致。
 - Android 与 Windows clean-host runtime proof 必须由 `.github/workflows/ci.yml` 的动态 `android-linux` / `windows-x64` blocking rows 完成；未取得对应 schema v2 report 前，本任务保持 `in_progress`，不得把平台缺失当作 pass 或归档任务。
 

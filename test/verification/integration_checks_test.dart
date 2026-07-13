@@ -70,8 +70,8 @@ void main() {
         workspace.absolute.path,
         '.dart_tool',
         'nexa_http_native',
-        'integration',
-        'android-linux',
+        'workspace',
+        'debug',
       ),
       '--target',
       'aarch64-linux-android',
@@ -139,8 +139,8 @@ void main() {
               workspace.absolute.path,
               '.dart_tool',
               'nexa_http_native',
-              'integration',
-              'android-linux',
+              'workspace',
+              'debug',
               'nexa_http-native-android-arm64-v8a.so',
             ),
             'b6894f8a1ae2bd52406a7fe0967edb27fd9dd76df504a3bde61e1deb7cb1a972',
@@ -157,8 +157,8 @@ void main() {
               workspace.absolute.path,
               '.dart_tool',
               'nexa_http_native',
-              'integration',
-              'android-linux',
+              'workspace',
+              'debug',
               'nexa_http-native-android-armeabi-v7a.so',
             ),
             'bf76d1d268df3ae9dafcb3ffee7b9138e8ba4e66847408d4567a08f1e40a814f',
@@ -175,8 +175,8 @@ void main() {
               workspace.absolute.path,
               '.dart_tool',
               'nexa_http_native',
-              'integration',
-              'android-linux',
+              'workspace',
+              'debug',
               'nexa_http-native-android-x86_64.so',
             ),
             '58d3e3bbc3d3101bb9cdf5134041d6f7365cd086c690d3c60db8cfd811aed67d',
@@ -264,6 +264,28 @@ void main() {
     expect(
       commands.single.arguments.first,
       p.join(workspace.absolute.path, 'scripts', 'build_native_windows.sh'),
+    );
+    final outputDirectory = commands
+        .single
+        .arguments[commands.single.arguments.indexOf('--output-dir') + 1];
+    expect(
+      outputDirectory,
+      p.join(
+        workspace.absolute.path,
+        '.dart_tool',
+        'nexa_http_native',
+        'workspace',
+        'debug',
+      ),
+    );
+    expect(
+      File(
+        p.join(
+          outputDirectory,
+          'nexa_http-native-windows-x64.dll.workspace-input.sha256',
+        ),
+      ).existsSync(),
+      isTrue,
     );
     expect(developmentExecutions, <VerificationExecutionId>[
       const VerificationExecutionId('windows-x64'),

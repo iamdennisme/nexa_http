@@ -95,6 +95,66 @@ void main() {
     expect(buildCount, 2);
   });
 
+  test('workspace fingerprint excludes generated native build trees', () async {
+    final workspace = await Directory.systemTemp.createTemp(
+      'nexa_http_workspace_fingerprint_',
+    );
+    addTearDown(() => workspace.delete(recursive: true));
+    final script = File(
+      p.join(workspace.path, 'scripts', 'build_native_windows.sh'),
+    );
+    await script.create(recursive: true);
+    await script.writeAsString('build-script');
+    final source = File(
+      p.join(
+        workspace.path,
+        'packages',
+        'nexa_http_native_windows',
+        'native',
+        'nexa_http_native_windows_ffi',
+        'src',
+        'lib.rs',
+      ),
+    );
+    await source.create(recursive: true);
+    await source.writeAsString('source-v1');
+    final generated = File(
+      p.join(
+        workspace.path,
+        'packages',
+        'nexa_http_native_windows',
+        'native',
+        'nexa_http_native_windows_ffi',
+        'target',
+        'debug',
+        'payload.dll',
+      ),
+    );
+    await generated.create(recursive: true);
+    await generated.writeAsString('generated-v1');
+    final target = nexaHttpSupportedNativeTargets.singleWhere(
+      (target) => target.targetOS == 'windows',
+    );
+
+    final first = await nexaHttpNativeWorkspaceInputFingerprint(
+      workspace.path,
+      target,
+    );
+    await generated.writeAsString('generated-v2');
+    final afterGeneratedChange = await nexaHttpNativeWorkspaceInputFingerprint(
+      workspace.path,
+      target,
+    );
+    await source.writeAsString('source-v2');
+    final afterSourceChange = await nexaHttpNativeWorkspaceInputFingerprint(
+      workspace.path,
+      target,
+    );
+
+    expect(afterGeneratedChange, first);
+    expect(afterSourceChange, isNot(first));
+  });
+
   test('same tuple candidate preparation coalesces on one destination', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'nexa_http_single_flight_',
@@ -217,10 +277,8 @@ void main() {
         targetOS: 'macos',
         targetArchitecture: 'arm64',
         targetSdk: null,
-        environment: <String, String>{
-          'NEXA_HTTP_NATIVE_CANDIDATE_DIR': candidateDir.path,
-          'NEXA_HTTP_NATIVE_CANDIDATE_REF': 'candidate-42',
-        },
+        candidateDirectory: candidateDir.path,
+        candidateRef: 'candidate-42',
         runProcess: (_, _) => throw StateError('workspace fallback used'),
         resolveReleaseRef: (_) => throw StateError('release fallback used'),
       );
@@ -307,6 +365,14 @@ void main() {
       p.join(workspace.path, 'packages', 'nexa_http_native_macos'),
     )..createSync(recursive: true);
     final outputDirectory = p.join(workspace.path, 'hook-output');
+    final workspaceOutputDirectory = p.join(
+      workspace.path,
+      '.dart_tool',
+      'nexa_http_native',
+      'workspace',
+      'debug',
+    );
+    var buildCount = 0;
 
     final file = await prepareNexaHttpNativeCarrierArtifact(
       packageRoot: packageRoot.path,
@@ -315,24 +381,21 @@ void main() {
       targetArchitecture: 'arm64',
       targetSdk: null,
       runProcess: (executable, arguments) async {
+        buildCount += 1;
         expect(executable, 'bash');
-        final targetOutputDirectory = p.join(
-          outputDirectory,
-          'debug',
-          'macos',
-          'arm64',
-          'none',
-        );
         expect(arguments, <String>[
           script.path,
           'debug',
           '--output-dir',
-          targetOutputDirectory,
+          workspaceOutputDirectory,
           '--target',
           'aarch64-apple-darwin',
         ]);
         final artifact = File(
-          p.join(targetOutputDirectory, 'nexa_http-native-macos-arm64.dylib'),
+          p.join(
+            workspaceOutputDirectory,
+            'nexa_http-native-macos-arm64.dylib',
+          ),
         );
         await artifact.create(recursive: true);
         await artifact.writeAsString('workspace-artifact');
@@ -342,6 +405,19 @@ void main() {
 
     expect(file.existsSync(), isTrue);
     expect(await file.readAsString(), 'workspace-artifact');
+    expect(file.path, isNot(startsWith(outputDirectory)));
+
+    final reused = await prepareNexaHttpNativeCarrierArtifact(
+      packageRoot: packageRoot.path,
+      outputDirectory: p.join(workspace.path, 'another-hook-output'),
+      targetOS: 'macos',
+      targetArchitecture: 'arm64',
+      targetSdk: null,
+      runProcess: (_, _) => throw StateError('workspace artifact rebuilt'),
+    );
+
+    expect(reused.path, file.path);
+    expect(buildCount, 1);
   });
 
   test('workspace build failure preserves command output', () async {

@@ -57,7 +57,7 @@
 ### Slice 5 — Atomic target-isolated materialization
 
 1. RED：不同tuple并发prepare，结果路径不同且内容不覆盖。
-2. GREEN：target-keyed destination；删除platform broad directory cleanup。
+2. GREEN：workspace使用repo级共享fingerprint cache，release/candidate使用hook-output target-keyed destination；删除platform broad directory cleanup。
 3. RED：同tuple并发只触发一次producer。
 4. GREEN：target lock/single-flight。
 5. RED：candidate/release copy失败时旧完整destination保留，temp不残留。
@@ -90,7 +90,7 @@
 1. RED：runtime fixture必须通过carrier `@Native` binding执行真实request；manual loader source contract为absence。
 2. GREEN：保持v2 public API fixture，验证callback、body string consume、client close/exit。
 3. RED：Android/iOS/macOS/Windows report缺payload uniqueness或runtime proof任一字段失败。
-4. GREEN：扩展Catalog report/aggregate identity fields。
+4. GREEN：扩展Catalog report/aggregate identity fields；Android marker在清空后的同device logcat中允许回收。
 5. 在macOS本机执行Apple integration；Android/Windows由Actions blocking rows执行。
 
 ### Slice 9 — Documentation and final absence

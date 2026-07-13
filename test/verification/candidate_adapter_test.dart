@@ -234,6 +234,7 @@ void main() {
     'candidate runtime injects the verified staged source into the clean host',
     () async {
       final commands = <VerificationCommand>[];
+      String? consumerPubspec;
       final macosTargets = nexaHttpSupportedNativeTargets
           .where((target) => target.targetOS == 'macos')
           .toList(growable: false);
@@ -260,6 +261,12 @@ void main() {
         deviceId: 'macos-id',
         runCommand: (command) async {
           commands.add(command);
+          final pubspec = File(
+            p.join(command.workingDirectory, 'pubspec.yaml'),
+          );
+          if (pubspec.existsSync()) {
+            consumerPubspec = await pubspec.readAsString();
+          }
           if (command.arguments case <String>[
             'create',
             '--platforms=macos',
@@ -286,11 +293,15 @@ void main() {
 
       expect(commands, hasLength(4));
       for (final command in commands) {
-        expect(command.environment, <String, String>{
-          'NEXA_HTTP_NATIVE_CANDIDATE_DIR': '/staged/candidate',
-          'NEXA_HTTP_NATIVE_CANDIDATE_REF': '20c3786',
-        });
+        expect(command.environment, isEmpty);
       }
+      expect(consumerPubspec, contains('hooks:'));
+      expect(consumerPubspec, contains('nexa_http_native_macos:'));
+      expect(
+        consumerPubspec,
+        contains('candidate_directory: "/staged/candidate"'),
+      );
+      expect(consumerPubspec, contains('candidate_ref: "20c3786"'));
       expect(
         commands.last.arguments,
         containsAllInOrder(<String>['run', '-d', 'macos-id']),

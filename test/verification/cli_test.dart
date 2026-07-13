@@ -448,6 +448,7 @@ void main() {
         digest: digest,
       );
       final runtimeProofTracker = ExternalRuntimeProofMarkerTracker();
+      String? consumerPubspec;
 
       final exitCode = await runVerificationCli(
         <String>[
@@ -471,6 +472,12 @@ void main() {
         ],
         runCommand: (command) async {
           commands.add(command);
+          final pubspec = File(
+            p.join(command.workingDirectory, 'pubspec.yaml'),
+          );
+          if (pubspec.existsSync()) {
+            consumerPubspec = await pubspec.readAsString();
+          }
           if (command.arguments case <String>[
             'create',
             '--platforms=macos',
@@ -505,11 +512,10 @@ void main() {
       expect(consumers, <String>['abi']);
       expect(commands, hasLength(4));
       for (final command in commands) {
-        expect(command.environment, <String, String>{
-          'NEXA_HTTP_NATIVE_CANDIDATE_DIR': '/candidate',
-          'NEXA_HTTP_NATIVE_CANDIDATE_REF': '20c3786',
-        });
+        expect(command.environment, isEmpty);
       }
+      expect(consumerPubspec, contains('candidate_directory: "/candidate"'));
+      expect(consumerPubspec, contains('candidate_ref: "20c3786"'));
       expect(
         (jsonDecode(await reportFile.readAsString()) as Map)['suite_id'],
         'verify-release-candidate',

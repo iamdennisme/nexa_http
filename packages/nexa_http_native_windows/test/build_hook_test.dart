@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
+import 'package:hooks/hooks.dart';
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -30,10 +31,25 @@ void main() {
                   required targetOS,
                   required targetArchitecture,
                   required targetSdk,
-                }) async => preparedFile,
+                  candidateDirectory,
+                  candidateRef,
+                }) async {
+                  expect(candidateDirectory, p.join(temp.path, 'candidate'));
+                  expect(candidateRef, 'candidate-42');
+                  return preparedFile;
+                },
           ),
           targetOS: OS.windows,
           targetArchitecture: Architecture.x64,
+          userDefines: PackageUserDefines(
+            workspacePubspec: PackageUserDefinesSource(
+              defines: const <String, Object?>{
+                nexaHttpNativeCandidateDirectoryDefine: 'candidate',
+                nexaHttpNativeCandidateRefDefine: 'candidate-42',
+              },
+              basePath: temp.uri,
+            ),
+          ),
           check: (input, output) async {
             expect(output.assets.code, hasLength(1));
             final asset = output.assets.code.single;

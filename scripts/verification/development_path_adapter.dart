@@ -12,15 +12,6 @@ DevelopmentPathRunner createDevelopmentPathRunner(
 ) {
   final demoDirectory = p.join(workspaceRoot, 'app', 'demo');
   return (executionId) async {
-    final environment = <String, String>{
-      'NEXA_HTTP_NATIVE_PREPARED_DIR': p.join(
-        workspaceRoot,
-        '.dart_tool',
-        'nexa_http_native',
-        'integration',
-        executionId.value,
-      ),
-    };
     final commands = <List<String>>[
       const <String>['clean'],
       const <String>['pub', 'get'],
@@ -33,7 +24,6 @@ DevelopmentPathRunner createDevelopmentPathRunner(
           executable: 'flutter',
           arguments: arguments,
           workingDirectory: demoDirectory,
-          environment: environment,
         ),
       );
     }

@@ -5,7 +5,7 @@
 - `Cargo.toml` 同时声明 `cdylib` 和 `rlib`。
 - 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，并由 Windows runner 检查最终 PE exports。
 - Windows x64 target 变化必须同步 canonical target matrix、build hook、typed build script、release metadata 和 verification matrix。
-- 最终runner distribution必须只包含一个导出canonical `nexa_http_*` ABI的payload。Windows prepared/package raw SHA均保留审计；`identity_sha256`按PE section header顺序流式哈希machine、section name/virtual size/raw size/characteristics和section raw bytes，忽略可被packaging改变的header/checksum/signature。
+- 最终runner distribution必须只包含一个导出canonical `nexa_http_*` ABI的payload。Flutter Windows Native Assets安装是byte-for-byte copy，因此prepared/package raw SHA与`identity_sha256`必须完全一致；PE逐section digest只用于mismatch诊断，不得作为放宽身份的替代算法。
 - `dumpbin /exports`解析只接受行尾symbol token，必须忽略`Dump of file <path>` banner中的`nexa_http_*`路径片段。
 - workspace hook 与 Catalog 调用 shell build script 时必须复用 `resolveNexaHttpNativeBashExecutable()` 定位 Git for Windows；禁止裸 `Process.run('bash')` 命中 WSL stub。
 - verification consumer 调用 Flutter 时必须由共享 process runner 把 `flutter` 解析为 `FLUTTER_ROOT/bin/flutter.bat`；禁止在各 consumer adapter复制 Windows shell wrapper。

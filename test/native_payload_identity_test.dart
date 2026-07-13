@@ -21,7 +21,7 @@ UUID: F90D5B1B-8F07-359B-A87B-D467518F31B4 (arm64) /App/Frameworks/native
     expect(first, hasLength(64));
   });
 
-  test('PE identity ignores mutable headers and appended signatures', () async {
+  test('Windows identity is the exact DLL digest', () async {
     final directory = await Directory.systemTemp.createTemp(
       'nexa_http_pe_identity_',
     );
@@ -37,12 +37,17 @@ UUID: F90D5B1B-8F07-359B-A87B-D467518F31B4 (arm64) /App/Frameworks/native
 
     expect(await sha256OfFile(packaged), isNot(await sha256OfFile(prepared)));
     expect(
-      await peNativePayloadIdentitySha256(packaged),
-      await peNativePayloadIdentitySha256(prepared),
+      await nexaHttpNativePayloadIdentitySha256(packaged, platform: 'windows'),
+      isNot(
+        await nexaHttpNativePayloadIdentitySha256(
+          prepared,
+          platform: 'windows',
+        ),
+      ),
     );
   });
 
-  test('PE identity changes when section bytes change', () async {
+  test('PE section diagnostics change when section bytes change', () async {
     final directory = await Directory.systemTemp.createTemp(
       'nexa_http_pe_identity_section_',
     );
@@ -52,10 +57,9 @@ UUID: F90D5B1B-8F07-359B-A87B-D467518F31B4 (arm64) /App/Frameworks/native
     await first.writeAsBytes(_peFixture(section: const <int>[1, 2, 3, 4]));
     await second.writeAsBytes(_peFixture(section: const <int>[1, 2, 3, 5]));
 
-    expect(
-      await peNativePayloadIdentitySha256(second),
-      isNot(await peNativePayloadIdentitySha256(first)),
-    );
+    final firstSections = await peNativePayloadSectionDigests(first);
+    final secondSections = await peNativePayloadSectionDigests(second);
+    expect(secondSections.single.sha256, isNot(firstSections.single.sha256));
   });
 
   test(

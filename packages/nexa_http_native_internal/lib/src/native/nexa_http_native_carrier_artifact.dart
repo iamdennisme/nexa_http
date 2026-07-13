@@ -9,6 +9,9 @@ import 'nexa_http_native_shell.dart';
 import 'nexa_http_native_target_matrix.dart';
 import 'nexa_http_workspace_package.dart';
 
+const nexaHttpNativeCandidateDirectoryDefine = 'candidate_directory';
+const nexaHttpNativeCandidateRefDefine = 'candidate_ref';
+
 typedef NexaHttpNativeProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> arguments);
 typedef NexaHttpNativeArtifactPreparer =
@@ -18,6 +21,8 @@ typedef NexaHttpNativeArtifactPreparer =
       required String targetOS,
       required String targetArchitecture,
       required String? targetSdk,
+      String? candidateDirectory,
+      String? candidateRef,
     });
 
 Future<File> prepareNexaHttpNativeCarrierArtifact({
@@ -26,13 +31,14 @@ Future<File> prepareNexaHttpNativeCarrierArtifact({
   required String targetOS,
   required String targetArchitecture,
   required String? targetSdk,
+  String? candidateDirectory,
+  String? candidateRef,
   NexaHttpNativeProcessRunner runProcess = runNexaHttpNativeProcess,
   NexaHttpNativeReleaseRefResolver resolveReleaseRef =
       discoverNexaHttpNativeGitReleaseRef,
   NexaHttpNativeFetchStream fetchStream = fetchNexaHttpNativeStream,
   NexaHttpNativeBashResolver resolveBashExecutable =
       resolveNexaHttpNativeBashExecutable,
-  Map<String, String>? environment,
 }) async {
   final target = findNexaHttpNativeTarget(
     targetOS: targetOS,
@@ -54,16 +60,14 @@ Future<File> prepareNexaHttpNativeCarrierArtifact({
     );
   }
 
-  final resolvedEnvironment = environment ?? Platform.environment;
-  final candidateDirectory =
-      resolvedEnvironment['NEXA_HTTP_NATIVE_CANDIDATE_DIR']?.trim() ?? '';
-  if (candidateDirectory.isNotEmpty) {
-    final candidateRef =
-        resolvedEnvironment['NEXA_HTTP_NATIVE_CANDIDATE_REF']?.trim() ?? '';
-    if (candidateRef.isEmpty) {
+  final resolvedCandidateDirectory = candidateDirectory?.trim() ?? '';
+  final resolvedCandidateRef = candidateRef?.trim() ?? '';
+  if (resolvedCandidateDirectory.isNotEmpty ||
+      resolvedCandidateRef.isNotEmpty) {
+    if (resolvedCandidateDirectory.isEmpty || resolvedCandidateRef.isEmpty) {
       throw StateError(
-        'NEXA_HTTP_NATIVE_CANDIDATE_REF is required when '
-        'NEXA_HTTP_NATIVE_CANDIDATE_DIR is set.',
+        '$nexaHttpNativeCandidateDirectoryDefine and '
+        '$nexaHttpNativeCandidateRefDefine must be provided together.',
       );
     }
     return materializeNexaHttpNativeCandidateArtifact(
@@ -71,32 +75,9 @@ Future<File> prepareNexaHttpNativeCarrierArtifact({
       targetOS: target.targetOS,
       targetArchitecture: target.targetArchitecture,
       targetSdk: target.targetSdk,
-      candidateDirectory: candidateDirectory,
-      candidateRef: candidateRef,
+      candidateDirectory: resolvedCandidateDirectory,
+      candidateRef: resolvedCandidateRef,
     );
-  }
-
-  final preparedDirectory =
-      resolvedEnvironment['NEXA_HTTP_NATIVE_PREPARED_DIR']?.trim() ?? '';
-  if (preparedDirectory.isNotEmpty) {
-    final prepared = File(
-      p.join(preparedDirectory, target.releaseAssetFileName),
-    );
-    if (!prepared.existsSync()) {
-      throw NexaHttpNativeArtifactException(
-        stage: 'prepared artifact resolution',
-        targetOS: target.targetOS,
-        targetArchitecture: target.targetArchitecture,
-        targetSdk: target.targetSdk,
-        sdkRef: 'workspace-integration',
-        expectedAction:
-            'Run the Catalog native-build producer for this execution before the clean-host consumer.',
-        underlyingError: StateError(
-          'Prepared Native Asset does not exist: ${prepared.path}',
-        ),
-      );
-    }
-    return prepared.absolute;
   }
 
   if (shouldBuildNexaHttpNativeFromWorkspaceSource(
@@ -105,7 +86,6 @@ Future<File> prepareNexaHttpNativeCarrierArtifact({
   )) {
     return prepareNexaHttpNativeWorkspaceArtifact(
       packageRoot: packageRoot,
-      outputDirectory: outputDirectory,
       target: target,
       runProcess: runProcess,
       resolveBashExecutable: resolveBashExecutable,
@@ -125,7 +105,6 @@ Future<File> prepareNexaHttpNativeCarrierArtifact({
 
 Future<File> prepareNexaHttpNativeWorkspaceArtifact({
   required String packageRoot,
-  required String outputDirectory,
   required NexaHttpNativeTarget target,
   NexaHttpNativeProcessRunner runProcess = runNexaHttpNativeProcess,
   NexaHttpNativeBashResolver resolveBashExecutable =
@@ -134,8 +113,8 @@ Future<File> prepareNexaHttpNativeWorkspaceArtifact({
   final workspaceRoot = nexaHttpWorkspaceRootForPackage(packageRoot);
   final script = p.join(workspaceRoot, 'scripts', target.buildScriptName);
   final targetOutputDirectory = Directory(
-    p.join(outputDirectory, target.materializationRelativePath('debug')),
-  ).parent;
+    nexaHttpNativeWorkspaceOutputDirectory(workspaceRoot),
+  );
   await targetOutputDirectory.create(recursive: true);
   final destination = File(
     p.join(targetOutputDirectory.path, target.releaseAssetFileName),
@@ -149,7 +128,7 @@ Future<File> prepareNexaHttpNativeWorkspaceArtifact({
     target.rustTargetTriple,
   ];
   return withNexaHttpNativeArtifactLock(destination, () async {
-    final fingerprint = await _workspaceNativeInputFingerprint(
+    final fingerprint = await nexaHttpNativeWorkspaceInputFingerprint(
       workspaceRoot,
       target,
     );
@@ -180,7 +159,42 @@ Future<File> prepareNexaHttpNativeWorkspaceArtifact({
   });
 }
 
-Future<String> _workspaceNativeInputFingerprint(
+String nexaHttpNativeWorkspaceOutputDirectory(String workspaceRoot) => p.join(
+  Directory(workspaceRoot).absolute.path,
+  '.dart_tool',
+  'nexa_http_native',
+  'workspace',
+  'debug',
+);
+
+File nexaHttpNativeWorkspaceArtifactFile(
+  String workspaceRoot,
+  NexaHttpNativeTarget target,
+) => File(
+  p.join(
+    nexaHttpNativeWorkspaceOutputDirectory(workspaceRoot),
+    target.releaseAssetFileName,
+  ),
+).absolute;
+
+Future<void> recordNexaHttpNativeWorkspaceArtifactFingerprint(
+  String workspaceRoot,
+  NexaHttpNativeTarget target,
+) async {
+  final artifact = nexaHttpNativeWorkspaceArtifactFile(workspaceRoot, target);
+  if (!artifact.existsSync()) {
+    throw StateError(
+      'Cannot record workspace fingerprint for missing artifact: '
+      '${artifact.path}',
+    );
+  }
+  await File('${artifact.path}.workspace-input.sha256').writeAsString(
+    await nexaHttpNativeWorkspaceInputFingerprint(workspaceRoot, target),
+    flush: true,
+  );
+}
+
+Future<String> nexaHttpNativeWorkspaceInputFingerprint(
   String workspaceRoot,
   NexaHttpNativeTarget target,
 ) async {
@@ -198,11 +212,7 @@ Future<String> _workspaceNativeInputFingerprint(
   addFile(p.join(workspaceRoot, 'scripts', target.buildScriptName));
   final nativeRoot = Directory(p.join(workspaceRoot, 'native'));
   if (nativeRoot.existsSync()) {
-    await for (final entity in nativeRoot.list(recursive: true)) {
-      if (entity is File) {
-        files.add(entity.absolute);
-      }
-    }
+    await _collectWorkspaceNativeSourceFiles(nativeRoot, files);
   }
   final packagesRoot = Directory(p.join(workspaceRoot, 'packages'));
   if (packagesRoot.existsSync()) {
@@ -214,24 +224,46 @@ Future<String> _workspaceNativeInputFingerprint(
       if (!packageNativeRoot.existsSync()) {
         continue;
       }
-      await for (final entity in packageNativeRoot.list(recursive: true)) {
-        if (entity is File) {
-          files.add(entity.absolute);
-        }
-      }
+      await _collectWorkspaceNativeSourceFiles(packageNativeRoot, files);
     }
   }
   files.sort((left, right) => left.path.compareTo(right.path));
   final digest = await sha256
-      .bind(_workspaceInputBytes(workspaceRoot, files))
+      .bind(_workspaceInputBytes(workspaceRoot, target, files))
       .first;
   return digest.toString();
 }
 
+Future<void> _collectWorkspaceNativeSourceFiles(
+  Directory directory,
+  List<File> files,
+) async {
+  await for (final entity in directory.list(followLinks: false)) {
+    if (entity is File) {
+      files.add(entity.absolute);
+      continue;
+    }
+    if (entity is! Directory ||
+        const <String>{
+          'target',
+          'build',
+          '.dart_tool',
+        }.contains(p.basename(entity.path))) {
+      continue;
+    }
+    await _collectWorkspaceNativeSourceFiles(entity, files);
+  }
+}
+
 Stream<List<int>> _workspaceInputBytes(
   String workspaceRoot,
+  NexaHttpNativeTarget target,
   List<File> files,
 ) async* {
+  yield utf8.encode(
+    '${target.targetOS}:${target.targetArchitecture}:'
+    '${target.targetSdk ?? 'none'}:${target.rustTargetTriple}\n',
+  );
   for (final file in files) {
     yield utf8.encode(p.relative(file.path, from: workspaceRoot));
     yield const <int>[0];

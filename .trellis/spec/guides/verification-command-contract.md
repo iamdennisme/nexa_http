@@ -98,9 +98,11 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - row report只接受`schema_version=2`，固定包含`suite_id`、`execution_id`、`planned_check_ids`、`completed_check_ids`、`status`、`prepared_artifacts`和`runtime_payloads`；schema v1直接拒绝，不提供兼容解析。
 - `prepared_artifacts`每项包含canonical target tuple、完整Native Asset ID、绝对prepared file、raw`sha256`、`identity_sha256`与source identity。
 - `runtime_payloads`每项包含同一target/asset identity、绝对packaged file、raw`sha256`、`identity_sha256`、`payload_count=1`及request/callback/body consumed/body released/client closed五个true字段。
-- aggregate只读report并按canonical matrix校验9个target、Android/iOS/macOS/Windows四个平台、无重复/未知tuple，以及runtime和prepared的`identity_sha256`一致。Apple以Mach-O UUID集合、Windows以PE section metadata+raw section bytes连接身份；两端raw SHA即使不同也必须保留用于审计。Android identity仍等于raw SHA。
+- aggregate只读report并按canonical matrix校验9个target、Android/iOS/macOS/Windows四个平台、无重复/未知tuple，以及runtime和prepared的`identity_sha256`一致。Apple以Mach-O UUID集合连接身份；Android与Windows identity等于raw SHA。两端raw SHA始终保留用于审计。
 - aggregate mode 只读取 report，不执行任何 check、build 或 fixture materialization。
-- candidate build-time environment 只允许 `NEXA_HTTP_NATIVE_CANDIDATE_DIR` 与 `NEXA_HTTP_NATIVE_CANDIDATE_REF`；设置 candidate directory 后缺 ref 或校验失败直接阻断，不 fallback 到 workspace/release source。
+- build hook不接收自定义`NEXA_HTTP_*`环境变量。candidate runtime consumer必须把`candidate_directory`与`candidate_ref`写入临时consumer pubspec的`hooks.user_defines.<carrier>`；缺任一项或校验失败直接阻断，不fallback到workspace/release source。
+- integration native-build producer与workspace hook共享`.dart_tool/nexa_http_native/workspace/debug`及fingerprint sidecar；producer每个build-script group只启动一次，后续development/external consumer不得重复native build或复制一份prepared set。
+- workspace fingerprint扫描必须排除native crate的`target/`、`build/`、`.dart_tool/`生成树，保持O(source inputs)而不是O(build outputs × target count)。
 - `VerifiedCandidateSet` 保留原始 candidate directory 与 verified file handles；ABI/runtime consumer不得创建第二份 candidate set。
 - `check` 复用 Catalog definition及其dependency，但不得输出 gate coverage report。
 - 架构切换必须在同一任务删除旧 command、alias、forwarder、workflow、tests和docs；不得提交“先兼容、后清理”的中间态。
@@ -113,6 +115,7 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - proof缺字段、路径非绝对、digest格式错误、payload count不为1、lifecycle字段非true、target/asset/identity不匹配 -> row解析或aggregate失败。
 - Windows `dumpbin /exports` 的 banner/path 可能包含以 `nexa_http_` 开头的临时目录名；symbol parser只接受工具输出行尾的symbol token，不得把`Dump of file <path>`当成unexpected export。
 - Android emulator的`sys.boot_completed=1`不保证package manager已ready；Actions row必须先调用`scripts/wait_android_package_service.sh`有界等待`adb shell service check package`成功，超时直接失败，不得把后续install失败包装成SDK runtime失败。
+- Android runtime marker可能早于Flutter CLI日志附着；row必须在run前清空目标device logcat，stdout缺marker时读取同device本轮logcat，仍无单一完整marker则失败。
 - candidate缺artifact、存在未知artifact、manifest/SHA256SUMS/实际bytes不一致 -> candidate set失败。
 - 缺device、fixture URL、candidate identity/digest/SDK ref -> CLI usage失败。
 - 平台toolchain或device缺失 -> suite失败，不得skip-as-pass。

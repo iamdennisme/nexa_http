@@ -4,12 +4,13 @@
 
 - `Cargo.toml` 同时声明 `cdylib` 和 `rlib`，保证动态库产物和 Rust tests 都可用。
 - 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，禁止在平台 `lib.rs` 复制 wrapper。
-- Android native artifact 只由 canonical target matrix 驱动 typed build script，输出到 Flutter hook 的 target-scoped directory，并由 carrier hook 将 preparation 返回的同一个 `File` 交给 `CodeAsset`。
+- Android native artifact只由canonical target matrix驱动typed build script。Workspace producer与hook共享fingerprint cache；release/candidate才写入Flutter hook的target-scoped directory。Carrier hook将preparation返回的同一个`File`交给`CodeAsset`。
 - 最终 APK 的目标 ABI 目录必须只包含一个导出 canonical `nexa_http_*` ABI 的 payload，并通过 Catalog `native-abi` exact comparison 与 artifact uniqueness check。
 - Proxy 解析 helper 必须可测试；`current_proxy_settings_for_test()` 接收 `BTreeMap<String, String>`，避免测试依赖真实 Android 设备。
 - Android proxy source 使用 `RefreshMode::Polling`，当前轮询间隔由 `ANDROID_PROXY_REFRESH_INTERVAL = 15s` 集中定义。
 - `getprop` 只在 `#[cfg(target_os = "android")]` 代码中执行，非 Android 单元测试不得尝试运行系统命令。
 - Actions emulator row必须在suite前调用`scripts/wait_android_package_service.sh`并等待`adb shell service check package`成功；`sys.boot_completed=1`不是可安装APK的充分条件。
+- Android runtime marker采集必须在run前清空目标device logcat；Flutter stdout未捕获时只从同device本轮logcat回收，仍要求唯一完整marker。
 
 ## 禁止模式
 

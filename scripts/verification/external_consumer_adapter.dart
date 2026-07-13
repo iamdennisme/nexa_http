@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:path/path.dart' as p;
 
 import '../native_artifact_uniqueness.dart';
@@ -83,6 +84,18 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
       );
     }
     final previousProofCount = proofTracker.proofCount;
+    if (platform.targetOS == 'android') {
+      await runCommand(
+        VerificationCommand(
+          executable: 'adb',
+          arguments: <String>['-s', deviceId, 'logcat', '-c'],
+          workingDirectory: fixtureDirectory.path,
+          environment: <String, String>{...baseEnvironment, ...environment},
+        ),
+      );
+    }
+    Object? flutterError;
+    StackTrace? flutterStackTrace;
     try {
       await runCommand(
         VerificationCommand(
@@ -98,15 +111,30 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
           environment: <String, String>{...baseEnvironment, ...environment},
         ),
       );
-    } on ProcessException {
-      if (proofTracker.proofCount == previousProofCount + 1) {
-        proofTracker.requireSingleProofSince(
-          previousProofCount,
-          targetOS: platform.targetOS,
-        );
-        return;
-      }
-      rethrow;
+    } on ProcessException catch (error, stackTrace) {
+      flutterError = error;
+      flutterStackTrace = stackTrace;
+    }
+    if (platform.targetOS == 'android' &&
+        proofTracker.proofCount == previousProofCount) {
+      await runCommand(
+        VerificationCommand(
+          executable: 'adb',
+          arguments: <String>['-s', deviceId, 'logcat', '-d', '-v', 'raw'],
+          workingDirectory: fixtureDirectory.path,
+          environment: <String, String>{...baseEnvironment, ...environment},
+        ),
+      );
+    }
+    if (proofTracker.proofCount == previousProofCount + 1) {
+      proofTracker.requireSingleProofSince(
+        previousProofCount,
+        targetOS: platform.targetOS,
+      );
+      return;
+    }
+    if (flutterError != null) {
+      Error.throwWithStackTrace(flutterError, flutterStackTrace!);
     }
     proofTracker.requireSingleProofSince(
       previousProofCount,
@@ -154,6 +182,8 @@ Future<ExternalConsumerVerificationSession> createExternalConsumerSession({
   required VerificationCommandRunner runCommand,
   required ExternalRuntimeProofMarkerTracker runtimeProofTracker,
   Map<String, String> commandEnvironment = const <String, String>{},
+  String? candidateDirectory,
+  String? candidateRef,
   List<VerificationPreparedArtifactProof> preparedArtifactProofs =
       const <VerificationPreparedArtifactProof>[],
   ExternalNativePayloadVerifier verifyUniquePayload = _verifyUniquePayload,
@@ -177,26 +207,14 @@ Future<ExternalConsumerVerificationSession> createExternalConsumerSession({
       fixtureRoot: Directory(p.join(tempRoot.path, 'fixtures')),
       fixtureUrl: fixtureUrl,
       prepareSource: (_) async => Directory(workspaceRoot).absolute,
+      candidateDirectory: candidateDirectory,
+      candidateRef: candidateRef,
       runCommand: runCommand,
       runRuntimeSmoke: runtimeSmoke,
       onPlatformComplete: (fixtureDirectory, platform) {
         fixturesByPlatform[platform.targetOS] = fixtureDirectory;
       },
       commandEnvironment: commandEnvironment,
-      environmentForExecution: (executionId) {
-        if (executionId.value.startsWith('candidate-')) {
-          return const <String, String>{};
-        }
-        return <String, String>{
-          'NEXA_HTTP_NATIVE_PREPARED_DIR': p.join(
-            workspaceRoot,
-            '.dart_tool',
-            'nexa_http_native',
-            'integration',
-            executionId.value,
-          ),
-        };
-      },
     ),
     verifyArtifactUniqueness: (executionId) async {
       final runtimeProofs = <VerificationRuntimePayloadProof>[];
@@ -329,6 +347,8 @@ ExternalConsumerRunner createExternalConsumerRunner({
   Map<String, String> commandEnvironment = const <String, String>{},
   Map<String, String> Function(VerificationExecutionId executionId)?
   environmentForExecution,
+  String? candidateDirectory,
+  String? candidateRef,
 }) {
   return (executionId) async {
     final executionEnvironment = <String, String>{
@@ -356,7 +376,12 @@ ExternalConsumerRunner createExternalConsumerRunner({
         await enableMacosNetworkClientEntitlement(fixtureDirectory);
       }
       await File(p.join(fixtureDirectory.path, 'pubspec.yaml')).writeAsString(
-        buildPathConsumerPubspec(sourceRoot.path, targetOS: platform.targetOS),
+        buildPathConsumerPubspec(
+          sourceRoot.path,
+          targetOS: platform.targetOS,
+          candidateDirectory: candidateDirectory,
+          candidateRef: candidateRef,
+        ),
       );
       final libDirectory = Directory(p.join(fixtureDirectory.path, 'lib'));
       await libDirectory.create(recursive: true);
@@ -557,7 +582,12 @@ List<ExternalConsumerPlatform> externalConsumerPlatformsForExecution(
   };
 }
 
-String buildPathConsumerPubspec(String sourceRoot, {required String targetOS}) {
+String buildPathConsumerPubspec(
+  String sourceRoot, {
+  required String targetOS,
+  String? candidateDirectory,
+  String? candidateRef,
+}) {
   final carrier = switch (targetOS) {
     'android' => 'nexa_http_native_android',
     'ios' => 'nexa_http_native_ios',
@@ -565,6 +595,21 @@ String buildPathConsumerPubspec(String sourceRoot, {required String targetOS}) {
     'windows' => 'nexa_http_native_windows',
     _ => throw StateError('No carrier package for target OS $targetOS'),
   };
+  final resolvedCandidateDirectory = candidateDirectory?.trim() ?? '';
+  final resolvedCandidateRef = candidateRef?.trim() ?? '';
+  if (resolvedCandidateDirectory.isEmpty != resolvedCandidateRef.isEmpty) {
+    throw StateError('Candidate directory and ref must be provided together.');
+  }
+  final hookDefines = resolvedCandidateDirectory.isEmpty
+      ? ''
+      : '''
+
+hooks:
+  user_defines:
+    $carrier:
+      $nexaHttpNativeCandidateDirectoryDefine: ${jsonEncode(resolvedCandidateDirectory)}
+      $nexaHttpNativeCandidateRefDefine: ${jsonEncode(resolvedCandidateRef)}
+''';
   return '''
 name: nexa_http_external_consumer_fixture
 publish_to: none
@@ -579,6 +624,7 @@ dependencies:
     path: ${p.join(sourceRoot, 'packages', 'nexa_http')}
   $carrier:
     path: ${p.join(sourceRoot, 'packages', carrier)}
+$hookDefines
 ''';
 }
 
@@ -627,12 +673,13 @@ Future<void> main() async {
     throw StateError('NEXA_HTTP_FIXTURE_URL is required');
   }
 
-  final client = NexaHttpClientBuilder()
-      .callTimeout(const Duration(seconds: 10))
-      .userAgent('nexa-http-clean-host/2.0')
-      .build();
   var exitCode = 0;
+  NexaHttpClient? client;
   try {
+    client = NexaHttpClientBuilder()
+        .callTimeout(const Duration(seconds: 10))
+        .userAgent('nexa-http-clean-host/2.0')
+        .build();
     final request = RequestBuilder().url(Uri.parse(fixtureUrl)).get().build();
     final response = await client.newCall(request).execute();
     if (response.statusCode != 200 || response.body == null) {
@@ -647,7 +694,7 @@ Future<void> main() async {
     stderr.writeln(stackTrace);
     exitCode = 1;
   } finally {
-    await client.close();
+    await client?.close();
   }
   if (exitCode == 0) {
     print('NEXA_HTTP_RUNTIME_PROOF {"request_completed":true,"callback_received":true,"body_consumed":true,"body_released":true,"client_closed":true}');

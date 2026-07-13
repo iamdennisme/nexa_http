@@ -52,6 +52,7 @@ NexaHttpNativeAbiHost currentNexaHttpNativeAbiHost() {
 Future<void> verifyNexaHttpNativeAbi(
   String workspaceRoot, {
   required NexaHttpNativeAbiHost host,
+  String? sdkRef,
   NexaHttpNativeSymbolCommandRunner runSymbolCommand =
       _runNexaHttpNativeSymbolCommand,
   Map<String, String>? environment,
@@ -59,7 +60,7 @@ Future<void> verifyNexaHttpNativeAbi(
   final resolvedEnvironment = environment ?? Platform.environment;
   final artifacts = _nativeAbiArtifactsForHost(workspaceRoot, host);
   final sdkVersion = _readSdkVersion(workspaceRoot);
-  final gitRef = _readGitRef(resolvedEnvironment);
+  final gitRef = sdkRef ?? _readGitRef(resolvedEnvironment);
 
   await _verifyNativeAbiArtifacts(
     artifacts,
@@ -73,6 +74,7 @@ Future<void> verifyNexaHttpNativeAbi(
 Future<void> verifyNexaHttpNativeAbiArtifacts(
   String workspaceRoot, {
   required Map<NexaHttpNativeTarget, File> artifacts,
+  String? sdkRef,
   NexaHttpNativeSymbolCommandRunner runSymbolCommand =
       _runNexaHttpNativeSymbolCommand,
   Map<String, String>? environment,
@@ -98,7 +100,7 @@ Future<void> verifyNexaHttpNativeAbiArtifacts(
     resolvedEnvironment: resolvedEnvironment,
     runSymbolCommand: runSymbolCommand,
     sdkVersion: _readSdkVersion(workspaceRoot),
-    gitRef: _readGitRef(resolvedEnvironment),
+    gitRef: sdkRef ?? _readGitRef(resolvedEnvironment),
   );
 }
 
@@ -218,28 +220,14 @@ List<_NexaHttpNativeAbiArtifact> _nativeAbiArtifactsForHost(
     NexaHttpNativeAbiHost.windows => const <String>{'windows'},
   };
   final artifactsByPath = <String, _NexaHttpNativeAbiArtifact>{};
-  final executionId = switch (host) {
-    NexaHttpNativeAbiHost.android => 'android-linux',
-    NexaHttpNativeAbiHost.apple => 'apple-macos',
-    NexaHttpNativeAbiHost.windows => 'windows-x64',
-  };
-
   for (final target in nexaHttpSupportedNativeTargets) {
     if (!targetOperatingSystems.contains(target.targetOS)) {
       continue;
     }
-    final artifactPath = p.normalize(
-      p.absolute(
-        p.join(
-          workspaceRoot,
-          '.dart_tool',
-          'nexa_http_native',
-          'integration',
-          executionId,
-          target.releaseAssetFileName,
-        ),
-      ),
-    );
+    final artifactPath = nexaHttpNativeWorkspaceArtifactFile(
+      workspaceRoot,
+      target,
+    ).path;
     final targetDescription = <String>[
       target.targetOS,
       target.targetArchitecture,
@@ -417,11 +405,9 @@ String _readSdkVersion(String workspaceRoot) {
 }
 
 String _readGitRef(Map<String, String> environment) {
-  for (final key in <String>['NEXA_HTTP_NATIVE_CANDIDATE_REF', 'GITHUB_SHA']) {
-    final value = environment[key]?.trim();
-    if (value != null && value.isNotEmpty) {
-      return value;
-    }
+  final value = environment['GITHUB_SHA']?.trim();
+  if (value != null && value.isNotEmpty) {
+    return value;
   }
   return 'workspace';
 }

@@ -30,6 +30,8 @@ void main() {
                   required targetOS,
                   required targetArchitecture,
                   required targetSdk,
+                  candidateDirectory,
+                  candidateRef,
                 }) async => preparedFile,
           ),
           targetOS: OS.macOS,

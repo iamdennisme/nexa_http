@@ -25,6 +25,11 @@ Future<void> main(
         input.config.code.targetArchitecture,
       ),
       targetSdk: _targetSdk(input.config.code.iOS.targetSdk),
+      candidateDirectory: input.userDefines
+          .path(nexaHttpNativeCandidateDirectoryDefine)
+          ?.toFilePath(),
+      candidateRef:
+          input.userDefines[nexaHttpNativeCandidateRefDefine] as String?,
     );
 
     output.assets.code.add(

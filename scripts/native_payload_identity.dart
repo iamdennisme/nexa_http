@@ -14,7 +14,7 @@ Future<String> nexaHttpNativePayloadIdentitySha256(
   NativePayloadIdentityCommandRunner runCommand = Process.run,
 }) async {
   if (platform == 'windows') {
-    return peNativePayloadIdentitySha256(file);
+    return sha256OfFile(file);
   }
   if (platform != 'ios' && platform != 'macos') {
     return sha256OfFile(file);
@@ -26,12 +26,6 @@ Future<String> nexaHttpNativePayloadIdentitySha256(
     );
   }
   return machONativePayloadIdentitySha256('${result.stdout}');
-}
-
-Future<String> peNativePayloadIdentitySha256(File file) async {
-  final sections = await _readPeSections(file);
-  final digest = await sha256.bind(_peIdentityBytes(file, sections)).first;
-  return digest.toString();
 }
 
 final class PeNativePayloadSectionDigest {
@@ -117,24 +111,6 @@ Future<List<_PeSection>> _readPeSections(File file) async {
     ];
   } finally {
     await handle.close();
-  }
-}
-
-Stream<List<int>> _peIdentityBytes(
-  File file,
-  List<_PeSection> sections,
-) async* {
-  for (final section in sections) {
-    yield utf8.encode(
-      '${section.machine}:${section.name}:${section.virtualSize}:'
-      '${section.rawSize}:${section.characteristics}\n',
-    );
-    if (section.rawSize > 0) {
-      yield* file.openRead(
-        section.rawOffset,
-        section.rawOffset + section.rawSize,
-      );
-    }
   }
 }
 

@@ -19,7 +19,9 @@ void main() {
       expect(source, isNot(contains('package:nexa_http_native_')));
       expect(source, contains('.newCall(request).execute()'));
       expect(source, contains('await response.body!.string()'));
-      expect(source, contains('await client.close()'));
+      expect(source, contains('NexaHttpClient? client;'));
+      expect(source, contains('client = NexaHttpClientBuilder()'));
+      expect(source, contains('await client?.close()'));
       const proofMarker =
           'NEXA_HTTP_RUNTIME_PROOF '
           '{"request_completed":true,"callback_received":true,'
@@ -33,7 +35,7 @@ void main() {
       final bodyConsumedAndReleased = source.indexOf(
         'await response.body!.string()',
       );
-      final clientClosed = source.indexOf('await client.close()');
+      final clientClosed = source.indexOf('await client?.close()');
       expect(bodyConsumedAndReleased, greaterThan(requestCompleted));
       expect(clientClosed, greaterThan(bodyConsumedAndReleased));
       expect(source.indexOf(proofMarker), greaterThan(clientClosed));
@@ -253,6 +255,58 @@ void main() {
         environment: const <String, String>{},
       ),
       completes,
+    );
+  });
+
+  test('Android runtime proof is recovered from cleared logcat', () async {
+    final commands = <VerificationCommand>[];
+    final proofTracker = ExternalRuntimeProofMarkerTracker();
+    final runner = createFlutterRuntimeSmokeRunner(
+      (command) async {
+        commands.add(command);
+        if (command.arguments.contains('logcat') &&
+            command.arguments.contains('-d')) {
+          proofTracker.observeLine(_runtimeProofMarkerLine);
+        }
+      },
+      deviceIdForTargetOS: (_) => 'emulator-5554',
+      proofTracker: proofTracker,
+    );
+
+    await runner(
+      fixtureDirectory: Directory('/fixture/android'),
+      platform: const ExternalConsumerPlatform(
+        targetOS: 'android',
+        buildArguments: <String>[],
+      ),
+      fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+      environment: const <String, String>{},
+    );
+
+    expect(
+      commands.map(
+        (command) => <Object>[command.executable, command.arguments],
+      ),
+      <List<Object>>[
+        <Object>[
+          'adb',
+          <String>['-s', 'emulator-5554', 'logcat', '-c'],
+        ],
+        <Object>[
+          'flutter',
+          <String>[
+            'run',
+            '-d',
+            'emulator-5554',
+            '--debug',
+            '--dart-define=NEXA_HTTP_FIXTURE_URL=http://10.0.2.2:8080/healthz',
+          ],
+        ],
+        <Object>[
+          'adb',
+          <String>['-s', 'emulator-5554', 'logcat', '-d', '-v', 'raw'],
+        ],
+      ],
     );
   });
 

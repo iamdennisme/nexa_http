@@ -6,6 +6,7 @@
 - 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，并由 Apple runner 检查最终 Mach-O symbols。
 - 纯 proxy parser 必须使用 `nexa_http_native_apple_proxy` 并由其 tests 覆盖。
 - iOS device/simulator target 变化必须同步 canonical target matrix、build hook、typed build script、release metadata 和 verification matrix。
+- Workspace iOS targets必须由Catalog producer一次构建到共享fingerprint cache，carrier hook复用同一File；candidate通过`hooks.user_defines.nexa_http_native_ios`显式传入directory/ref。
 - 最终 `.app` 必须只包含一个导出 canonical `nexa_http_*` ABI 的 payload；prepared 与 packaged framework 同一性使用 Mach-O `LC_UUID` 集合派生的 `identity_sha256`，raw SHA 分别保留审计但不要求相等。
 
 ## 禁止模式

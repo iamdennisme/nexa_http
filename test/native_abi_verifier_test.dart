@@ -58,10 +58,7 @@ void main() {
       () => verifyNexaHttpNativeAbi(
         workspace.path,
         host: NexaHttpNativeAbiHost.android,
-        environment: const <String, String>{
-          'NEXA_HTTP_RELEASE_REF': 'legacy-ref',
-          'NEXA_HTTP_NATIVE_CANDIDATE_REF': 'candidate-42',
-        },
+        sdkRef: 'candidate-42',
         runSymbolCommand: (command) async {
           return NexaHttpNativeSymbolCommandResult(
             exitCode: 0,
@@ -124,7 +121,7 @@ void main() {
     await File(
       p.join(
         workspace.path,
-        '.dart_tool/nexa_http_native/integration/windows-x64/nexa_http-native-windows-x64.dll',
+        '.dart_tool/nexa_http_native/workspace/debug/nexa_http-native-windows-x64.dll',
       ),
     ).create(recursive: true);
     final commands = <String>[];
@@ -156,7 +153,7 @@ void main() {
 }
 
 const _androidArtifactPaths = <String>[
-  '.dart_tool/nexa_http_native/integration/android-linux/nexa_http-native-android-arm64-v8a.so',
-  '.dart_tool/nexa_http_native/integration/android-linux/nexa_http-native-android-armeabi-v7a.so',
-  '.dart_tool/nexa_http_native/integration/android-linux/nexa_http-native-android-x86_64.so',
+  '.dart_tool/nexa_http_native/workspace/debug/nexa_http-native-android-arm64-v8a.so',
+  '.dart_tool/nexa_http_native/workspace/debug/nexa_http-native-android-armeabi-v7a.so',
+  '.dart_tool/nexa_http_native/workspace/debug/nexa_http-native-android-x86_64.so',
 ];

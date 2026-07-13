@@ -97,10 +97,7 @@ VerifiedCandidateConsumer createCandidateAbiConsumer(
         return verifyNexaHttpNativeAbiArtifacts(
           workspaceRoot,
           artifacts: artifacts,
-          environment: <String, String>{
-            ...Platform.environment,
-            'NEXA_HTTP_NATIVE_CANDIDATE_REF': candidateRef,
-          },
+          sdkRef: candidateRef,
         );
       };
   return (candidate, executionId) {
@@ -167,10 +164,8 @@ VerifiedCandidateRuntimeConsumer createCandidateRuntimeConsumer({
       deviceIds: <String, String>{targetOS: deviceId},
       runCommand: runCommand,
       runtimeProofTracker: runtimeProofTracker,
-      commandEnvironment: <String, String>{
-        'NEXA_HTTP_NATIVE_CANDIDATE_DIR': candidate.candidateDirectory.path,
-        'NEXA_HTTP_NATIVE_CANDIDATE_REF': candidate.sdkRef,
-      },
+      candidateDirectory: candidate.candidateDirectory.path,
+      candidateRef: candidate.sdkRef,
       preparedArtifactProofs: preparedArtifactProofs,
     );
     try {

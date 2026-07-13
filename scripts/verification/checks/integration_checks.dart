@@ -78,12 +78,8 @@ VerificationCheckDefinition nativeBuildCheck(
           (candidate) => candidate.executionId == context.executionId,
         );
         final absoluteWorkspaceRoot = Directory(workspaceRoot).absolute.path;
-        final outputDirectory = p.join(
+        final outputDirectory = nexaHttpNativeWorkspaceOutputDirectory(
           absoluteWorkspaceRoot,
-          '.dart_tool',
-          'nexa_http_native',
-          'integration',
-          context.executionId.value,
         );
         final buildScriptNames =
             row.targets.map((target) => target.buildScriptName).toSet().toList()
@@ -106,6 +102,12 @@ VerificationCheckDefinition nativeBuildCheck(
               ],
               workingDirectory: absoluteWorkspaceRoot,
             ),
+          );
+        }
+        for (final target in row.targets) {
+          await recordNexaHttpNativeWorkspaceArtifactFingerprint(
+            absoluteWorkspaceRoot,
+            target,
           );
         }
         return <VerifiedNativeArtifactIdentity>[

@@ -54,7 +54,7 @@ SDK 必须自己处理：
 
 Carrier package 和 build hook 可以在内部协作，但正常集成路径不得要求宿主修改 `Podfile`、Xcode build phase、Gradle 文件、CMake 文件或 native 源码路径。宿主选择平台 package 是依赖声明，不是 native 工程改造。
 
-编译后的动态库下载和集成发生在 Flutter SDK 层：platform carrier 的 `hook/build.dart` 把 Flutter hook 输入映射成 target OS / architecture / SDK tuple，并把 Flutter hook output directory 传给 `nexa_http_native_internal`。该内部 module 负责 workspace/release 判断、显式 Rust target build、target-isolated materialization、manifest 下载、checksum 校验、single-flight lock、唯一 temp 和 replace；产物不得写入 carrier package 的 `jniLibs`、`Frameworks` 或 `Libraries`。
+编译后的动态库下载和集成发生在 Flutter SDK 层：platform carrier 的 `hook/build.dart` 把 Flutter hook 输入映射成 target OS / architecture / SDK tuple，并把 Flutter hook output directory 传给 `nexa_http_native_internal`。该内部 module 负责 workspace/release 判断、显式 Rust target build、target-isolated materialization、manifest 下载、checksum 校验、single-flight lock、唯一 temp 和 replace。Workspace source build 与 Catalog producer共享 `.dart_tool/nexa_http_native/workspace/debug` 下按唯一release filename区分的fingerprint cache；release/candidate materialization仍写入hook output的target-keyed目录。产物不得写入carrier package的`jniLibs`、`Frameworks`或`Libraries`。
 
 `nexa_http_native_internal` 不得依赖 `hooks` 或 `code_assets`，也不得接收 `BuildInput` 或产生 `CodeAsset`；这些 Flutter build hook adapter 类型保留在 platform carrier package。`native/nexa_http_native_core` 不负责下载、缓存、pub-cache/workspace 判断或 Flutter App 打包。
 
@@ -165,7 +165,9 @@ Release transaction 必须由明确 version 和 commit SHA 启动，不得由 pu
 - Rust target 准备必须先读取 `rustup target list --installed`，只安装缺失 target。
 - `rustup target add` 必须有有界超时；当前脚本使用 `run_with_timeout 600`。
 - build hook 不得要求宿主 App 在 Xcode、Podfile、Gradle 或 shell profile 中手工设置 SDK path、Rust target 或 C compiler。
-- workspace hook output 必须以 source fingerprint + target-scoped file lock 做 fast path；同 tuple 并发只 build 一次，native/Cargo/build-script 输入变化后必须失效，不能用“文件已存在”盲目跳过。
+- workspace hook 与 Catalog producer必须共享 `nexaHttpNativeWorkspaceOutputDirectory(workspaceRoot)`，并以source fingerprint + target-scoped file lock做fast path；同tuple并发只build一次，native/Cargo/build-script/target tuple变化后必须失效，不能用“文件已存在”盲目跳过。
+- source fingerprint只遍历源码与构建输入，必须剪枝native crate下的`target/`、`build/`和`.dart_tool/`生成树；不得重复哈希数GB编译产物，也不得让output bytes反向改变source fingerprint。
+- Dart build hook运行在半密闭环境中，除toolchain/proxy等allowlist变量外会剥离自定义环境变量。Artifact source选择不得依赖`NEXA_HTTP_*`环境变量；candidate directory/ref必须通过workspace root `pubspec.yaml`的`hooks.user_defines.<carrier>`进入`BuildInput.userDefines`。
 
 ### 4. Validation & Error Matrix
 
@@ -348,6 +350,8 @@ output.assets.code.add(
 ### 2. Signatures
 
 - Artifact preparation：`prepareNexaHttpNativeCarrierArtifact({required String packageRoot, required String outputDirectory, required String targetOS, required String targetArchitecture, required String? targetSdk}) -> Future<File>`。
+- Workspace cache：`nexaHttpNativeWorkspaceOutputDirectory(workspaceRoot)`、`nexaHttpNativeWorkspaceArtifactFile(workspaceRoot, target)`和`recordNexaHttpNativeWorkspaceArtifactFingerprint(workspaceRoot, target)`。
+- Candidate hook defines：`candidate_directory`与`candidate_ref`必须成对出现在`hooks.user_defines.<carrier>`；hook通过`input.userDefines.path(...)`解析directory，通过`input.userDefines[...]`读取ref。
 - Target identity：`NexaHttpNativeTarget(targetOS, targetArchitecture, targetSdk, rustTargetTriple, sourceArtifactFileName, releaseAssetFileName, buildScriptName, integrationExecutionId, runner, nativeAssetName)`。
 - Runtime registration：`registerNexaHttpNativeBindings(NexaHttpNativeBindingsFactory(assetId, create))`；同 ID 幂等，不同 ID 冲突失败，bindings 按 isolate lazy once。
 - Native Asset identity：carrier 生成的 `CodeAsset` 必须使用项目唯一的 native asset name，并直接引用 preparation 返回的 `File`。
@@ -359,8 +363,10 @@ output.assets.code.add(
 - Carrier hook 必须直接消费 preparation 返回的 `File`；不得忽略返回值后在 asset bundle 中重新推导或硬编码路径。
 - Native Assets/CodeAsset 是唯一 packaging authority。CocoaPods resource bundle、carrier-owned `jniLibs`、CMake bundled-library copy、固定 bundle path 和备用 `DynamicLibrary` loader 不得作为第二 artifact source 存在。
 - Runtime symbol resolution 必须绑定到 CodeAsset 打包的同一 artifact identity；不得验证 A、运行 B。
-- Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android identity等于raw digest；Apple framework会被Xcode改install name并重签名，identity固定为按architecture排序的Mach-O `LC_UUID`集合SHA-256；Windows packaging会改变PE header/checksum/signature等非section bytes，identity固定为按section header顺序流式哈希machine、section name/virtual size/raw size/characteristics和section raw bytes。aggregate比较identity digest，两端raw值只用于审计。
+- Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android与Windows的Flutter packaging都是byte-for-byte copy，identity必须等于raw digest；Apple framework会被Xcode改install name并重签名，identity固定为按architecture排序的Mach-O `LC_UUID`集合SHA-256。aggregate比较identity digest，两端raw值始终保留用于审计。
+- Workspace integration的Catalog native-build producer先把同一组target一次构建到共享workspace cache并记录fingerprint；development path、external consumer和carrier hook只能复用这些File，不得通过被hook剥离的环境变量传递prepared目录，也不得二次build同一tuple。
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
+- Android App可能在`flutter run`完成日志附着前输出marker；runtime row必须先对目标device执行`adb logcat -c`，CLI未观测marker时只允许从同一device的本轮`adb logcat -d -v raw`回收，仍要求恰好一条完整marker。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。
 - Target matrix 是 target tuple、build target、source artifact、release file name 和 packaging identity 的单一事实来源。Workflow、shell、Gradle、Podspec、CMake 不得维护一份独立 target/path 表。
@@ -374,6 +380,9 @@ output.assets.code.add(
 - App 中出现两个导出 canonical `nexa_http_*` ABI 的 payload -> 验证失败，阻断合并和发布。
 - Android emulator已报告boot complete但package service未ready -> CI继续有界等待；超时阻断row，不启动clean-host runtime。
 - ABI verifier 检查的文件与 runtime smoke 加载的 artifact identity 不一致 -> 验证失败。
+- Workspace hook缺少或读到不匹配fingerprint -> 在共享cache中重建该tuple；不得读取旧integration目录或fallback到第二artifact source。
+- candidate directory/ref仅有一个、类型错误或路径不存在 -> hook直接失败；不得回退workspace/release source。
+- Android Flutter stdout无marker且清空后的同device logcat也无marker -> runtime失败；不得把App启动或DDS连接当作lifecycle proof。
 - Workspace build 产物 architecture 与请求 target 不一致 -> 验证失败，不得使用 host build 代替。
 - 搜索到已删除的 Pod resource bundle、legacy `jniLibs`/CMake copy 或固定 loader path -> 架构迁移未完成。
 
@@ -393,6 +402,9 @@ output.assets.code.add(
 - Proof report test：schema v2拒绝缺失raw/identity digest、相对路径、payload count非1、lifecycle false、target/asset/identity mismatch；aggregate精确覆盖9个target和4个平台runtime。
 - ABI test：对最终 CodeAsset artifact 做 exact missing/unexpected symbol comparison。
 - Runtime smoke：clean host 必须实际创建 client、执行 fixture HTTP request、接收 callback 并释放 response body。
+- Workspace reuse test：Catalog producer与两个不同hook output请求返回同一个共享cache File，build invocation保持一次；source或target tuple变化会失效。
+- Hook config test：candidate user-defines的相对目录按workspace pubspec base path解析，directory/ref成对传给preparer；自定义环境变量不参与contract。
+- Android marker test：先清空logcat，Flutter stdout缺marker时从同device logcat恢复本轮marker；旧marker与零marker均不通过。
 - Release gate：Android、iOS、macOS、Windows 全部通过候选 artifact runtime smoke 后才允许公开 release。
 - Legacy absence test：搜索并拒绝旧 resource bundle、固定 loader path、并行 `jniLibs`/CMake copy 和 fallback branch。
 
