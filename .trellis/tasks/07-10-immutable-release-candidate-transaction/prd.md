@@ -34,7 +34,7 @@
 
 - [ ] Gate 失败演练不会产生 tag、Release、draft 或 prerelease，仅保留私有诊断。
 - [ ] 所有四平台 job 报告相同 candidate-set identity，并通过 runtime smoke。
-- [ ] Publisher job 的上传文件 digest 与已验证 candidate 完全一致，且 job 中没有任何 build command。
+- [ ] Publisher executable/contract tests证明只按原名上传已验证candidate的11个文件、逐个核对远端digest，且publisher中没有build、copy、rename或metadata regeneration；本任务不执行`publish=true`。
 - [ ] Workflow 不再包含 tag-push trigger，旧 script 不再 push/create/reset tag。
 - [ ] iOS 与其他三平台同等进入 blocking gate，不存在 allow-failure/skip 分支。
 - [ ] Publication job 对 version、commit、existing tag/release、manifest/checksum 和 asset completeness 做失败优先验证。
