@@ -698,6 +698,7 @@ Future<void> main() async {
   }
   if (exitCode == 0) {
     print('NEXA_HTTP_RUNTIME_PROOF {"request_completed":true,"callback_received":true,"body_consumed":true,"body_released":true,"client_closed":true}');
+    await Future<void>.delayed(const Duration(seconds: 2));
   }
   exit(exitCode);
 }

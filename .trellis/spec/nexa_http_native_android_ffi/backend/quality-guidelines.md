@@ -11,6 +11,7 @@
 - `getprop` 只在 `#[cfg(target_os = "android")]` 代码中执行，非 Android 单元测试不得尝试运行系统命令。
 - Actions emulator row必须在suite前调用`scripts/wait_android_package_service.sh`并等待`adb shell service check package`成功；`sys.boot_completed=1`不是可安装APK的充分条件。
 - Android runtime marker采集必须在run前清空目标device logcat；Flutter stdout未捕获时只从同device本轮logcat回收，仍要求唯一完整marker。
+- Fixture打印marker后必须等待有界flush窗口再退出，避免Android log bridge丢失最后一行；process exit 0不构成runtime proof。
 
 ## 禁止模式
 

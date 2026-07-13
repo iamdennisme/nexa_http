@@ -367,6 +367,7 @@ output.assets.code.add(
 - Workspace integration的Catalog native-build producer先把同一组target一次构建到共享workspace cache并记录fingerprint；development path、external consumer和carrier hook只能复用这些File，不得通过被hook剥离的环境变量传递prepared目录，也不得二次build同一tuple。
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
 - Android App可能在`flutter run`完成日志附着前输出marker；runtime row必须先对目标device执行`adb logcat -c`，CLI未观测marker时只允许从同一device的本轮`adb logcat -d -v raw`回收，仍要求恰好一条完整marker。
+- Runtime fixture输出成功marker后必须保留短暂异步flush窗口再`exit(0)`；Android Flutter log bridge可能丢弃紧邻process exit的最后一行，exit code本身不能替代marker。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。
 - Target matrix 是 target tuple、build target、source artifact、release file name 和 packaging identity 的单一事实来源。Workflow、shell、Gradle、Podspec、CMake 不得维护一份独立 target/path 表。

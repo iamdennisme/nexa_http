@@ -39,8 +39,12 @@ void main() {
       expect(bodyConsumedAndReleased, greaterThan(requestCompleted));
       expect(clientClosed, greaterThan(bodyConsumedAndReleased));
       expect(source.indexOf(proofMarker), greaterThan(clientClosed));
+      final markerFlushDelay = source.indexOf(
+        'await Future<void>.delayed(const Duration(seconds: 2))',
+      );
+      expect(markerFlushDelay, greaterThan(source.indexOf(proofMarker)));
+      expect(source.indexOf('exit(exitCode)'), greaterThan(markerFlushDelay));
       expect(source, contains("import 'dart:io';"));
-      expect(source, contains('exit(exitCode)'));
     },
   );
 
