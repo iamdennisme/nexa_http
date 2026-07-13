@@ -116,7 +116,7 @@ void main() {
     expect(platform.buildArguments, <String>[
       'build',
       'apk',
-      '--debug',
+      '--release',
       '--target-platform=android-x64',
     ]);
   });
@@ -392,7 +392,7 @@ void main() {
             'install',
             '-t',
             '-r',
-            '/fixture/android/build/app/outputs/flutter-apk/app-debug.apk',
+            '/fixture/android/build/app/outputs/flutter-apk/app-release.apk',
           ],
         ],
         <Object>[

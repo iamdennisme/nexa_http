@@ -113,7 +113,7 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
               'install',
               '-t',
               '-r',
-              _androidDebugApk(fixtureDirectory).path,
+              _androidRuntimeApk(fixtureDirectory).path,
             ],
             workingDirectory: fixtureDirectory.path,
             environment: commandEnvironment,
@@ -513,7 +513,7 @@ Future<Directory> _finalDistributionDirectory(
   String targetOS,
 ) async {
   if (targetOS == 'android') {
-    final apk = _androidDebugApk(fixture);
+    final apk = _androidRuntimeApk(fixture);
     final extracted = Directory(p.join(fixture.path, '.nexa_http_apk_payload'));
     if (extracted.existsSync()) {
       await extracted.delete(recursive: true);
@@ -563,14 +563,14 @@ Future<Directory> _finalDistributionDirectory(
   return root;
 }
 
-File _androidDebugApk(Directory fixtureDirectory) => File(
+File _androidRuntimeApk(Directory fixtureDirectory) => File(
   p.join(
     fixtureDirectory.path,
     'build',
     'app',
     'outputs',
     'flutter-apk',
-    'app-debug.apk',
+    'app-release.apk',
   ),
 );
 
@@ -620,7 +620,7 @@ List<ExternalConsumerPlatform> externalConsumerPlatformsForExecution(
         buildArguments: <String>[
           'build',
           'apk',
-          '--debug',
+          '--release',
           '--target-platform=android-x64',
         ],
       ),
