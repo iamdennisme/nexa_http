@@ -353,6 +353,7 @@ output.assets.code.add(
 - Artifact preparation：`prepareNexaHttpNativeCarrierArtifact({required String packageRoot, required String outputDirectory, required String targetOS, required String targetArchitecture, required String? targetSdk}) -> Future<File>`。
 - Workspace cache：`nexaHttpNativeWorkspaceOutputDirectory(workspaceRoot)`、`nexaHttpNativeWorkspaceArtifactFile(workspaceRoot, target)`和`recordNexaHttpNativeWorkspaceArtifactFingerprint(workspaceRoot, target)`。
 - Candidate hook defines：`candidate_directory`与`candidate_ref`必须成对出现在`hooks.user_defines.<carrier>`；producer必须把absolute directory序列化为`file:` URI，hook通过`input.userDefines.path(...)`解析directory，通过`input.userDefines[...]`读取ref。
+- Consumer build projection：`externalConsumerBuildArguments({required ExternalConsumerPlatform platform, required Uri fixtureUrl}) -> List<String>`，path/candidate consumer与released consumer必须共同调用。
 - Target identity：`NexaHttpNativeTarget(targetOS, targetArchitecture, targetSdk, rustTargetTriple, sourceArtifactFileName, releaseAssetFileName, buildScriptName, integrationExecutionId, runner, nativeAssetName)`。
 - Runtime registration：`registerNexaHttpNativeBindings(NexaHttpNativeBindingsFactory(assetId, create))`；同 ID 幂等，不同 ID 冲突失败，bindings 按 isolate lazy once。
 - Native Asset identity：carrier 生成的 `CodeAsset` 必须使用项目唯一的 native asset name，并直接引用 preparation 返回的 `File`。
@@ -367,7 +368,7 @@ output.assets.code.add(
 - Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android与Windows的Flutter packaging都是byte-for-byte copy，identity必须等于raw digest；Apple framework会被Xcode改install name并重签名，identity固定为按architecture排序的Mach-O `LC_UUID`集合SHA-256。aggregate比较identity digest，两端raw值始终保留用于审计。
 - Workspace integration的Catalog native-build producer先把同一组target一次构建到共享workspace cache并记录fingerprint；development path、external consumer和carrier hook只能复用这些File，不得通过被hook剥离的环境变量传递prepared目录，也不得二次build同一tuple。
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
-- Android clean-host只允许一次`flutter build apk`，并在这次build中注入fixture URL。Runtime row必须复用该APK，按`adb install -t -r`、`adb logcat -c`、`adb shell am start -W`顺序启动；不得再调用`flutter run`触发第二次Gradle assemble/debug attach。启动后只对同device的`flutter:I`日志执行最多60次有界轮询；真实ATD冷启动可能在第30次之后才交付callback，仍要求恰好一条完整marker，不得扫描无关system日志或依赖固定sleep猜测日志已flush；proof判定结束后best-effort force-stop fixture，避免污染同device后续row。
+- Android clean-host只允许一次`flutter build apk`，并在这次build中注入fixture URL。Path/candidate consumer与released consumer必须复用同一个build-argument projection，不能各自拼装define。Runtime row必须复用该APK，按`adb install -t -r`、`adb logcat -c`、`adb shell am start -W`顺序启动；不得再调用`flutter run`触发第二次Gradle assemble/debug attach。启动后只对同device的`flutter:I`日志执行最多60次有界轮询；真实ATD冷启动可能在第30次之后才交付callback，仍要求恰好一条完整marker，不得扫描无关system日志或依赖固定sleep猜测日志已flush；proof判定结束后best-effort force-stop fixture，避免污染同device后续row。
 - Android fixture输出成功marker后不得主动`exit(0)`；由验证端观测marker后结束row。iOS/macOS/Windows可以在短暂flush窗口后退出，但任何平台的process exit code都不能替代marker。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。
@@ -408,7 +409,7 @@ output.assets.code.add(
 - Runtime smoke：clean host 必须实际创建 client、执行 fixture HTTP request、接收 callback 并释放 response body。
 - Workspace reuse test：Catalog producer与两个不同hook output请求返回同一个共享cache File，build invocation保持一次；source或target tuple变化会失效。
 - Hook config test：candidate user-defines的相对目录按workspace pubspec base path解析，absolute POSIX/Windows目录由consumer producer序列化为`file:` URI，directory/ref成对传给preparer；自定义环境变量不参与contract。
-- Android marker test：断言唯一一次Flutter APK build包含fixture define，随后按install、清空logcat、`am start -W`、有界轮询、force-stop执行且不存在`flutter run`；覆盖延迟到达、旧marker、零marker、重复marker和结束后的fixture清理。
+- Android marker test：path/candidate与released consumer都断言唯一一次Flutter APK build包含fixture define，随后按install、清空logcat、`am start -W`、有界轮询、force-stop执行且不存在`flutter run`；覆盖延迟到达、旧marker、零marker、重复marker和结束后的fixture清理。
 - Release gate：Android、iOS、macOS、Windows 全部通过候选 artifact runtime smoke 后才允许公开 release。
 - Legacy absence test：搜索并拒绝旧 resource bundle、固定 loader path、并行 `jniLibs`/CMake copy 和 fallback branch。
 

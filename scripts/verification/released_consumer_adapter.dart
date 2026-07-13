@@ -66,7 +66,10 @@ ReleasedConsumerRunner createReleasedConsumerRunner({
         await runCommand(
           VerificationCommand(
             executable: 'flutter',
-            arguments: platform.buildArguments,
+            arguments: externalConsumerBuildArguments(
+              platform: platform,
+              fixtureUrl: fixtureUrl,
+            ),
             workingDirectory: fixtureDirectory.path,
           ),
         );

@@ -489,11 +489,10 @@ ExternalConsumerRunner createExternalConsumerRunner({
       await runCommand(
         VerificationCommand(
           executable: 'flutter',
-          arguments: <String>[
-            ...platform.buildArguments,
-            if (platform.targetOS == 'android')
-              '--dart-define=NEXA_HTTP_FIXTURE_URL=$fixtureUrl',
-          ],
+          arguments: externalConsumerBuildArguments(
+            platform: platform,
+            fixtureUrl: fixtureUrl,
+          ),
           workingDirectory: fixtureDirectory.path,
           environment: executionEnvironment,
         ),
@@ -677,6 +676,15 @@ List<ExternalConsumerPlatform> externalConsumerPlatformsForExecution(
     ),
   };
 }
+
+List<String> externalConsumerBuildArguments({
+  required ExternalConsumerPlatform platform,
+  required Uri fixtureUrl,
+}) => <String>[
+  ...platform.buildArguments,
+  if (platform.targetOS == 'android')
+    '--dart-define=NEXA_HTTP_FIXTURE_URL=$fixtureUrl',
+];
 
 String buildPathConsumerPubspec(
   String sourceRoot, {
