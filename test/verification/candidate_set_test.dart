@@ -88,6 +88,32 @@ void main() {
     );
   });
 
+  test('rejects directories and symlinks in the flat candidate set', () async {
+    final candidateDirectory = await Directory.systemTemp.createTemp(
+      'nexa_http_candidate_entity_',
+    );
+    addTearDown(() async {
+      if (candidateDirectory.existsSync()) {
+        await candidateDirectory.delete(recursive: true);
+      }
+    });
+    for (final target in nexaHttpSupportedNativeTargets) {
+      await File(
+        '${candidateDirectory.path}/${target.releaseAssetFileName}',
+      ).writeAsString('artifact');
+    }
+    await Directory('${candidateDirectory.path}/nested').create();
+    await Link('${candidateDirectory.path}/linked-asset').create(
+      '${candidateDirectory.path}/'
+      '${nexaHttpSupportedNativeTargets.first.releaseAssetFileName}',
+    );
+
+    expect(
+      () => validateCandidateArtifactCompleteness(candidateDirectory),
+      throwsA(isA<StateError>()),
+    );
+  });
+
   test('rejects a checksum that does not match candidate bytes', () async {
     final candidateDirectory = await Directory.systemTemp.createTemp(
       'nexa_http_candidate_checksum_',
@@ -126,6 +152,42 @@ void main() {
           contains('checksum mismatch'),
         ),
       ),
+    );
+  });
+
+  test('rejects manifest target metadata drift', () async {
+    final candidateDirectory = await Directory.systemTemp.createTemp(
+      'nexa_http_candidate_metadata_',
+    );
+    addTearDown(() async {
+      if (candidateDirectory.existsSync()) {
+        await candidateDirectory.delete(recursive: true);
+      }
+    });
+    for (final target in nexaHttpSupportedNativeTargets) {
+      await File(
+        '${candidateDirectory.path}/${target.releaseAssetFileName}',
+      ).writeAsString('artifact:${target.releaseAssetFileName}');
+    }
+    final bundle = await buildNexaHttpNativeReleaseManifest(
+      distDirectory: candidateDirectory.path,
+    );
+    final manifest = Map<String, Object?>.from(bundle.manifest);
+    final assets = (manifest['assets']! as List<Object?>)
+        .map((asset) => Map<String, Object?>.from(asset! as Map))
+        .toList(growable: false);
+    assets.first['target_os'] = 'windows';
+    manifest['assets'] = assets;
+    await File(
+      '${candidateDirectory.path}/nexa_http_native_assets_manifest.json',
+    ).writeAsString(jsonEncode(manifest));
+    await File(
+      '${candidateDirectory.path}/SHA256SUMS',
+    ).writeAsString('${bundle.sha256Lines.join('\n')}\n');
+
+    await expectLater(
+      verifyCandidateManifestAndChecksums(candidateDirectory),
+      throwsA(isA<StateError>()),
     );
   });
 

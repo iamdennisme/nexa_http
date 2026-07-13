@@ -409,7 +409,7 @@ void main() {
       '--candidate-dir',
       '/candidate',
       '--candidate-id',
-      'candidate-42',
+      'gha:42:314',
       '--candidate-digest',
       digest,
       '--sdk-ref',
@@ -422,10 +422,30 @@ void main() {
 
     expect(input.executionId.value, 'candidate-macos');
     expect(input.candidateDirectory.path, '/candidate');
-    expect(input.candidateId, 'candidate-42');
+    expect(input.candidateId, 'gha:42:314');
     expect(input.expectedDigest, digest);
     expect(input.sdkRef, '20c3786');
     expect(input.deviceId, 'macos-id');
+
+    expect(
+      () => parseCandidateCliInput(<String>[
+        '--execution',
+        'candidate-macos',
+        '--candidate-dir',
+        '/candidate',
+        '--candidate-id',
+        'candidate-42',
+        '--candidate-digest',
+        digest,
+        '--sdk-ref',
+        '20c3786',
+        '--fixture-url',
+        'http://127.0.0.1:8080/healthz',
+        '--device',
+        'macos=macos-id',
+      ]),
+      throwsA(isA<VerificationCliUsageError>()),
+    );
   });
 
   test(
@@ -438,12 +458,13 @@ void main() {
       final reportFile = File('${temp.path}/candidate-macos.json');
       final digest = List<String>.filled(64, 'a').join();
       var setRuns = 0;
+      var identityDigestRuns = 0;
       final consumers = <String>[];
       final commands = <VerificationCommand>[];
       final verified = _verifiedCandidateForExecution(
         const VerificationExecutionId('candidate-macos'),
         candidateDirectory: Directory('/candidate'),
-        candidateId: 'candidate-42',
+        candidateId: 'gha:42:314',
         sdkRef: '20c3786',
         digest: digest,
       );
@@ -458,7 +479,7 @@ void main() {
           '--candidate-dir',
           '/candidate',
           '--candidate-id',
-          'candidate-42',
+          'gha:42:314',
           '--candidate-digest',
           digest,
           '--sdk-ref',
@@ -491,8 +512,10 @@ void main() {
           }
         },
         runtimeProofTracker: runtimeProofTracker,
-        candidateIdentityDigester: (file, {required platform}) async =>
-            verified.artifactDigests[p.basename(file.path)]!,
+        candidateIdentityDigester: (file, {required platform}) async {
+          identityDigestRuns += 1;
+          return verified.artifactDigests[p.basename(file.path)]!;
+        },
         candidateSetLoader: () async {
           setRuns += 1;
           return verified;
@@ -509,6 +532,7 @@ void main() {
 
       expect(exitCode, 0);
       expect(setRuns, 1);
+      expect(identityDigestRuns, 2);
       expect(consumers, <String>['abi']);
       expect(commands, hasLength(4));
       for (final command in commands) {
@@ -573,7 +597,7 @@ void main() {
       final consumers = <String>[];
       final verified = VerifiedCandidateSet(
         candidateDirectory: Directory('/candidate'),
-        candidateId: 'candidate-42',
+        candidateId: 'gha:42:314',
         sdkRef: '20c3786',
         digest: digest,
         artifactDigests: const <String, String>{},
@@ -589,7 +613,7 @@ void main() {
           '--candidate-dir',
           '/candidate',
           '--candidate-id',
-          'candidate-42',
+          'gha:42:314',
           '--candidate-digest',
           digest,
           '--sdk-ref',
@@ -605,10 +629,11 @@ void main() {
         },
         verifyCandidateAbi: (candidate, executionId) async =>
             consumers.add('abi'),
-        verifyCandidateRuntime: (candidate, executionId) async {
-          consumers.add('runtime');
-          return const <VerificationRuntimePayloadProof>[];
-        },
+        verifyCandidateRuntime:
+            (candidate, executionId, preparedArtifactProofs) async {
+              consumers.add('runtime');
+              return const <VerificationRuntimePayloadProof>[];
+            },
         writeStdout: (_) {},
         writeStderr: (_) {},
       );
@@ -700,7 +725,9 @@ Map<String, Object?> _completeNativeReportJson({
         ).join(),
         sourceIdentity: suiteId == VerificationSuiteId.verifyIntegration
             ? 'workspace'
-            : 'candidate:test',
+            : 'candidate:gha:42:314:'
+                  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+                  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       ),
   ];
   final firstPreparedByPlatform = <String, VerificationPreparedArtifactProof>{};

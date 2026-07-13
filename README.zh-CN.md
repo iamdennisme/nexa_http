@@ -149,6 +149,24 @@ fvm dart run scripts/workspace_tools.dart check rust-format --execution static-l
 
 更完整的验证流程在 [`docs/verification-playbook.md`](./docs/verification-playbook.md)。
 
+## Native 发布事务
+
+Native 发布只有一个不可变事务 workflow：
+`.github/workflows/release-native-assets.yml`。Pull Request 会真实执行不可发布的
+rehearsal；手动 dispatch 必须显式提供稳定版本号、完整 40 位 commit SHA 和
+`publish` 布尔值。
+
+Workflow 按 canonical matrix 构建 Android、Apple、Windows 三个 fragment，原地
+assembly 为一个私有 candidate artifact，再让 Android、iOS、macOS、Windows
+四个 blocking clean-host gate 验证同一个 artifact ID 与 digest。只有手动
+dispatch 且 `publish=true` 才能进入 publisher。Publisher 不重新 build、不重命名、
+不复制另一套 candidate，也不重新生成 manifest/checksums；它只重新校验并以原名
+上传同一组 bytes。
+
+仓库没有 tag-push 发布路径、兼容 workflow、fallback publisher 或
+draft/prerelease staging。Rehearsal 或 gate 失败时只保留私有 Actions 诊断，绝不
+创建 public tag 或 GitHub Release。
+
 ## License
 
 [LICENSE](./LICENSE)

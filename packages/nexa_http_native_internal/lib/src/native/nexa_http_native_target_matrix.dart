@@ -251,7 +251,8 @@ Future<NexaHttpNativeReleaseManifestBundle> buildNexaHttpNativeReleaseManifest({
   );
 }
 
-Future<void> writeNexaHttpNativeReleaseManifestBundle({
+Future<NexaHttpNativeReleaseManifestBundle>
+writeNexaHttpNativeReleaseManifestBundle({
   required String distDirectory,
   required String outputPath,
   String? shaOutputPath,
@@ -273,4 +274,5 @@ Future<void> writeNexaHttpNativeReleaseManifestBundle({
     await shaFile.parent.create(recursive: true);
     await shaFile.writeAsString('${bundle.sha256Lines.join('\n')}\n');
   }
+  return bundle;
 }

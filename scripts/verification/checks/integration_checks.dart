@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import '../../native_payload_identity.dart';
 import '../command.dart';
 import '../model.dart';
+import '../native_build_group.dart';
 import '../report.dart';
 import '../target_matrix.dart';
 
@@ -81,29 +82,14 @@ VerificationCheckDefinition nativeBuildCheck(
         final outputDirectory = nexaHttpNativeWorkspaceOutputDirectory(
           absoluteWorkspaceRoot,
         );
-        final buildScriptNames =
-            row.targets.map((target) => target.buildScriptName).toSet().toList()
-              ..sort();
-        final bashExecutable = await resolveBashExecutable();
-        for (final buildScriptName in buildScriptNames) {
-          final targets = row.targets
-              .where((target) => target.buildScriptName == buildScriptName)
-              .map((target) => target.rustTargetTriple)
-              .toList(growable: false);
-          await runCommand(
-            VerificationCommand(
-              executable: bashExecutable,
-              arguments: <String>[
-                p.join(absoluteWorkspaceRoot, 'scripts', buildScriptName),
-                'debug',
-                '--output-dir',
-                outputDirectory,
-                for (final target in targets) ...<String>['--target', target],
-              ],
-              workingDirectory: absoluteWorkspaceRoot,
-            ),
-          );
-        }
+        await runGroupedNativeBuild(
+          workspaceRoot: absoluteWorkspaceRoot,
+          row: row,
+          profile: 'debug',
+          outputDirectory: outputDirectory,
+          runCommand: runCommand,
+          resolveBashExecutable: resolveBashExecutable,
+        );
         for (final target in row.targets) {
           await recordNexaHttpNativeWorkspaceArtifactFingerprint(
             absoluteWorkspaceRoot,

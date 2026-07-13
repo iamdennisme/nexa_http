@@ -151,6 +151,24 @@ suites.
 
 A fuller verification guide is in [`docs/verification-playbook.md`](./docs/verification-playbook.md).
 
+## Native release transaction
+
+Native releases use one immutable transaction workflow:
+`.github/workflows/release-native-assets.yml`. Pull requests run a real,
+non-publishing rehearsal. A manual dispatch requires a stable version, a full
+40-character commit SHA, and an explicit `publish` boolean.
+
+The workflow builds three canonical platform fragments, assembles one private
+candidate artifact, and runs blocking Android, iOS, macOS, and Windows
+clean-host gates over that exact artifact ID and digest. Only a manual dispatch
+with `publish=true` can reach the publisher. The publisher does not rebuild,
+rename, copy, or regenerate candidate files; it revalidates and uploads the
+same bytes under their original names.
+
+There is no tag-push release path, compatibility workflow, fallback publisher,
+or draft/prerelease staging path. A failed rehearsal or gate leaves only
+private Actions diagnostics and creates no public tag or GitHub Release.
+
 ## License
 
 [LICENSE](./LICENSE)

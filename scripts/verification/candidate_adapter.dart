@@ -23,6 +23,7 @@ typedef VerifiedCandidateRuntimeConsumer =
     Future<List<VerificationRuntimePayloadProof>> Function(
       VerifiedCandidateSet candidate,
       VerificationExecutionId executionId,
+      List<VerificationPreparedArtifactProof> preparedArtifactProofs,
     );
 
 typedef CandidateAbiArtifactVerifier =
@@ -82,8 +83,11 @@ Future<VerificationPreparedArtifactProof> _candidatePreparedArtifactProof(
     nativeAssetId: target.nativeAssetId,
     absolutePreparedFile: file.absolute.path,
     sha256: digest,
-    identitySha256: await identityDigest(file, platform: target.targetOS),
-    sourceIdentity: 'candidate:${candidate.candidateId}',
+    identitySha256: switch (target.targetOS) {
+      'android' || 'windows' => digest,
+      _ => await identityDigest(file, platform: target.targetOS),
+    },
+    sourceIdentity: 'candidate:${candidate.candidateId}:${candidate.digest}',
   );
 }
 
@@ -138,12 +142,10 @@ VerifiedCandidateRuntimeConsumer createCandidateRuntimeConsumer({
   required String deviceId,
   required VerificationCommandRunner runCommand,
   required ExternalRuntimeProofMarkerTracker runtimeProofTracker,
-  CandidateNativePayloadIdentityDigester identityDigest =
-      nexaHttpNativePayloadIdentitySha256,
   CandidateBuiltPayloadVerifier verifyBuiltPayload =
       _verifyCandidateBuiltPayload,
 }) {
-  return (candidate, executionId) async {
+  return (candidate, executionId, preparedArtifactProofs) async {
     final targetOS = switch (executionId.value) {
       'candidate-android' => 'android',
       'candidate-ios' => 'ios',
@@ -153,11 +155,6 @@ VerifiedCandidateRuntimeConsumer createCandidateRuntimeConsumer({
         'No candidate runtime platform mapping for execution $executionId',
       ),
     };
-    final preparedArtifactProofs = await createCandidatePreparedArtifactProofs(
-      candidate,
-      executionId,
-      identityDigest: identityDigest,
-    );
     final session = await createExternalConsumerSession(
       workspaceRoot: workspaceRoot,
       fixtureUrl: fixtureUrl,
@@ -206,6 +203,15 @@ final class CandidateVerificationRunners {
   final VerifiedCandidateRuntimeConsumer _verifyRuntime;
   final CandidateNativePayloadIdentityDigester _identityDigest;
   Future<VerifiedCandidateSet>? _verifiedCandidate;
+  final Map<
+    VerificationExecutionId,
+    Future<List<VerificationPreparedArtifactProof>>
+  >
+  _preparedProofs =
+      <
+        VerificationExecutionId,
+        Future<List<VerificationPreparedArtifactProof>>
+      >{};
 
   Future<void> verifySet(VerificationExecutionId executionId) async {
     await _loadOnce();
@@ -218,16 +224,23 @@ final class CandidateVerificationRunners {
   Future<List<VerificationRuntimePayloadProof>> verifyRuntime(
     VerificationExecutionId executionId,
   ) async {
-    return _verifyRuntime(await _loadOnce(), executionId);
+    return _verifyRuntime(
+      await _loadOnce(),
+      executionId,
+      await preparedProofs(executionId),
+    );
   }
 
   Future<List<VerificationPreparedArtifactProof>> preparedProofs(
     VerificationExecutionId executionId,
-  ) async {
-    return createCandidatePreparedArtifactProofs(
-      await _loadOnce(),
+  ) {
+    return _preparedProofs.putIfAbsent(
       executionId,
-      identityDigest: _identityDigest,
+      () async => createCandidatePreparedArtifactProofs(
+        await _loadOnce(),
+        executionId,
+        identityDigest: _identityDigest,
+      ),
     );
   }
 

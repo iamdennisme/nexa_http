@@ -140,7 +140,7 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - `cargo clippy --workspace --all-targets -- -D warnings`
 - `cargo test --workspace`
 - `verify-static --execution static-linux` 必须通过真实Catalog runner。
-- CI contract test断言YAML只调用matrix、完整suite和aggregate，且旧public release workflow不存在。
+- CI contract test断言release workflow只有唯一transaction DAG、动态matrix、单一candidate artifact、四平台完整suite、report aggregate和唯一publisher；旧tag authority必须不存在。
 
 ### 7. Wrong vs Correct
 
@@ -155,4 +155,97 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 
 ```yaml
 - run: dart run scripts/workspace_tools.dart verify-integration --execution "${{ matrix.execution_id }}" ... --report-out "reports/${{ matrix.execution_id }}.json"
+```
+
+## Scenario: Immutable Release Transaction
+
+### 1. Scope / Trigger
+
+- Trigger：修改 `.github/workflows/release-native-assets.yml`、`scripts/release_transaction.dart`、`scripts/release/`、candidate identity、publisher 或 native release 文档。
+
+### 2. Signatures
+
+```text
+release_transaction.dart validate --mode pull-request --workspace-root <dir> --repository <owner/name> --commit-sha <40hex>
+release_transaction.dart validate --mode dispatch --workspace-root <dir> --repository <owner/name> --version <stable-semver> --commit-sha <40hex>
+release_transaction.dart build-fragment --workspace-root <dir> --execution <integration-execution-id> --output-dir <empty-dir>
+release_transaction.dart assemble --candidate-dir <merged-fragment-dir> --version <stable-semver> --repository <owner/name>
+release_transaction.dart verify-publisher --workspace-root <dir> --repository <owner/name> --version <stable-semver> --commit-sha <40hex> --candidate-dir <dir> --candidate-id <gha-id> --candidate-digest <sha256>
+release_transaction.dart publish <verify-publisher全部参数>
+```
+
+Workflow 事件面固定为：
+
+```text
+pull_request
+workflow_dispatch(version, commit_sha, publish)
+```
+
+### 3. Contracts
+
+- `pull_request` 的 version 从六个 package pubspec 的唯一一致值派生，commit 必须精确等于 checkout PR head；它不要求未合并 head 已属于 `origin/main`，并且结构上永远不能运行 publisher。
+- `workflow_dispatch` 的 version 必须是无 `v` 前缀、无前导零、无首尾空白的稳定 semver；commit 必须是无首尾空白的完整 40 位 SHA、精确解析且属于 `origin/main`。`publish=false`仍运行完整candidate与四平台gate。Raw dispatch input必须先映射到step env，再以quoted shell variable传入CLI；禁止把`${{ inputs.* }}`直接插入`run:`脚本。
+- Fragment execution 只接受 canonical integration matrix 的 `android-linux`、`apple-macos`、`windows-x64` 投影。Targets、Rust triples、build scripts、runner 和 filenames 不进入 YAML/CLI 参数。
+- Assembly 直接使用 fragment merge directory 作为最终 candidate directory。精确九个 asset 后只生成一次 manifest 与 `SHA256SUMS`，candidate digest 为排序后的 `<filename>:<file-sha256>\n` 的 SHA-256。
+- Final Actions artifact ID、`candidate_id=gha:<run-id>:<artifact-id>`、candidate digest 和批准 commit 必须原样传到 Android、iOS、macOS、Windows report。Prepared proof source identity 固定为 `candidate:<candidate-id>:<64位小写digest>`，四个 row 的每个 proof 必须完全相同。
+- 全workflow默认`contents: read`；只有`publisher` job拥有`contents: write`，且条件同时满足`workflow_dispatch`、`publish=true`、aggregate success。
+- Publisher只下载精确final artifact一次，重新验证version/commit/main membership/tag/release absence/candidate/manifest URL/checksum/文件覆盖，随后原名上传11个文件并核对GitHub asset API的`sha256:` digest。它必须用candidate ID/digest marker显式创建annotated tag ref与Release，分别记录ownership；失败时只清理本事务确认为owned的状态，cleanup失败不得吞掉。不得build、rename、copy第二套candidate或重新生成metadata。
+- 未声明CLI option直接usage error。禁止legacy/fallback/compatibility option、tag-triggered workflow、第二publisher、deprecated alias、forwarder和双轨中间态；release架构切换只能一次完成，rollback只能整体revert。
+- 性能边界：每个build-script group每事务只执行一次；assembly不创建第二candidate tree；gate/publisher不native build；九个native asset digest复用verified candidate结果，publisher只额外读取两个小型metadata文件。
+
+### 4. Validation & Error Matrix
+
+- version带`v`、prerelease、缩写、数字前导零或首尾空白，或SHA非40位/含首尾空白 -> input parse失败。
+- 六包version不一致、commit解析漂移、dispatch commit不属于main -> transaction preflight失败。
+- tag或Release已存在 -> build/publish前失败；不得覆盖或复用旧public state。
+- fragment output非空、缺文件、含unknown file或跨execution asset -> fragment失败。
+- candidate缺/多asset、metadata已存在、manifest/checksum/bytes不一致或candidate digest漂移 -> assembly/gate/publisher失败。
+- release-candidate source identity使用旧`candidate:<id>`、缺ID、digest非64位小写hex，或任一proof identity不同 -> aggregate失败；integration的`workspace` identity不受此格式约束。
+- 任一平台report缺失、空文件、failed、lifecycle不完整或runtime/prepared identity不匹配 -> aggregate失败，publisher skipped。
+- GitHub远端asset name/digest集合与本地11文件不完全一致 -> publish失败，并删除本事务ownership已确认的Release与tag；任一cleanup失败必须在最终错误中报告。
+- gate失败或`publish=false` -> 不创建tag、draft、prerelease或Release，只保留私有diagnostic artifacts。
+
+### 5. Good/Base/Bad Cases
+
+- Good：PR head构建三个fragment，原地assembly一个artifact，四平台按同一artifact ID/digest运行完整suite，aggregate通过，publisher skipped。
+- Base：owner手动dispatch `publish=false`做完整release rehearsal，验证远端tag/release集合没有变化。
+- Bad：tag push先创建public tag、publisher重新Cargo build、gate各自assembly、YAML手写target/filename，或保留旧release script作为备用入口。
+
+### 6. Tests Required
+
+- `fvm dart test test/release_transaction_test.dart test/release_transaction_cli_test.dart test/release_publication_gateway_test.dart`
+- `fvm dart test test/verification/candidate_adapter_test.dart test/verification/report_test.dart test/verification/ci_workflow_test.dart`
+- `actionlint .github/workflows/release-native-assets.yml`
+- Workflow contract必须检查精确job set/needs DAG、唯一`contents: write`、动态matrix、artifact ID flow、完整gate参数、report aggregate、publisher no-build/no-copy/no-regeneration和旧authority absence。
+- PR rehearsal必须记录run ID，并证明四平台row、aggregate成功、publisher skipped、远端tag/Release/draft/prerelease集合无新增。
+- Failure drill使用不可发布的无效input或`publish=false`路径，必须证明没有新增public state。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```yaml
+on:
+  push:
+    tags: ['v*']
+steps:
+  - run: cargo build --release
+  - run: gh release create "$TAG" dist/*
+```
+
+#### Correct
+
+```yaml
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version: {required: true, type: string}
+      commit_sha: {required: true, type: string}
+      publish: {required: true, type: boolean}
+
+publisher:
+  if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == true && needs.aggregate-candidate.result == 'success' }}
+  permissions:
+    contents: write
 ```

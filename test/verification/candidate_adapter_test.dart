@@ -15,13 +15,24 @@ void main() {
   test('candidate ABI and runtime share one verified candidate set', () async {
     var verificationRuns = 0;
     final consumers = <String>[];
+    final macosTargets = nexaHttpSupportedNativeTargets
+        .where((target) => target.targetOS == 'macos')
+        .toList(growable: false);
+    final digest = List<String>.filled(64, 'a').join();
     final verified = VerifiedCandidateSet(
       candidateDirectory: Directory('/candidate'),
       candidateId: 'candidate-42',
       sdkRef: '20c3786',
-      digest: List<String>.filled(64, 'a').join(),
-      artifactDigests: const <String, String>{},
-      artifactFiles: <String, File>{},
+      digest: digest,
+      artifactDigests: <String, String>{
+        for (final target in macosTargets) target.releaseAssetFileName: digest,
+      },
+      artifactFiles: <String, File>{
+        for (final target in macosTargets)
+          target.releaseAssetFileName: File(
+            '/candidate/${target.releaseAssetFileName}',
+          ),
+      },
     );
     final runners = CandidateVerificationRunners(
       verifySet: () async {
@@ -29,10 +40,11 @@ void main() {
         return verified;
       },
       verifyAbi: (candidate, executionId) async => consumers.add('abi'),
-      verifyRuntime: (candidate, executionId) async {
+      verifyRuntime: (candidate, executionId, preparedArtifactProofs) async {
         consumers.add('runtime');
         return const <VerificationRuntimePayloadProof>[];
       },
+      identityDigest: (file, {required platform}) async => digest,
     );
     const executionId = VerificationExecutionId('candidate-macos');
 
@@ -48,13 +60,25 @@ void main() {
     'candidate runners expose runtime proof without reloading the set',
     () async {
       var verificationRuns = 0;
+      final macosTargets = nexaHttpSupportedNativeTargets
+          .where((target) => target.targetOS == 'macos')
+          .toList(growable: false);
+      final digest = List<String>.filled(64, 'a').join();
       final verified = VerifiedCandidateSet(
         candidateDirectory: Directory('/candidate'),
         candidateId: 'candidate-42',
         sdkRef: '20c3786',
-        digest: List<String>.filled(64, 'a').join(),
-        artifactDigests: const <String, String>{},
-        artifactFiles: <String, File>{},
+        digest: digest,
+        artifactDigests: <String, String>{
+          for (final target in macosTargets)
+            target.releaseAssetFileName: digest,
+        },
+        artifactFiles: <String, File>{
+          for (final target in macosTargets)
+            target.releaseAssetFileName: File(
+              '/candidate/${target.releaseAssetFileName}',
+            ),
+        },
       );
       final proof = VerificationRuntimePayloadProof(
         target: VerificationNativeTargetTuple(
@@ -89,10 +113,11 @@ void main() {
         verifyAbi: (candidate, executionId) async {
           receivedCandidates.add(candidate);
         },
-        verifyRuntime: (candidate, executionId) async {
+        verifyRuntime: (candidate, executionId, preparedArtifactProofs) async {
           receivedCandidates.add(candidate);
           return <VerificationRuntimePayloadProof>[proof];
         },
+        identityDigest: (file, {required platform}) async => digest,
       );
       const executionId = VerificationExecutionId('candidate-macos');
 
@@ -210,10 +235,48 @@ void main() {
           proof.absolutePreparedFile,
           files[target.releaseAssetFileName]!.absolute.path,
         );
-        expect(proof.sourceIdentity, 'candidate:candidate-42');
+        expect(
+          proof.sourceIdentity,
+          'candidate:candidate-42:'
+          'dddddddddddddddddddddddddddddddd'
+          'dddddddddddddddddddddddddddddddd',
+        );
       }
     },
   );
+
+  test('Android prepared proofs reuse the verified artifact digest', () async {
+    final androidTargets = nexaHttpSupportedNativeTargets
+        .where((target) => target.targetOS == 'android')
+        .toList(growable: false);
+    final digest = List<String>.filled(64, 'a').join();
+    final candidate = VerifiedCandidateSet(
+      candidateDirectory: Directory('/candidate'),
+      candidateId: 'gha:42:314',
+      sdkRef: '20c3786',
+      digest: List<String>.filled(64, 'd').join(),
+      artifactDigests: <String, String>{
+        for (final target in androidTargets)
+          target.releaseAssetFileName: digest,
+      },
+      artifactFiles: <String, File>{
+        for (final target in androidTargets)
+          target.releaseAssetFileName: File(
+            '/candidate/${target.releaseAssetFileName}',
+          ),
+      },
+    );
+
+    final proofs = await createCandidatePreparedArtifactProofs(
+      candidate,
+      const VerificationExecutionId('candidate-android'),
+      identityDigest: (file, {required platform}) =>
+          throw StateError('Android must not rehash candidate assets'),
+    );
+
+    expect(proofs, hasLength(3));
+    expect(proofs.map((proof) => proof.identitySha256), everyElement(digest));
+  });
 
   test('verified candidate retains its original directory handle', () {
     final candidateDirectory = Directory('/staged/candidate');
@@ -280,15 +343,22 @@ void main() {
           }
         },
         runtimeProofTracker: runtimeProofTracker,
-        identityDigest: (file, {required platform}) async =>
-            candidate.artifactDigests[p.basename(file.path)]!,
         verifyBuiltPayload: (_, _, _) async =>
             const <VerificationRuntimePayloadProof>[],
       );
 
+      final preparedArtifactProofs =
+          await createCandidatePreparedArtifactProofs(
+            candidate,
+            const VerificationExecutionId('candidate-macos'),
+            identityDigest: (file, {required platform}) async =>
+                candidate.artifactDigests[p.basename(file.path)]!,
+          );
+
       await consumer(
         candidate,
         const VerificationExecutionId('candidate-macos'),
+        preparedArtifactProofs,
       );
 
       expect(commands, hasLength(4));
@@ -377,17 +447,24 @@ void main() {
           }
         },
         runtimeProofTracker: runtimeProofTracker,
-        identityDigest: (file, {required platform}) async =>
-            candidate.artifactDigests[p.basename(file.path)]!,
         verifyBuiltPayload: (executionId, session, preparedProofs) async {
           receivedPreparedProofs = preparedProofs;
           return returnedRuntimeProofs;
         },
       );
 
+      final preparedArtifactProofs =
+          await createCandidatePreparedArtifactProofs(
+            candidate,
+            const VerificationExecutionId('candidate-macos'),
+            identityDigest: (file, {required platform}) async =>
+                candidate.artifactDigests[p.basename(file.path)]!,
+          );
+
       final actual = await consumer(
         candidate,
         const VerificationExecutionId('candidate-macos'),
+        preparedArtifactProofs,
       );
 
       expect(actual, same(returnedRuntimeProofs));
@@ -398,7 +475,11 @@ void main() {
       ]);
       expect(
         receivedPreparedProofs!.map((proof) => proof.sourceIdentity).toSet(),
-        <String>{'candidate:candidate-42'},
+        <String>{
+          'candidate:candidate-42:'
+              'dddddddddddddddddddddddddddddddd'
+              'dddddddddddddddddddddddddddddddd',
+        },
       );
     },
   );

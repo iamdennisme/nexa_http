@@ -179,6 +179,106 @@ void main() {
     }
   });
 
+  test('release candidate aggregate rejects candidate identity drift', () {
+    final reports = _completeNativeProofReports(
+      VerificationSuiteId.verifyReleaseCandidate,
+    );
+    final windows = reports.singleWhere(
+      (report) => report.executionId.value == 'candidate-windows',
+    );
+    final original = windows.preparedArtifactProofs.single;
+    _replaceReport(
+      reports,
+      windows,
+      preparedArtifactProofs: <VerificationPreparedArtifactProof>[
+        VerificationPreparedArtifactProof(
+          target: original.target,
+          nativeAssetId: original.nativeAssetId,
+          absolutePreparedFile: original.absolutePreparedFile,
+          sha256: original.sha256,
+          identitySha256: original.identitySha256,
+          sourceIdentity:
+              'candidate:gha:42:314:'
+              'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+              'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        ),
+      ],
+    );
+
+    expect(
+      () => _verifyNativeProofAggregate(
+        VerificationSuiteId.verifyReleaseCandidate,
+        reports,
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test('release candidate aggregate rejects the removed legacy identity', () {
+    final reports = _completeNativeProofReports(
+      VerificationSuiteId.verifyReleaseCandidate,
+    );
+    for (final report in reports.toList(growable: false)) {
+      _replaceReport(
+        reports,
+        report,
+        preparedArtifactProofs: <VerificationPreparedArtifactProof>[
+          for (final original in report.preparedArtifactProofs)
+            VerificationPreparedArtifactProof(
+              target: original.target,
+              nativeAssetId: original.nativeAssetId,
+              absolutePreparedFile: original.absolutePreparedFile,
+              sha256: original.sha256,
+              identitySha256: original.identitySha256,
+              sourceIdentity: 'candidate:candidate-42',
+            ),
+        ],
+      );
+    }
+
+    expect(
+      () => _verifyNativeProofAggregate(
+        VerificationSuiteId.verifyReleaseCandidate,
+        reports,
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test('release candidate aggregate rejects non-GHA candidate identity', () {
+    final reports = _completeNativeProofReports(
+      VerificationSuiteId.verifyReleaseCandidate,
+    );
+    for (final report in reports.toList(growable: false)) {
+      _replaceReport(
+        reports,
+        report,
+        preparedArtifactProofs: <VerificationPreparedArtifactProof>[
+          for (final original in report.preparedArtifactProofs)
+            VerificationPreparedArtifactProof(
+              target: original.target,
+              nativeAssetId: original.nativeAssetId,
+              absolutePreparedFile: original.absolutePreparedFile,
+              sha256: original.sha256,
+              identitySha256: original.identitySha256,
+              sourceIdentity:
+                  'candidate:local-build:'
+                  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+                  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            ),
+        ],
+      );
+    }
+
+    expect(
+      () => _verifyNativeProofAggregate(
+        VerificationSuiteId.verifyReleaseCandidate,
+        reports,
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
   test('aggregate rejects native proofs in a static report', () {
     final nativeReport = _completeNativeProofReports(
       VerificationSuiteId.verifyIntegration,
@@ -492,7 +592,12 @@ List<VerificationCoverageReport> _completeNativeProofReports(
               identitySha256: _digestForTarget(
                 row.targets[index].rustTargetTriple,
               ),
-              sourceIdentity: 'workspace',
+              sourceIdentity:
+                  suiteId == VerificationSuiteId.verifyReleaseCandidate
+                  ? 'candidate:gha:42:314:'
+                        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+                        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+                  : 'workspace',
             ),
         ],
         runtimePayloadProofs: <VerificationRuntimePayloadProof>[

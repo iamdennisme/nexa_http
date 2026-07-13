@@ -251,6 +251,12 @@ VerificationCandidateCliInput parseCandidateCliInput(List<String> arguments) {
       'Candidate digest must be a SHA-256 value',
     );
   }
+  final candidateId = values['--candidate-id']!;
+  if (!RegExp(r'^gha:[1-9][0-9]*:[1-9][0-9]*$').hasMatch(candidateId)) {
+    throw const VerificationCliUsageError(
+      'Candidate ID must use gha:<run-id>:<artifact-id>',
+    );
+  }
   final fixtureUrl = Uri.tryParse(values['--fixture-url']!);
   if (fixtureUrl == null ||
       (fixtureUrl.scheme != 'http' && fixtureUrl.scheme != 'https')) {
@@ -261,7 +267,7 @@ VerificationCandidateCliInput parseCandidateCliInput(List<String> arguments) {
   return VerificationCandidateCliInput(
     executionId: executionId,
     candidateDirectory: Directory(values['--candidate-dir']!),
-    candidateId: values['--candidate-id']!,
+    candidateId: candidateId,
     expectedDigest: expectedDigest,
     sdkRef: values['--sdk-ref']!,
     fixtureUrl: fixtureUrl,
@@ -505,9 +511,6 @@ Future<int> runVerificationCli(
               runtimeProofTracker: resolvedRuntimeProofTracker,
               verifyBuiltPayload:
                   verifyCandidateBuiltPayload ?? _verifyBuiltCandidatePayload,
-              identityDigest:
-                  candidateIdentityDigester ??
-                  nexaHttpNativePayloadIdentitySha256,
             ),
         identityDigest:
             candidateIdentityDigester ?? nexaHttpNativePayloadIdentitySha256,
@@ -783,9 +786,6 @@ Future<int> runVerificationCli(
             runtimeProofTracker: resolvedRuntimeProofTracker,
             verifyBuiltPayload:
                 verifyCandidateBuiltPayload ?? _verifyBuiltCandidatePayload,
-            identityDigest:
-                candidateIdentityDigester ??
-                nexaHttpNativePayloadIdentitySha256,
           ),
       identityDigest:
           candidateIdentityDigester ?? nexaHttpNativePayloadIdentitySha256,

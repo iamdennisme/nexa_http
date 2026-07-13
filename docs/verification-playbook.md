@@ -104,6 +104,39 @@ fvm dart run scripts/workspace_tools.dart check released-consumer \
   --device windows=windows
 ```
 
-There is intentionally no public release workflow until the immutable release
-transaction is installed. Do not create a tag, draft release, prerelease, or
-GitHub Release as a substitute.
+## Immutable release transaction
+
+`.github/workflows/release-native-assets.yml` is the only native release
+authority. It has two entry modes:
+
+- `pull_request`: derives version from the six package pubspecs, fixes commit
+  identity to the PR head, runs the complete candidate transaction, and can
+  never run the publisher.
+- `workflow_dispatch`: requires `version`, a full 40-character `commit_sha`,
+  and `publish`. `publish=false` runs the complete rehearsal. `publish=true`
+  is the only publication authorization and is used only after release
+  readiness approval.
+
+The workflow projects both fragment and candidate matrices from the Catalog.
+Android, Apple, and Windows produce release-profile fragments once. The
+assembly job downloads those fragments directly into the final candidate
+directory, checks the exact nine canonical assets, generates the manifest and
+`SHA256SUMS` once, and uploads one immutable Actions artifact.
+
+Each platform gate downloads that artifact by exact artifact ID and reports
+the same identity:
+
+```text
+candidate:gha:<run-id>:<artifact-id>:<candidate-sha256>
+```
+
+The aggregate job rejects missing platform rows, incomplete runtime lifecycle
+proof, or any candidate identity drift. The publisher downloads the same
+artifact once, revalidates package version, commit, remote tag/release absence,
+manifest URLs, checksums, file coverage, and candidate digest, then uploads the
+original files. It performs no build, rename, copy, or metadata regeneration.
+
+Do not create a tag, draft release, prerelease, alternate workflow, or release
+script as a substitute. A failed transaction leaves only private Actions
+artifacts. If publication fails after this transaction creates public state,
+the publisher removes only that transaction's Release and tag.

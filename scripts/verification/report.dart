@@ -431,6 +431,7 @@ void _verifyAggregateNativeProofCoverage({
   }
   final aggregatePreparedTargets = <String>{};
   final aggregateRuntimePlatforms = <String>{};
+  String? releaseCandidateSourceIdentity;
   for (final row in rows) {
     final report = reportsByExecution[row.executionId];
     if (report == null) {
@@ -460,6 +461,25 @@ void _verifyAggregateNativeProofCoverage({
           'Prepared proof Native Asset ID mismatch for $key: '
           'expected=${target.nativeAssetId} actual=${proof.nativeAssetId}',
         );
+      }
+      if (suiteId == VerificationSuiteId.verifyReleaseCandidate) {
+        if (!RegExp(
+          r'^candidate:gha:[1-9][0-9]*:[1-9][0-9]*:[0-9a-f]{64}$',
+        ).hasMatch(proof.sourceIdentity)) {
+          throw StateError(
+            'Invalid release candidate source identity for '
+            '${row.executionId}: ${proof.sourceIdentity}',
+          );
+        }
+        final expectedSourceIdentity = releaseCandidateSourceIdentity;
+        if (expectedSourceIdentity == null) {
+          releaseCandidateSourceIdentity = proof.sourceIdentity;
+        } else if (proof.sourceIdentity != expectedSourceIdentity) {
+          throw StateError(
+            'Release candidate source identity mismatch: '
+            'expected=$expectedSourceIdentity actual=${proof.sourceIdentity}',
+          );
+        }
       }
       if (preparedByTarget.containsKey(key)) {
         throw StateError(

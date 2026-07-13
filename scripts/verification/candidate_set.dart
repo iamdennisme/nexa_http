@@ -43,15 +43,7 @@ Future<VerifiedCandidateSet> verifyCandidateSet(
     candidateDirectory,
     digestCache: digestCache,
   );
-  final entries = artifactDigests.entries.toList()
-    ..sort((left, right) => left.key.compareTo(right.key));
-  final actualDigest = sha256
-      .convert(
-        utf8.encode(
-          entries.map((entry) => '${entry.key}:${entry.value}\n').join(),
-        ),
-      )
-      .toString();
+  final actualDigest = candidateSetDigestFromArtifactDigests(artifactDigests);
   if (actualDigest != normalizedExpectedDigest) {
     throw StateError(
       'candidate-set digest mismatch: '
@@ -75,6 +67,18 @@ Future<VerifiedCandidateSet> verifyCandidateSet(
   );
 }
 
+String candidateSetDigestFromArtifactDigests(Map<String, String> digests) {
+  final entries = digests.entries.toList()
+    ..sort((left, right) => left.key.compareTo(right.key));
+  return sha256
+      .convert(
+        utf8.encode(
+          entries.map((entry) => '${entry.key}:${entry.value}\n').join(),
+        ),
+      )
+      .toString();
+}
+
 Future<Map<String, String>> verifyCandidateManifestAndChecksums(
   Directory candidateDirectory, {
   CandidateDigestCache? digestCache,
@@ -91,9 +95,15 @@ Future<Map<String, String>> verifyCandidateManifestAndChecksums(
   }
 
   final manifest = jsonDecode(await manifestFile.readAsString());
-  if (manifest is! Map<String, Object?> || manifest['assets'] is! List) {
+  if (manifest is! Map<String, Object?> ||
+      manifest['package'] != 'nexa_http' ||
+      manifest['assets'] is! List) {
     throw StateError('Invalid candidate manifest structure');
   }
+  final descriptorsByFileName = <String, NexaHttpNativeReleaseAssetDescriptor>{
+    for (final descriptor in nexaHttpNativeReleaseAssetDescriptors)
+      descriptor.fileName: descriptor,
+  };
   final manifestDigests = <String, String>{};
   for (final rawAsset in manifest['assets']! as List<Object?>) {
     if (rawAsset is! Map) {
@@ -103,6 +113,15 @@ Future<Map<String, String>> verifyCandidateManifestAndChecksums(
     final digest = rawAsset['sha256'];
     if (fileName is! String || digest is! String) {
       throw StateError('Candidate manifest asset is missing file_name/sha256');
+    }
+    final descriptor = descriptorsByFileName[fileName];
+    if (descriptor == null ||
+        rawAsset['target_os'] != descriptor.targetOS ||
+        rawAsset['target_architecture'] != descriptor.targetArchitecture ||
+        rawAsset['target_sdk'] != descriptor.targetSdk ||
+        rawAsset['source_url'] is! String ||
+        (rawAsset['source_url']! as String).trim().isEmpty) {
+      throw StateError('Candidate manifest target metadata mismatch: $fileName');
     }
     if (manifestDigests.containsKey(fileName)) {
       throw StateError('Duplicate candidate manifest asset: $fileName');
@@ -160,7 +179,8 @@ List<File> validateCandidateArtifactCompleteness(Directory candidateDirectory) {
     final file = File(
       p.join(candidateDirectory.path, target.releaseAssetFileName),
     );
-    if (!file.existsSync()) {
+    if (FileSystemEntity.typeSync(file.path, followLinks: false) !=
+        FileSystemEntityType.file) {
       missing.add(target.releaseAssetFileName);
     } else {
       artifacts.add(file);
@@ -176,16 +196,20 @@ List<File> validateCandidateArtifactCompleteness(Directory candidateDirectory) {
     'nexa_http_native_assets_manifest.json',
     'SHA256SUMS',
   };
-  final unknown =
+  final invalid =
       candidateDirectory
           .listSync(followLinks: false)
-          .whereType<File>()
-          .map((file) => p.basename(file.path))
-          .where((fileName) => !allowedFileNames.contains(fileName))
+          .where((entity) {
+            final fileName = p.basename(entity.path);
+            return !allowedFileNames.contains(fileName) ||
+                FileSystemEntity.typeSync(entity.path, followLinks: false) !=
+                    FileSystemEntityType.file;
+          })
+          .map((entity) => p.basename(entity.path))
           .toList()
         ..sort();
-  if (unknown.isNotEmpty) {
-    throw StateError('Candidate contains unknown artifacts: $unknown');
+  if (invalid.isNotEmpty) {
+    throw StateError('Candidate contains invalid artifacts: $invalid');
   }
   return List<File>.unmodifiable(artifacts);
 }
