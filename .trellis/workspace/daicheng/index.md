@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 10
-- **Last Active**: 2026-07-11
+- **Total Sessions**: 11
+- **Last Active**: 2026-07-13
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~360 | Active |
+| `journal-1.md` | ~405 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-07-13 | Complete four-platform Native Assets clean cutover | `3226231`, `30695f3`, `1d43a11`, `269488a`, `ff3a6f6`, `0bb094b`, `3f1e85a`, `00e2563`, `591ea19`, `8917d64`, `d639858`, `55dee2d` | `main` |
 | 10 | 2026-07-11 | V2 public HTTP API clean cutover | `20c3786` | `main` |
 | 9 | 2026-07-10 | Centralize platform FFI exports | `83e6fd4` | `main` |
 | 8 | 2026-07-10 | Deepen Apple proxy settings parser | `28bf630`, `01ab31d` | `main` |
