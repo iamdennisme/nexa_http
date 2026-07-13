@@ -166,6 +166,7 @@ Release transaction 必须由明确 version 和 commit SHA 启动，不得由 pu
 - `rustup target add` 必须有有界超时；当前脚本使用 `run_with_timeout 600`。
 - build hook 不得要求宿主 App 在 Xcode、Podfile、Gradle 或 shell profile 中手工设置 SDK path、Rust target 或 C compiler。
 - workspace hook 与 Catalog producer必须共享 `nexaHttpNativeWorkspaceOutputDirectory(workspaceRoot)`，并以source fingerprint + target-scoped file lock做fast path；同tuple并发只build一次，native/Cargo/build-script/target tuple变化后必须失效，不能用“文件已存在”盲目跳过。
+- Android CI必须在emulator启动前通过Catalog `native-build`预热同一workspace fingerprint cache，并使用轻量`aosp_atd` image；完整integration suite启动后只允许fingerprint fast path，不得因预热而重复Cargo build或复制prepared artifact。
 - source fingerprint只遍历源码与构建输入，必须剪枝native crate下的`target/`、`build/`和`.dart_tool/`生成树；不得重复哈希数GB编译产物，也不得让output bytes反向改变source fingerprint。
 - Dart build hook运行在半密闭环境中，除toolchain/proxy等allowlist变量外会剥离自定义环境变量。Artifact source选择不得依赖`NEXA_HTTP_*`环境变量；candidate directory/ref必须通过workspace root `pubspec.yaml`的`hooks.user_defines.<carrier>`进入`BuildInput.userDefines`。
 

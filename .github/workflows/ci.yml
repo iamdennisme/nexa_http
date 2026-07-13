@@ -77,7 +77,13 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
+          target: aosp_atd
           arch: x86_64
+          pre-emulator-launch-script: >-
+            dart run scripts/workspace_tools.dart check native-build
+            --execution android-linux
+            --fixture-url http://10.0.2.2:8080/healthz
+            --device android=emulator-5554
           script: >-
             bash scripts/wait_android_package_service.sh &&
             dart run scripts/workspace_tools.dart verify-integration

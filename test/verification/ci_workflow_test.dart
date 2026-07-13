@@ -13,6 +13,12 @@ void main() {
     expect(workflow, contains('verify-static --aggregate-reports'));
     expect(workflow, contains('verify-integration --aggregate-reports'));
     expect(workflow, contains('scripts/wait_android_package_service.sh'));
+    expect(workflow, contains('target: aosp_atd'));
+    expect(workflow, contains('pre-emulator-launch-script:'));
+    expect(
+      workflow,
+      matches(RegExp(r'check native-build\s+--execution android-linux')),
+    );
     expect(workflow, isNot(contains('dart test')));
     expect(workflow, isNot(contains('cargo test')));
     expect(workflow, isNot(contains('build_native_')));

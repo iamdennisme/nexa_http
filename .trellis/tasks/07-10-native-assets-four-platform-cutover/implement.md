@@ -135,3 +135,4 @@ fvm dart run scripts/workspace_tools.dart matrix --suite verify-release-candidat
 - 失败原因：第一次修复只扩大了producer退出前的flush窗口，没有建立consumer acknowledgment；API 35 runner高CPU与system ANR时固定窗口仍会失效。
 - 防复发机制：Android成功fixture不主动退出；runner使用non-resident启动和filtered logcat最多30秒有界轮询，先观测唯一完整marker再结束并清理fixture；回归测试覆盖延迟到达、零marker和重复marker。
 - 系统性结论：异步proof传递不得用固定sleep代替acknowledgment；退出码、App启动和DDS连接均不能替代业务lifecycle marker。
+- CI性能结论：Android三target Cargo build不得与高负载emulator竞争CPU。Actions使用`aosp_atd`，并在`pre-emulator-launch-script`通过Catalog预热共享fingerprint cache；正式suite仍是唯一gate且不得重复native build/copy。
