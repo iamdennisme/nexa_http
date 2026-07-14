@@ -462,9 +462,10 @@ ExternalConsumerRunner createExternalConsumerRunner({
           environment: executionEnvironment,
         ),
       );
-      if (platform.targetOS == 'macos') {
-        await enableMacosNetworkClientEntitlement(fixtureDirectory);
-      }
+      await configureExternalConsumerFixture(
+        fixtureDirectory,
+        targetOS: platform.targetOS,
+      );
       await File(p.join(fixtureDirectory.path, 'pubspec.yaml')).writeAsString(
         buildPathConsumerPubspec(
           sourceRoot.path,
@@ -769,6 +770,67 @@ Future<void> enableMacosNetworkClientEntitlement(
       ),
     );
   }
+}
+
+Future<void> configureExternalConsumerFixture(
+  Directory fixtureDirectory, {
+  required String targetOS,
+}) async {
+  switch (targetOS) {
+    case 'android':
+      await enableAndroidReleaseInternetPermission(fixtureDirectory);
+    case 'macos':
+      await enableMacosNetworkClientEntitlement(fixtureDirectory);
+    case 'ios':
+    case 'windows':
+      return;
+    default:
+      throw StateError('Unsupported external consumer platform: $targetOS');
+  }
+}
+
+Future<void> enableAndroidReleaseInternetPermission(
+  Directory fixtureDirectory,
+) async {
+  final manifest = File(
+    p.join(
+      fixtureDirectory.path,
+      'android',
+      'app',
+      'src',
+      'main',
+      'AndroidManifest.xml',
+    ),
+  );
+  if (!manifest.existsSync()) {
+    throw StateError('Android main manifest does not exist: ${manifest.path}');
+  }
+  final contents = await manifest.readAsString();
+  final internetPermissions = RegExp(
+    r'<uses-permission\b[^>]*\bandroid:name\s*=\s*'
+    r'''(["'])android\.permission\.INTERNET\1[^>]*/?>''',
+  ).allMatches(contents).length;
+  if (internetPermissions == 1) {
+    return;
+  }
+  if (internetPermissions > 1) {
+    throw StateError(
+      'Android main manifest contains duplicate INTERNET permissions: '
+      '${manifest.path}',
+    );
+  }
+  final manifestElement = RegExp(r'<manifest\b[^>]*>').firstMatch(contents);
+  if (manifestElement == null) {
+    throw StateError('Invalid Android main manifest: ${manifest.path}');
+  }
+  await manifest.writeAsString(
+    contents.replaceRange(
+      manifestElement.end,
+      manifestElement.end,
+      '\n    <uses-permission '
+      'android:name="android.permission.INTERNET"/>',
+    ),
+  );
 }
 
 String buildExternalConsumerRuntimeMain() {

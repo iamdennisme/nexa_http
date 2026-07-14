@@ -11,7 +11,7 @@
 - `getprop` 只在 `#[cfg(target_os = "android")]` 代码中执行，非 Android 单元测试不得尝试运行系统命令。
 - Actions emulator row必须在suite前调用`scripts/wait_android_package_service.sh`并等待`adb shell service check package`成功；`sys.boot_completed=1`不是可安装APK的充分条件。
 - Actions使用`aosp_atd` image，并在emulator启动前通过Catalog `check native-build`预热共享workspace fingerprint cache；完整suite必须复用同一File，不能第二次Cargo build或复制prepared set。
-- Android runtime marker采集必须复用唯一一次`flutter build apk --release`的`app-release.apk`：build阶段注入fixture URL，runtime按`adb install -t -r`、清空logcat、`adb shell am start -W`启动，不得调用`flutter run`、二次Gradle assemble或直接启动debug APK。随后只对同device本轮`flutter:I`日志做最多60次有界轮询；Actions已观测到真实ATD callback在第30次之后到达，仍要求唯一完整marker，超出上限直接失败，proof判定后best-effort force-stop fixture。
+- Android runtime marker采集必须复用唯一一次`flutter build apk --release`的`app-release.apk`：path/candidate与released fixture在build前通过同一个配置器让`android/app/src/main/AndroidManifest.xml`包含恰好一条`android.permission.INTERNET`，build阶段注入fixture URL，runtime按`adb install -t -r`、清空logcat、`adb shell am start -W`启动，不得依赖只存在于debug/profile manifest的权限，不得调用`flutter run`、二次Gradle assemble或直接启动debug APK。随后只对同device本轮`flutter:I`日志做最多60次有界轮询；Actions已观测到真实ATD callback在第30次之后到达，仍要求唯一完整marker，超出上限直接失败，proof判定后best-effort force-stop fixture。
 - Fixture打印marker后不得主动退出或依赖固定flush sleep；验证端观测marker后才结束row。process exit 0不构成runtime proof。
 
 ## 禁止模式
@@ -21,6 +21,7 @@
 - 不要新增平台专属 request/response 行为；HTTP 行为属于 shared core。
 - 不要在测试中 shell 出真实 `getprop`；测试应通过 `current_proxy_settings_for_test()` 注入字段。
 - 不要把 Android proxy refresh 改成无界忙轮询；间隔必须有明确常量和测试约束。
+- 不要通过改回debug APK获得模板默认网络权限；release fixture必须显式配置main manifest，且两个consumer不得各自复制一份manifest修改逻辑。
 
 ## 检查
 

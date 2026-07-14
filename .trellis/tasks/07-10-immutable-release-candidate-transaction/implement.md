@@ -47,7 +47,7 @@
 
 ### Slice 6 — Four-platform candidate runtime
 
-1. Android使用ATD emulator运行`candidate-android`；唯一一次release APK build注入fixture URL，runtime复用`app-release.apk`并通过`adb install`/`am start`启动，不进入debug VM attach，也不调用`flutter run`二次assemble。
+1. Android使用ATD emulator运行`candidate-android`；path/candidate与released fixture共用配置入口，在唯一一次release APK build前让main manifest包含恰好一条INTERNET permission，build注入fixture URL，runtime复用`app-release.apk`并通过`adb install`/`am start`启动，不依赖debug/profile manifest、不进入debug VM attach，也不调用`flutter run`二次assemble。
 2. iOS启动simulator运行`candidate-ios`。
 3. macOS运行`candidate-macos`。
 4. Windows运行`candidate-windows`。

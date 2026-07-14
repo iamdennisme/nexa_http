@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../../scripts/verification/command.dart';
@@ -33,6 +36,7 @@ void main() {
   test('released Android consumer builds once with its fixture URL', () async {
     final commands = <VerificationCommand>[];
     final proofTracker = ExternalRuntimeProofMarkerTracker();
+    int? releaseManifestPermissionCountAtBuild;
     final runner = createReleasedConsumerRunner(
       repoUrl: 'https://github.com/example/nexa_http.git',
       ref: 'v2.0.0',
@@ -40,6 +44,41 @@ void main() {
       deviceIds: const <String, String>{'android': 'emulator-5554'},
       runCommand: (command) async {
         commands.add(command);
+        if (command.executable == 'flutter' &&
+            command.arguments.firstOrNull == 'create') {
+          final manifest = File(
+            p.join(
+              command.workingDirectory,
+              'android',
+              'app',
+              'src',
+              'main',
+              'AndroidManifest.xml',
+            ),
+          );
+          await manifest.parent.create(recursive: true);
+          await manifest.writeAsString('''
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:label="fixture" />
+</manifest>
+''');
+        }
+        if (command.executable == 'flutter' &&
+            command.arguments.firstOrNull == 'build') {
+          final manifest = await File(
+            p.join(
+              command.workingDirectory,
+              'android',
+              'app',
+              'src',
+              'main',
+              'AndroidManifest.xml',
+            ),
+          ).readAsString();
+          releaseManifestPermissionCountAtBuild = RegExp(
+            r'<uses-permission android:name="android\.permission\.INTERNET"\s*/>',
+          ).allMatches(manifest).length;
+        }
         if (command.executable == 'adb' &&
             command.arguments.contains('logcat') &&
             command.arguments.contains('-d')) {
@@ -78,5 +117,6 @@ void main() {
       ),
       isEmpty,
     );
+    expect(releaseManifestPermissionCountAtBuild, 1);
   });
 }

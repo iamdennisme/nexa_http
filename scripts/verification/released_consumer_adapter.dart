@@ -41,9 +41,10 @@ ReleasedConsumerRunner createReleasedConsumerRunner({
             workingDirectory: fixtureDirectory.path,
           ),
         );
-        if (platform.targetOS == 'macos') {
-          await enableMacosNetworkClientEntitlement(fixtureDirectory);
-        }
+        await configureExternalConsumerFixture(
+          fixtureDirectory,
+          targetOS: platform.targetOS,
+        );
         await File(p.join(fixtureDirectory.path, 'pubspec.yaml')).writeAsString(
           buildReleasedConsumerPubspec(
             repoUrl: repoUrl,

@@ -132,8 +132,29 @@ void main() {
         ..createSync();
       final commands = <VerificationCommand>[];
       final proofTracker = ExternalRuntimeProofMarkerTracker();
+      int? releaseManifestPermissionCountAtBuild;
       Future<void> runCommand(VerificationCommand command) async {
         commands.add(command);
+        if (command.executable == 'flutter' &&
+            command.arguments.firstOrNull == 'create') {
+          await _writeAndroidMainManifest(command.workingDirectory);
+        }
+        if (command.executable == 'flutter' &&
+            command.arguments.firstOrNull == 'build') {
+          final manifest = await File(
+            p.join(
+              command.workingDirectory,
+              'android',
+              'app',
+              'src',
+              'main',
+              'AndroidManifest.xml',
+            ),
+          ).readAsString();
+          releaseManifestPermissionCountAtBuild = RegExp(
+            r'<uses-permission android:name="android\.permission\.INTERNET"\s*/>',
+          ).allMatches(manifest).length;
+        }
         if (command.executable == 'adb' &&
             command.arguments.contains('logcat') &&
             command.arguments.contains('-d')) {
@@ -186,6 +207,7 @@ void main() {
         ),
         hasLength(1),
       );
+      expect(releaseManifestPermissionCountAtBuild, 1);
     },
   );
 
@@ -876,4 +898,16 @@ Future<void> _writeMacosEntitlementFixtures(String fixturePath) async {
 </plist>
 ''');
   }
+}
+
+Future<void> _writeAndroidMainManifest(String fixturePath) async {
+  final manifest = File(
+    p.join(fixturePath, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
+  );
+  await manifest.parent.create(recursive: true);
+  await manifest.writeAsString('''
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:label="fixture" />
+</manifest>
+''');
 }
