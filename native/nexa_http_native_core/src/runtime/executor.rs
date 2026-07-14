@@ -772,13 +772,37 @@ fn build_headers(
 }
 
 fn map_reqwest_error(error: reqwest::Error, url: &str) -> NativeError {
+    let source_chain = reqwest_error_source_chain(&error);
+    let details = if source_chain.is_empty() {
+        None
+    } else {
+        Some(HashMap::from([("source_chain".to_string(), source_chain)]))
+    };
     if error.is_timeout() {
-        return NativeError::new("timeout", error.to_string())
+        let mapped = NativeError::new("timeout", error.to_string())
             .with_timeout()
             .with_uri(url.to_string());
+        return match details {
+            Some(details) => mapped.with_details(details),
+            None => mapped,
+        };
     }
 
-    NativeError::new("network", error.to_string()).with_uri(url.to_string())
+    let mapped = NativeError::new("network", error.to_string()).with_uri(url.to_string());
+    match details {
+        Some(details) => mapped.with_details(details),
+        None => mapped,
+    }
+}
+
+fn reqwest_error_source_chain(error: &reqwest::Error) -> String {
+    let mut sources = Vec::<String>::new();
+    let mut current = std::error::Error::source(error);
+    while let Some(source) = current {
+        sources.push(source.to_string());
+        current = source.source();
+    }
+    sources.join(" <- ")
 }
 
 #[cfg(test)]
@@ -958,6 +982,35 @@ mod tests {
             body: Vec::new(),
             timeout_ms: Some(1),
         }
+    }
+
+    #[test]
+    fn network_errors_preserve_the_reqwest_source_chain() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind test port");
+        let address = listener.local_addr().expect("test port address");
+        drop(listener);
+        let url = format!("http://{address}/healthz");
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .expect("test client");
+        let error = tokio::runtime::Runtime::new()
+            .expect("test runtime")
+            .block_on(client.get(&url).send())
+            .expect_err("closed test port should reject the request");
+
+        let mapped = map_reqwest_error(error, &url);
+
+        assert_eq!(mapped.code, "network");
+        assert_eq!(mapped.uri.as_deref(), Some(url.as_str()));
+        assert!(
+            mapped
+                .details
+                .as_ref()
+                .and_then(|details| details.get("source_chain"))
+                .is_some_and(|source_chain| !source_chain.is_empty()),
+            "network errors should retain the underlying transport cause",
+        );
     }
 
     static NEXT_TEST_REQUEST_ID: AtomicU64 = AtomicU64::new(1);

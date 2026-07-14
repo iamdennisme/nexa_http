@@ -81,10 +81,10 @@ void main() {
     expect(source, contains("import 'dart:convert';"));
     expect(failureMarker, greaterThan(source.indexOf('catch (error')));
     expect(stderrMarker, greaterThan(failureMarker));
-    expect(
-      source,
-      contains('jsonEncode(<String, String>{"error": "\$error"})'),
-    );
+    expect(source, contains('if (error is NexaHttpException)'));
+    expect(source, contains("'kind': error.kind.name"));
+    expect(source, contains("'diagnostics': error.diagnostics"));
+    expect(source, contains('jsonEncode(failure)'));
   });
 
   test('path consumer declares only the public package and target carrier', () {

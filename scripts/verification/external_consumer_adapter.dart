@@ -914,8 +914,17 @@ Future<void> main() async {
       throw StateError('Fixture response body is empty');
     }
   } catch (error, stackTrace) {
+    final failure = <String, Object?>{
+      'type': error.runtimeType.toString(),
+      'message': '\$error',
+      if (error is NexaHttpException) ...<String, Object?>{
+        'kind': error.kind.name,
+        if (error.uri != null) 'uri': error.uri.toString(),
+        if (error.diagnostics != null) 'diagnostics': error.diagnostics,
+      },
+    };
     print(
-      'NEXA_HTTP_RUNTIME_FAILURE \${jsonEncode(<String, String>{"error": "\$error"})}',
+      'NEXA_HTTP_RUNTIME_FAILURE \${jsonEncode(failure)}',
     );
     stderr.writeln('NEXA_HTTP_RUNTIME_SMOKE_FAILED: \${error}');
     stderr.writeln(stackTrace);
