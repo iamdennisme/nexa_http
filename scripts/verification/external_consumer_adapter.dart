@@ -35,12 +35,26 @@ const _externalConsumerAndroidApplicationId =
 
 final class ExternalRuntimeProofMarkerTracker {
   static const marker = 'NEXA_HTTP_RUNTIME_PROOF ';
+  static const phaseMarker = 'NEXA_HTTP_RUNTIME_PHASE ';
 
   final List<Map<String, Object?>> _proofs = <Map<String, Object?>>[];
+  final List<String> _phases = <String>[];
 
   int get proofCount => _proofs.length;
+  int get phaseCount => _phases.length;
 
   void observeLine(String line) {
+    final phaseMarkerIndex = line.indexOf(phaseMarker);
+    if (phaseMarkerIndex >= 0) {
+      final phase = line
+          .substring(phaseMarkerIndex + phaseMarker.length)
+          .trim();
+      if (phase.isEmpty) {
+        throw const FormatException('Invalid runtime phase marker');
+      }
+      _phases.add(phase);
+      return;
+    }
     final markerIndex = line.indexOf(marker);
     if (markerIndex < 0) {
       return;
@@ -64,12 +78,18 @@ final class ExternalRuntimeProofMarkerTracker {
     _proofs.add(proof);
   }
 
-  void requireSingleProofSince(int previousCount, {required String targetOS}) {
+  void requireSingleProofSince(
+    int previousCount, {
+    int previousPhaseCount = 0,
+    required String targetOS,
+  }) {
     final produced = _proofs.length - previousCount;
     if (produced != 1) {
+      final observedPhases = _phases.skip(previousPhaseCount).join(',');
       throw StateError(
         'Expected exactly one runtime proof marker for $targetOS, '
-        'found $produced',
+        'found $produced; phases='
+        '${observedPhases.isEmpty ? '<none>' : observedPhases}',
       );
     }
   }
@@ -96,6 +116,7 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
       );
     }
     final previousProofCount = proofTracker.proofCount;
+    final previousPhaseCount = proofTracker.phaseCount;
     Object? flutterError;
     StackTrace? flutterStackTrace;
     try {
@@ -196,6 +217,7 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
       if (proofTracker.proofCount == previousProofCount + 1) {
         proofTracker.requireSingleProofSince(
           previousProofCount,
+          previousPhaseCount: previousPhaseCount,
           targetOS: platform.targetOS,
         );
         return;
@@ -205,6 +227,7 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
       }
       proofTracker.requireSingleProofSince(
         previousProofCount,
+        previousPhaseCount: previousPhaseCount,
         targetOS: platform.targetOS,
       );
     } finally {
@@ -842,7 +865,9 @@ import 'package:nexa_http/nexa_http.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  print('NEXA_HTTP_RUNTIME_PHASE binding_ready');
   runApp(const SizedBox.shrink());
+  print('NEXA_HTTP_RUNTIME_PHASE app_mounted');
   const fixtureUrl = String.fromEnvironment('NEXA_HTTP_FIXTURE_URL');
   if (fixtureUrl.isEmpty) {
     throw StateError('NEXA_HTTP_FIXTURE_URL is required');
@@ -855,8 +880,11 @@ Future<void> main() async {
         .callTimeout(const Duration(seconds: 10))
         .userAgent('nexa-http-clean-host/2.0')
         .build();
+    print('NEXA_HTTP_RUNTIME_PHASE client_built');
     final request = RequestBuilder().url(Uri.parse(fixtureUrl)).get().build();
+    print('NEXA_HTTP_RUNTIME_PHASE request_started');
     final response = await client.newCall(request).execute();
+    print('NEXA_HTTP_RUNTIME_PHASE response_received');
     if (response.statusCode != 200 || response.body == null) {
       throw StateError('Unexpected fixture response: \${response.statusCode}');
     }
@@ -870,6 +898,9 @@ Future<void> main() async {
     exitCode = 1;
   } finally {
     await client?.close();
+    if (client != null) {
+      print('NEXA_HTTP_RUNTIME_PHASE client_closed');
+    }
   }
   if (exitCode == 0) {
     print('NEXA_HTTP_RUNTIME_PROOF {"request_completed":true,"callback_received":true,"body_consumed":true,"body_released":true,"client_closed":true}');

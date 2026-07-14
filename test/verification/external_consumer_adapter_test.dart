@@ -52,6 +52,27 @@ void main() {
     },
   );
 
+  test('consumer runtime emits ordered lifecycle phase diagnostics', () {
+    final source = buildExternalConsumerRuntimeMain();
+    var previousIndex = -1;
+    for (final phase in const <String>[
+      'binding_ready',
+      'app_mounted',
+      'client_built',
+      'request_started',
+      'response_received',
+      'client_closed',
+    ]) {
+      final index = source.indexOf('NEXA_HTTP_RUNTIME_PHASE $phase');
+      expect(index, greaterThan(previousIndex), reason: phase);
+      previousIndex = index;
+    }
+    expect(
+      source.indexOf('NEXA_HTTP_RUNTIME_PROOF '),
+      greaterThan(previousIndex),
+    );
+  });
+
   test('path consumer declares only the public package and target carrier', () {
     final pubspec = buildPathConsumerPubspec('/snapshot', targetOS: 'ios');
 
@@ -343,6 +364,27 @@ void main() {
         environment: const <String, String>{},
       ),
       throwsA(isA<StateError>()),
+    );
+  });
+
+  test('runtime proof failure reports the observed fixture phases', () {
+    final tracker = ExternalRuntimeProofMarkerTracker()
+      ..observeLine('flutter: NEXA_HTTP_RUNTIME_PHASE client_built')
+      ..observeLine('flutter: NEXA_HTTP_RUNTIME_PHASE request_started');
+
+    expect(
+      () => tracker.requireSingleProofSince(
+        0,
+        previousPhaseCount: 0,
+        targetOS: 'android',
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          contains('phases=client_built,request_started'),
+        ),
+      ),
     );
   });
 
