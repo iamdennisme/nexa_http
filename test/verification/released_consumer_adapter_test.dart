@@ -40,7 +40,7 @@ void main() {
     final runner = createReleasedConsumerRunner(
       repoUrl: 'https://github.com/example/nexa_http.git',
       ref: 'v2.0.0',
-      fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+      fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
       deviceIds: const <String, String>{'android': 'emulator-5554'},
       runCommand: (command) async {
         commands.add(command);
@@ -106,7 +106,7 @@ void main() {
     expect(
       flutterBuilds.single.arguments,
       contains(
-        '--dart-define=NEXA_HTTP_FIXTURE_URL=http://10.0.2.2:8080/healthz',
+        '--dart-define=NEXA_HTTP_FIXTURE_URL=http://127.0.0.1:8080/healthz',
       ),
     );
     expect(

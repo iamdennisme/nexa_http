@@ -370,7 +370,7 @@ output.assets.code.add(
 - Workspace integration的Catalog native-build producer先把同一组target一次构建到共享workspace cache并记录fingerprint；development path、external consumer和carrier hook只能复用这些File，不得通过被hook剥离的环境变量传递prepared目录，也不得二次build同一tuple。
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
 - clean-host fixture必须依次输出`NEXA_HTTP_RUNTIME_PHASE binding_ready`、`app_mounted`、`client_built`、`request_started`、`response_received`、`client_closed`，最终才输出proof。Catch必须把错误通过JSON编码的`NEXA_HTTP_RUNTIME_FAILURE`写到stdout；`NexaHttpException`包含type/message/kind/uri/diagnostics，不能只依赖release Android不可见的stderr或泛化`toString()`。Tracker只把proof计入成功，但零proof错误必须附带本轮去重phase和failure，区分Dart isolate/Flutter mount/client construction/native callback/body/close卡点；phase/failure不能替代proof。
-- Android clean-host只允许一次`flutter build apk --release`，并在这次build中注入fixture URL。Flutter app模板只在debug/profile manifest默认声明`android.permission.INTERNET`，因此path/candidate consumer与released consumer必须在build前共同调用fixture配置入口，把恰好一条`<uses-permission android:name="android.permission.INTERNET"/>`写入`android/app/src/main/AndroidManifest.xml`；不能依赖debug/profile manifest，也不能各自维护配置实现。两个consumer必须复用同一个build-argument projection，不能各自拼装define。Runtime row必须复用`app-release.apk`，按`adb install -t -r`、`adb logcat -c`、`adb shell am start -W`顺序启动；不得调用`flutter run`，也不得直接启动会进入VM-service/debug attach路径的debug APK。启动后只对同device的`flutter:I`日志执行最多60次有界轮询；真实ATD冷启动可能在第30次之后才交付callback，仍要求恰好一条完整marker，不得扫描无关system日志或依赖固定sleep猜测日志已flush；proof判定结束后best-effort force-stop fixture，避免污染同device后续row。
+- Android clean-host只允许一次`flutter build apk --release`，并在这次build中注入`127.0.0.1` fixture URL。Flutter app模板只在debug/profile manifest默认声明`android.permission.INTERNET`，因此path/candidate consumer与released consumer必须在build前共同调用fixture配置入口，把恰好一条`<uses-permission android:name="android.permission.INTERNET"/>`写入`android/app/src/main/AndroidManifest.xml`；不能依赖debug/profile manifest，也不能各自维护配置实现。两个consumer必须复用同一个build-argument projection，不能各自拼装define。Runtime row必须复用`app-release.apk`，按`adb install -t -r`、`adb logcat -c`、一次`adb reverse tcp:<fixture-port> tcp:<fixture-port>`、`adb shell am start -W`顺序启动；reverse端口直接来自fixture URL并发生在Activity启动前，不得依赖emulator特殊宿主地址、调用`flutter run`或启动debug APK进入VM-service/debug attach路径。启动后只对同device的`flutter:I`日志执行最多60次有界轮询；真实ATD冷启动可能在第30次之后才交付callback，仍要求恰好一条完整marker，不得扫描无关system日志或依赖固定sleep猜测日志已flush；proof判定结束后best-effort force-stop fixture，避免污染同device后续row。
 - Android fixture输出成功marker后不得主动`exit(0)`；由验证端观测marker后结束row。iOS/macOS/Windows可以在短暂flush窗口后退出，但任何平台的process exit code都不能替代marker。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。
@@ -476,8 +476,9 @@ hooks:
 
 ```bash
 flutter build apk --release --target-platform=android-x64 \
-  --dart-define=NEXA_HTTP_FIXTURE_URL=http://10.0.2.2:8080/healthz
+  --dart-define=NEXA_HTTP_FIXTURE_URL=http://127.0.0.1:8080/healthz
 adb -s emulator-5554 install -t -r build/app/outputs/flutter-apk/app-release.apk
+adb -s emulator-5554 reverse tcp:8080 tcp:8080
 adb -s emulator-5554 shell am start -W -n \
   com.example.nexa_http_external_consumer_fixture/.MainActivity
 ```

@@ -50,8 +50,7 @@ fvm flutter run -d ios
 ## Local base URLs
 
 - macOS / Windows host: `http://127.0.0.1:8080`
-- Android emulator: `http://10.0.2.2:8080`
-- Android device with `adb reverse tcp:8080 tcp:8080`: `http://127.0.0.1:8080`
+- Android emulator/device after `adb reverse tcp:8080 tcp:8080`: `http://127.0.0.1:8080`
 - iOS simulator on the same host: `http://127.0.0.1:8080`
 
 ## Benchmark environment variables

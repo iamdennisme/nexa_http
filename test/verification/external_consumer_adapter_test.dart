@@ -199,7 +199,7 @@ void main() {
 
       final runner = createExternalConsumerRunner(
         fixtureRoot: Directory(p.join(tempRoot.path, 'fixtures')),
-        fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+        fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
         prepareSource: (_) async => sourceRoot,
         runCommand: runCommand,
         runRuntimeSmoke: createFlutterRuntimeSmokeRunner(
@@ -223,7 +223,7 @@ void main() {
       expect(
         flutterBuilds.single.arguments,
         contains(
-          '--dart-define=NEXA_HTTP_FIXTURE_URL=http://10.0.2.2:8080/healthz',
+          '--dart-define=NEXA_HTTP_FIXTURE_URL=http://127.0.0.1:8080/healthz',
         ),
       );
       expect(
@@ -430,6 +430,28 @@ void main() {
     );
   });
 
+  test('runtime proof failure deduplicates repeated failure markers', () {
+    const failure = '{"error":"NexaHttpException: unavailable"}';
+    final tracker = ExternalRuntimeProofMarkerTracker()
+      ..observeLine('flutter: NEXA_HTTP_RUNTIME_FAILURE $failure')
+      ..observeLine('flutter: NEXA_HTTP_RUNTIME_FAILURE $failure');
+
+    expect(
+      () => tracker.requireSingleProofSince(
+        0,
+        previousFailureCount: 0,
+        targetOS: 'android',
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => failure.allMatches(error.message.toString()),
+          'failure occurrences',
+          hasLength(1),
+        ),
+      ),
+    );
+  });
+
   test('runtime proof wins over a Flutter teardown connection error', () async {
     final proofTracker = ExternalRuntimeProofMarkerTracker();
     final runner = createFlutterRuntimeSmokeRunner(
@@ -481,7 +503,7 @@ void main() {
         targetOS: 'android',
         buildArguments: <String>[],
       ),
-      fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+      fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
       environment: const <String, String>{},
     );
 
@@ -504,6 +526,10 @@ void main() {
         <Object>[
           'adb',
           <String>['-s', 'emulator-5554', 'logcat', '-c'],
+        ],
+        <Object>[
+          'adb',
+          <String>['-s', 'emulator-5554', 'reverse', 'tcp:8080', 'tcp:8080'],
         ],
         <Object>[
           'adb',
@@ -576,7 +602,7 @@ void main() {
         targetOS: 'android',
         buildArguments: <String>[],
       ),
-      fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+      fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
       environment: const <String, String>{},
     );
 
@@ -627,7 +653,7 @@ void main() {
           targetOS: 'android',
           buildArguments: <String>[],
         ),
-        fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+        fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
         environment: const <String, String>{},
       );
 
@@ -660,7 +686,7 @@ void main() {
           targetOS: 'android',
           buildArguments: <String>[],
         ),
-        fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+        fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
         environment: const <String, String>{},
       ),
       throwsA(isA<StateError>()),
@@ -696,7 +722,7 @@ void main() {
             targetOS: 'android',
             buildArguments: <String>[],
           ),
-          fixtureUrl: Uri.parse('http://10.0.2.2:8080/healthz'),
+          fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
           environment: const <String, String>{},
         ),
         throwsA(isA<StateError>()),

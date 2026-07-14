@@ -261,7 +261,7 @@ jobs:
             --candidate-id "gha:${{ github.run_id }}:${{ needs.assemble-candidate.outputs.artifact_id }}"
             --candidate-digest "${{ needs.assemble-candidate.outputs.candidate_digest }}"
             --sdk-ref "${{ needs.transaction-input.outputs.commit_sha }}"
-            --fixture-url http://10.0.2.2:8080/healthz
+            --fixture-url http://127.0.0.1:8080/healthz
             --device android=emulator-5554
             --report-out "reports/${{ matrix.execution_id }}.json"
       - if: matrix.execution_id == 'candidate-ios'

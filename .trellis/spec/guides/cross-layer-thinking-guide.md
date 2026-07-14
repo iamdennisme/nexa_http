@@ -120,6 +120,24 @@ find src/templates/*/commands/trellis/ -name "<command>.*"
 - [ ] Gemini TOML 需要适配 line continuation 和 triple-quoted string。
 - [ ] 运行对应 cross-layer 检查，确认没有漏改。
 
+## 设备与宿主网络边界
+
+移动设备、模拟器与宿主进程不共享同一个 loopback 命名空间。设计 clean-host runtime、fixture server 或端到端测试时必须显式回答：
+
+- 宿主服务监听哪个地址和端口？
+- App 内使用哪个 URL？
+- 设备到宿主的通道由谁在何时建立？
+- URL、端口和通道命令是否来自同一个 typed input？
+
+Android verification 固定让宿主 fixture 监听 `127.0.0.1`，App 也使用 `127.0.0.1`，并在 Activity 启动前按 fixture URL 端口建立一次 `adb reverse tcp:<port> tcp:<port>`。不得依赖 emulator 特殊宿主地址、在多个 workflow 复制不同 URL，或失败后切换另一条网络路径。
+
+检查：
+
+- [ ] 设备侧 URL 与宿主监听地址是否通过显式 tunnel 对齐。
+- [ ] tunnel 是否在 App 启动前建立，并在测试中锁定命令顺序。
+- [ ] workflow、fixture build define 和 runtime runner 是否消费同一个 URL/端口。
+- [ ] 是否删除了旧地址、fallback 和双轨网络路径。
+
 ## Runtime-parsed 模板升级一致性
 
 有些生成文件既是文档，也是 runtime input。`.trellis/workflow.md` 会被 `get_context.py`、`workflow_phase.py`、SessionStart 过滤器和 per-turn hook 解析。

@@ -108,7 +108,7 @@ Publisher必须`needs` aggregate gate，并且条件精确为`workflow_dispatch 
 - Assembly不创建第二份candidate tree；fragment download目录就是final candidate directory。
 - Candidate verifier使用streaming digest cache，同一row不重复扫描大文件。
 - Gate/publisher不进行native build；每个job只下载一次final candidate artifact。
-- Android gate的clean-host APK只执行一次`flutter build apk --release`；path/candidate与released consumer共用fixture配置入口写入release main manifest网络权限，runtime直接`adb install`并启动`app-release.apk`，不使用debug VM attach，也不再用`flutter run`触发第二次Gradle assemble。
+- Android gate的clean-host APK只执行一次`flutter build apk --release`；path/candidate与released consumer共用fixture配置入口写入release main manifest网络权限，并统一注入`127.0.0.1` fixture URL。Runtime直接`adb install`复用`app-release.apk`，在Activity启动前按fixture端口建立唯一`adb reverse`通道；不依赖emulator特殊宿主地址，不使用debug VM attach，也不再用`flutter run`触发第二次Gradle assemble。
 
 ## 10. Rollout and rollback
 

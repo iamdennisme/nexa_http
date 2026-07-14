@@ -47,7 +47,7 @@
 
 ### Slice 6 — Four-platform candidate runtime
 
-1. Android使用ATD emulator运行`candidate-android`；path/candidate与released fixture共用配置入口，在唯一一次release APK build前让main manifest包含恰好一条INTERNET permission，build注入fixture URL，runtime复用`app-release.apk`并通过`adb install`/`am start`启动，不依赖debug/profile manifest、不进入debug VM attach，也不调用`flutter run`二次assemble。
+1. Android使用ATD emulator运行`candidate-android`；path/candidate与released fixture共用配置入口，在唯一一次release APK build前让main manifest包含恰好一条INTERNET permission，build统一注入`127.0.0.1` fixture URL。Runtime复用`app-release.apk`，按`adb install`、清空logcat、一次由fixture端口投影的`adb reverse`、`am start`启动；不依赖emulator特殊宿主地址或debug/profile manifest、不进入debug VM attach，也不调用`flutter run`二次assemble。
    - 零proof诊断必须报告fixture已到达的去重binding/mount/client/request/response/close phase和typed JSON failure；network/timeout保留native source chain，不再只返回marker count、泛化message或依赖release Android不可见的stderr。
 2. iOS启动simulator运行`candidate-ios`。
 3. macOS运行`candidate-macos`。

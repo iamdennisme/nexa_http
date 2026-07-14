@@ -27,6 +27,25 @@ void main() {
     expect(workflow, isNot(contains('continue-on-error')));
   });
 
+  test('workflow fixtures use the device loopback transport only', () {
+    final ciWorkflow = File('.github/workflows/ci.yml').readAsStringSync();
+    final releaseWorkflow = File(
+      '.github/workflows/release-native-assets.yml',
+    ).readAsStringSync();
+
+    for (final workflow in <String>[ciWorkflow, releaseWorkflow]) {
+      expect(workflow, isNot(contains('10.0.2.2')));
+    }
+    expect(
+      '--fixture-url http://127.0.0.1:8080/healthz'.allMatches(ciWorkflow),
+      hasLength(4),
+    );
+    expect(
+      '--fixture-url http://127.0.0.1:8080/healthz'.allMatches(releaseWorkflow),
+      hasLength(4),
+    );
+  });
+
   test('release workflow has one explicit transaction entry surface', () {
     final file = File('.github/workflows/release-native-assets.yml');
 

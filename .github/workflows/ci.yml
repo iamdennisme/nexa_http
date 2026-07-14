@@ -82,13 +82,13 @@ jobs:
           pre-emulator-launch-script: >-
             dart run scripts/workspace_tools.dart check native-build
             --execution android-linux
-            --fixture-url http://10.0.2.2:8080/healthz
+            --fixture-url http://127.0.0.1:8080/healthz
             --device android=emulator-5554
           script: >-
             bash scripts/wait_android_package_service.sh &&
             dart run scripts/workspace_tools.dart verify-integration
             --execution android-linux
-            --fixture-url http://10.0.2.2:8080/healthz
+            --fixture-url http://127.0.0.1:8080/healthz
             --device android=emulator-5554
             --report-out reports/android-linux.json
       - if: matrix.execution_id == 'apple-macos'

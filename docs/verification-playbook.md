@@ -44,7 +44,8 @@ fvm dart run scripts/workspace_tools.dart verify-integration \
   --report-out reports/apple-macos.json
 ```
 
-Android uses `http://10.0.2.2:8080/healthz` from the emulator. Windows uses
+Android uses `http://127.0.0.1:8080/healthz`; the runtime runner establishes one
+`adb reverse tcp:8080 tcp:8080` route before starting the Activity. Windows uses
 `--device windows=windows`. Missing platform prerequisites fail the suite; they
 are never reported as skipped success.
 
@@ -89,7 +90,7 @@ gate conclusion:
 ```bash
 fvm dart run scripts/workspace_tools.dart check native-abi \
   --execution android-linux \
-  --fixture-url http://10.0.2.2:8080/healthz \
+  --fixture-url http://127.0.0.1:8080/healthz \
   --device android=emulator-5554
 ```
 

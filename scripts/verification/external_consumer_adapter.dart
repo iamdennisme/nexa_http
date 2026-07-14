@@ -101,7 +101,10 @@ final class ExternalRuntimeProofMarkerTracker {
     final produced = _proofs.length - previousCount;
     if (produced != 1) {
       final observedPhases = _phases.skip(previousPhaseCount).toSet().join(',');
-      final observedFailures = _failures.skip(previousFailureCount).join('|');
+      final observedFailures = _failures
+          .skip(previousFailureCount)
+          .toSet()
+          .join('|');
       throw StateError(
         'Expected exactly one runtime proof marker for $targetOS, '
         'found $produced; phases='
@@ -162,6 +165,21 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
           VerificationCommand(
             executable: 'adb',
             arguments: <String>['-s', deviceId, 'logcat', '-c'],
+            workingDirectory: fixtureDirectory.path,
+            environment: commandEnvironment,
+          ),
+        );
+        final reversePort = 'tcp:${fixtureUrl.port}';
+        await runCommand(
+          VerificationCommand(
+            executable: 'adb',
+            arguments: <String>[
+              '-s',
+              deviceId,
+              'reverse',
+              reversePort,
+              reversePort,
+            ],
             workingDirectory: fixtureDirectory.path,
             environment: commandEnvironment,
           ),
