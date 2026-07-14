@@ -63,6 +63,14 @@ uint8_t nexa_http_client_execute_async(
     uint64_t request_id,
     const NexaHttpRequestArgs* request_args,
     NexaHttpExecuteCallback callback);
+/*
+ * Returns 1 only when cancellation wins before Callback Commit; native then
+ * guarantees that callback will not be invoked for this request. Returns 0
+ * when cancellation is not accepted. For a successfully dispatched request
+ * that is still callback-outstanding, 0 means Callback Commit already won and
+ * the callback remains guaranteed. Unknown or already-removed request IDs also
+ * return 0 but do not create a callback guarantee.
+ */
 uint8_t nexa_http_client_cancel_request(uint64_t client_id, uint64_t request_id);
 void nexa_http_client_close(uint64_t client_id);
 void nexa_http_binary_result_free(NexaHttpBinaryResult* result);

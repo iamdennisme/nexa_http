@@ -3,7 +3,8 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/build_native_common.sh"
 
-PROFILE="$(normalize_profile "${1:-release}")"
+parse_native_build_args "$@"
+validate_requested_targets aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 PACKAGE_ROOT="${REPO_ROOT}/packages/nexa_http_native_ios"
 RUST_CRATE_DIR="${PACKAGE_ROOT}/native/nexa_http_native_ios_ffi"
 CARGO_MANIFEST_PATH="${RUST_CRATE_DIR}/Cargo.toml"
@@ -15,19 +16,14 @@ fi
 require_command cargo
 require_command rustup
 
-targets=(
-  'aarch64-apple-ios|libnexa_http_native-ios-arm64.dylib'
-  'aarch64-apple-ios-sim|libnexa_http_native-ios-sim-arm64.dylib'
-  'x86_64-apple-ios|libnexa_http_native-ios-sim-x64.dylib'
-)
+ensure_rust_targets "${TARGETS[@]}"
 
-ensure_rust_targets aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
-
-destination_dir="${WORKSPACE_ROOT}/packages/nexa_http_native_ios/ios/Frameworks"
-mkdir -p "${destination_dir}"
-
-for entry in "${targets[@]}"; do
-  IFS='|' read -r triple output_name <<<"${entry}"
+for triple in "${TARGETS[@]}"; do
+  case "${triple}" in
+    aarch64-apple-ios) output_name='nexa_http-native-ios-arm64.dylib' ;;
+    aarch64-apple-ios-sim) output_name='nexa_http-native-ios-sim-arm64.dylib' ;;
+    x86_64-apple-ios) output_name='nexa_http-native-ios-sim-x64.dylib' ;;
+  esac
   build_args=(
     build
     --manifest-path
@@ -44,7 +40,7 @@ for entry in "${targets[@]}"; do
 
   source_file="${WORKSPACE_CARGO_TARGET_DIR}/${triple}/${PROFILE}/libnexa_http_native_ios_ffi.dylib"
   [[ -f "${source_file}" ]] || die "Expected output not found: ${source_file}"
-  cp "${source_file}" "${destination_dir}/${output_name}"
+  atomic_copy "${source_file}" "${OUTPUT_DIR}/${output_name}"
 done
 
-log "Prepared iOS native libraries in ${destination_dir}"
+log "Prepared iOS native libraries in ${OUTPUT_DIR}"

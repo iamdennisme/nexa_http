@@ -2,6 +2,6 @@ include: package:lints/recommended.yaml
 
 analyzer:
   exclude:
-    - lib/nexa_http_bindings_generated.dart
+    - lib/src/native_bridge/nexa_http_bindings_generated.dart
   errors:
     invalid_annotation_target: ignore

@@ -1,6 +1,6 @@
 name: nexa_http_native_macos
 description: macOS native carrier package for nexa_http artifacts and build integration.
-version: 1.0.1
+version: 2.0.0
 publish_to: none
 environment:
   sdk: ^3.11.0
@@ -16,6 +16,7 @@ dependencies:
   path: ^1.9.0
 
 dev_dependencies:
+  ffigen: ^20.1.1
   lints: ^5.1.1
   test: ^1.26.3
 

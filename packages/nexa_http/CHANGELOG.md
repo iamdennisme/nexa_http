@@ -1,9 +1,18 @@
 ## 2.0.0
 
-- Migrate native library distribution to `hook/build.dart` + `code_assets`.
-- Bind Rust entrypoints through `@Native` and remove manual dynamic-library path resolution.
-- Keep the RINF-style runtime execute channel for asynchronous request execution.
-- Remove committed multi-platform native binaries from the package repository.
+- Make `Call.execute()` + `Call.cancel()` the only request execution surface;
+  remove `Callback`, `enqueue()`, `clone()`, and direct client execution.
+- Add the seven-value `NexaHttpFailureKind` taxonomy and remove legacy string
+  error codes, HTTP status fields, timeout flags, and untyped details.
+- Replace byte-backed request construction with ownership-transferring
+  `RequestBody.takeBytes()`; remove request-body read and fake streaming APIs.
+- Make `ResponseBody` single-consumption with deterministic native ownership:
+  `bytes()` copies native data exactly once, while `string()` and `close()` do
+  not pre-copy the full body.
+- Move generated FFI bindings under `lib/src/` and remove public native
+  ownership helpers and secondary package-root libraries.
+- Linearize native cancellation acknowledgment with Callback Commit so cancel
+  and response/error terminal winners cannot overwrite each other.
 - Raise the minimum toolchain to Dart 3.11 / Flutter 3.41.5.
 
 ## 1.0.0

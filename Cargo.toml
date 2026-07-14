@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "native/nexa_http_native_core",
+  "native/nexa_http_native_apple_proxy",
   "packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi",
   "packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi",
   "packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi",

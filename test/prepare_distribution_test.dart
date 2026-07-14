@@ -6,117 +6,31 @@ import 'package:test/test.dart';
 import '../scripts/prepare_distribution.dart';
 
 void main() {
-  test('runs matching build scripts before materializing selected carrier packages', () async {
+  test('materializes packages without prebuilding carrier binaries', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'nexa_http_prepare_distribution_',
     );
-    addTearDown(() async {
-      if (tempDir.existsSync()) {
-        await tempDir.delete(recursive: true);
-      }
-    });
-
-    final invokedScripts = <String>[];
+    addTearDown(() => tempDir.delete(recursive: true));
     var materialized = false;
 
     await prepareDistributionWorkspace(
       workspaceRoot: tempDir.path,
       outputDirectory: p.join(tempDir.path, '.dist', 'workspace'),
-      requestedPackages: {
-        'nexa_http',
-        'nexa_http_native_android',
-        'nexa_http_native_macos',
-      },
-      runBuildScript: (scriptPath, profile) async {
-        invokedScripts.add('${p.basename(scriptPath)}:$profile');
-      },
-      materializeWorkspace: ({
-        required String workspaceRoot,
-        required String outputDirectory,
-        Set<String>? requestedPackages,
-      }) async {
-        materialized = true;
-        expect(requestedPackages, {
-          'nexa_http',
-          'nexa_http_native_android',
-          'nexa_http_native_macos',
-        });
-      },
+      requestedPackages: {'nexa_http', 'nexa_http_native_android'},
+      materializeWorkspace:
+          ({
+            required String workspaceRoot,
+            required String outputDirectory,
+            Set<String>? requestedPackages,
+          }) async {
+            materialized = true;
+            expect(requestedPackages, {
+              'nexa_http',
+              'nexa_http_native_android',
+            });
+          },
     );
 
-    expect(materialized, isTrue);
-    expect(
-      invokedScripts,
-      <String>[
-        'build_native_android.sh:release',
-        'build_native_macos.sh:release',
-      ],
-    );
-  });
-
-  test('ignores unsupported packages without scheduling build scripts', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'nexa_http_prepare_distribution_unsupported_',
-    );
-    addTearDown(() async {
-      if (tempDir.existsSync()) {
-        await tempDir.delete(recursive: true);
-      }
-    });
-
-    final invokedScripts = <String>[];
-
-    await prepareDistributionWorkspace(
-      workspaceRoot: tempDir.path,
-      outputDirectory: p.join(tempDir.path, '.dist', 'workspace'),
-      requestedPackages: {'nexa_http_native_linux'},
-      runBuildScript: (scriptPath, profile) async {
-        invokedScripts.add('${p.basename(scriptPath)}:$profile');
-      },
-      materializeWorkspace: ({
-        required String workspaceRoot,
-        required String outputDirectory,
-        Set<String>? requestedPackages,
-      }) async {},
-    );
-
-    expect(
-      invokedScripts,
-      isEmpty,
-    );
-  });
-
-  test('skips build scripts when skipBuild is enabled', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'nexa_http_prepare_distribution_skip_',
-    );
-    addTearDown(() async {
-      if (tempDir.existsSync()) {
-        await tempDir.delete(recursive: true);
-      }
-    });
-
-    var buildCalled = false;
-    var materialized = false;
-
-    await prepareDistributionWorkspace(
-      workspaceRoot: tempDir.path,
-      outputDirectory: p.join(tempDir.path, '.dist', 'workspace'),
-      requestedPackages: {'nexa_http_native_windows'},
-      skipBuild: true,
-      runBuildScript: (scriptPath, profile) async {
-        buildCalled = true;
-      },
-      materializeWorkspace: ({
-        required String workspaceRoot,
-        required String outputDirectory,
-        Set<String>? requestedPackages,
-      }) async {
-        materialized = true;
-      },
-    );
-
-    expect(buildCalled, isFalse);
     expect(materialized, isTrue);
   });
 }

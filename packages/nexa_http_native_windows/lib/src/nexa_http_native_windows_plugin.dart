@@ -1,22 +1,17 @@
-import 'dart:ffi';
-
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
+
+import 'native/nexa_http_native_windows_bindings.dart';
 
 final class NexaHttpNativeWindowsPlugin {
   NexaHttpNativeWindowsPlugin._();
 
   static void registerWith() {
-    registerNexaHttpNativeRuntime(const _NexaHttpNativeWindowsRuntime());
-  }
-}
-
-final class _NexaHttpNativeWindowsRuntime implements NexaHttpNativeRuntime {
-  const _NexaHttpNativeWindowsRuntime();
-
-  static const _libraryFileName = 'nexa_http_native.dll';
-
-  @override
-  DynamicLibrary open() {
-    return DynamicLibrary.open(_libraryFileName);
+    registerNexaHttpNativeBindings(
+      const NexaHttpNativeBindingsFactory(
+        assetId:
+            'package:nexa_http_native_windows/src/native/nexa_http_native_ffi.dart',
+        create: NexaHttpNativeWindowsBindings.new,
+      ),
+    );
   }
 }

@@ -1,8 +1,6 @@
 import 'request.dart';
 import 'response.dart';
 
-import 'callback.dart';
-
 abstract interface class Call {
   Request get request;
 
@@ -12,9 +10,5 @@ abstract interface class Call {
 
   Future<Response> execute();
 
-  void enqueue(Callback callback);
-
   void cancel();
-
-  Call clone();
 }

@@ -14,68 +14,73 @@ void main() {
 
     expect(
       script,
-      contains("package:nexa_http_native_internal/nexa_http_native_internal.dart"),
+      contains(
+        "package:nexa_http_native_internal/nexa_http_native_internal.dart",
+      ),
     );
   });
 
-  test('manifest generator script preserves current manifest and checksum outputs', () async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'nexa-http-generate-manifest-script-',
-    );
-    addTearDown(() async {
-      if (tempDir.existsSync()) {
-        await tempDir.delete(recursive: true);
+  test(
+    'manifest generator script preserves current manifest and checksum outputs',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'nexa-http-generate-manifest-script-',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      final distDir = Directory(p.join(tempDir.path, 'dist-native-assets'))
+        ..createSync(recursive: true);
+      final fileNames = <String>[
+        'nexa_http-native-android-arm64-v8a.so',
+        'nexa_http-native-android-armeabi-v7a.so',
+        'nexa_http-native-android-x86_64.so',
+        'nexa_http-native-ios-arm64.dylib',
+        'nexa_http-native-ios-sim-arm64.dylib',
+        'nexa_http-native-ios-sim-x64.dylib',
+        'nexa_http-native-macos-arm64.dylib',
+        'nexa_http-native-macos-x64.dylib',
+        'nexa_http-native-windows-x64.dll',
+      ];
+      for (final fileName in fileNames) {
+        await File(p.join(distDir.path, fileName)).writeAsString(fileName);
       }
-    });
 
-    final distDir = Directory(p.join(tempDir.path, 'dist-native-assets'))
-      ..createSync(recursive: true);
-    final fileNames = <String>[
-      'nexa_http-native-android-arm64-v8a.so',
-      'nexa_http-native-android-armeabi-v7a.so',
-      'nexa_http-native-android-x86_64.so',
-      'nexa_http-native-ios-arm64.dylib',
-      'nexa_http-native-ios-sim-arm64.dylib',
-      'nexa_http-native-ios-sim-x64.dylib',
-      'nexa_http-native-macos-arm64.dylib',
-      'nexa_http-native-macos-x64.dylib',
-      'nexa_http-native-windows-x64.dll',
-    ];
-    for (final fileName in fileNames) {
-      await File(p.join(distDir.path, fileName)).writeAsString(fileName);
-    }
+      final manifestPath = p.join(
+        tempDir.path,
+        'out',
+        'nexa_http_native_assets_manifest.json',
+      );
+      final shaPath = p.join(tempDir.path, 'out', 'SHA256SUMS');
 
-    final manifestPath = p.join(
-      tempDir.path,
-      'out',
-      'nexa_http_native_assets_manifest.json',
-    );
-    final shaPath = p.join(tempDir.path, 'out', 'SHA256SUMS');
+      await generate_manifest.main(<String>[
+        '--dist',
+        distDir.path,
+        '--output',
+        manifestPath,
+        '--sha-output',
+        shaPath,
+        '--base-url',
+        'https://example.com/download/native',
+      ]);
 
-    await generate_manifest.main(<String>[
-      '--dist',
-      distDir.path,
-      '--output',
-      manifestPath,
-      '--sha-output',
-      shaPath,
-      '--base-url',
-      'https://example.com/download/native',
-    ]);
+      final manifest =
+          jsonDecode(await File(manifestPath).readAsString())
+              as Map<String, Object?>;
+      final assets = manifest['assets'] as List<Object?>;
+      final shaLines = await File(shaPath).readAsLines();
 
-    final manifest = jsonDecode(
-      await File(manifestPath).readAsString(),
-    ) as Map<String, Object?>;
-    final assets = manifest['assets'] as List<Object?>;
-    final shaLines = await File(shaPath).readAsLines();
-
-    expect(manifest['package'], 'nexa_http');
-    expect(manifest.containsKey('package_version'), isFalse);
-    expect(assets, hasLength(9));
-    expect(
-      (assets.first as Map<String, Object?>)['source_url'],
-      'https://example.com/download/native/nexa_http-native-android-arm64-v8a.so',
-    );
-    expect(shaLines, hasLength(9));
-  });
+      expect(manifest['package'], 'nexa_http');
+      expect(manifest.containsKey('package_version'), isFalse);
+      expect(assets, hasLength(9));
+      expect(
+        (assets.first as Map<String, Object?>)['source_url'],
+        'https://example.com/download/native/nexa_http-native-android-arm64-v8a.so',
+      );
+      expect(shaLines, hasLength(9));
+    },
+  );
 }

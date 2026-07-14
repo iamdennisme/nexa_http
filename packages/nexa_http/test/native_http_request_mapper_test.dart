@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 
 void main() {
   test('omits lease-level defaults from request dto fields', () {
+    final payload = Uint8List.fromList(<int>[1, 2, 3, 4]);
     final request = NativeHttpRequestMapper.toDto(
       clientConfig: const ClientOptions(
         timeout: Duration(seconds: 2),
@@ -15,7 +16,7 @@ void main() {
       request: RequestBuilder()
           .url(Uri.parse('https://example.com/upload'))
           .header('x-request', 'abc')
-          .post(RequestBody.bytes(Uint8List.fromList(<int>[1, 2, 3, 4])))
+          .post(RequestBody.takeBytes(payload))
           .build(),
     );
 
@@ -26,8 +27,7 @@ void main() {
       equals(const <(String, String)>[('x-request', 'abc')]),
     );
     expect(request.timeoutMs, isNull);
-    expect(request.bodyBytes, Uint8List.fromList(const <int>[1, 2, 3, 4]));
-    expect(request.bodyBytes, isA<Uint8List>());
+    expect(request.bodyBytes, same(payload));
   });
 
   test(
@@ -47,7 +47,7 @@ void main() {
             .addHeader('accept', 'application/problem+json')
             .header('user-agent', 'request-agent')
             .post(
-              RequestBody.bytes(
+              RequestBody.takeBytes(
                 Uint8List.fromList(<int>[1, 2, 3, 4]),
                 contentType: MediaType.parse('application/octet-stream'),
               ),
@@ -73,7 +73,7 @@ void main() {
       request: RequestBuilder()
           .url(Uri.parse('https://example.com/upload'))
           .timeout(const Duration(milliseconds: 250))
-          .post(RequestBody.bytes(Uint8List.fromList(const <int>[1])))
+          .post(RequestBody.takeBytes(Uint8List.fromList(const <int>[1])))
           .build(),
     );
 

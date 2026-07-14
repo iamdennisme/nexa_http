@@ -1,13 +1,16 @@
-import 'dart:ffi';
+import 'dart:typed_data';
 
 import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
 import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
 import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
 import 'package:nexa_http/src/internal/testing/nexa_http_testing_overrides.dart';
+import 'package:nexa_http/src/internal/body/response_body_owner.dart';
 import 'package:nexa_http/src/internal/transport/transport_response.dart';
 import 'package:nexa_http/src/native_bridge/nexa_http_native_data_source_factory.dart';
 import 'package:test/test.dart';
+
+import 'support/fake_native_bindings.dart';
 
 void main() {
   tearDown(() {
@@ -30,7 +33,7 @@ void main() {
   });
 
   test('newCall lazily opens a native lease on first execute', () async {
-    final responseBytes = <int>[104, 105];
+    final responseBytes = Uint8List.fromList(const <int>[104, 105]);
     final dataSource = _FakeNativeDataSource(
       executeResponses: <TransportResponse>[
         TransportResponse(
@@ -38,13 +41,13 @@ void main() {
           headers: const <String, List<String>>{
             'content-type': <String>['application/json; charset=utf-8'],
           },
-          bodyBytes: responseBytes,
+          bodyOwner: DartResponseBodyOwner(responseBytes),
           finalUri: Uri.parse('https://example.com/ok'),
         ),
       ],
     );
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () => DynamicLibrary.process(),
+      resolveBindings: FakeNativeBindings.new,
       createDataSource: (_) => dataSource,
     );
     NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
@@ -64,7 +67,6 @@ void main() {
     expect(response.statusCode, 200);
     final bodyBytes = await response.body!.bytes();
     expect(identical(bodyBytes, responseBytes), isTrue);
-    expect(await response.body!.string(), 'hi');
     expect(response.finalUrl, Uri.parse('https://example.com/ok'));
     expect(dataSource.createClientConfigs, hasLength(1));
     final openConfig = dataSource.createClientConfigs.single;
@@ -88,8 +90,7 @@ void main() {
         ],
       );
       final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-        loadDynamicLibrary: ({String? explicitPath}) =>
-            DynamicLibrary.process(),
+        resolveBindings: FakeNativeBindings.new,
         createDataSource: (_) => dataSource,
       );
       NexaHttpTestingOverrides.installNativeDataSourceFactory(
@@ -117,15 +118,13 @@ void main() {
       expect(dataSource.closedClientIds, <int>[41]);
       expect(dataSource.disposeCount, 1);
       final openConfig = dataSource.createClientConfigs.single;
-      expect(openConfig.defaultHeaders, <String, String>{
-        'x-sdk': 'nexa_http',
-      });
+      expect(openConfig.defaultHeaders, <String, String>{'x-sdk': 'nexa_http'});
     },
   );
 
   test('blocks new executions after the client is closed', () async {
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () => DynamicLibrary.process(),
+      resolveBindings: FakeNativeBindings.new,
       createDataSource: (_) =>
           _FakeNativeDataSource(executeResponses: const <TransportResponse>[]),
     );
@@ -167,8 +166,11 @@ final class _FakeNativeDataSource implements NexaHttpNativeDataSource {
   }
 
   @override
-  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
-      {RegisterCancelRequest? onCancelReady}) async {
+  Future<TransportResponse> execute(
+    int clientId,
+    NativeHttpRequestDto request, {
+    RegisterCancelRequest? onCancelReady,
+  }) async {
     executeCalls.add(_ExecuteCall(clientId: clientId, request: request));
     return _executeResponses[executeCalls.length - 1];
   }

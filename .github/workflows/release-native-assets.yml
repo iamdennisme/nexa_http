@@ -1,145 +1,340 @@
-name: Release Native Assets
+name: Native Asset Release Transaction
 
 on:
-  push:
-    tags:
-      - 'v*'
-      - '[0-9]*.[0-9]*.[0-9]*'
+  pull_request:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Stable package version without a v prefix
+        required: true
+        type: string
+      commit_sha:
+        description: Full 40-character commit SHA
+        required: true
+        type: string
+      publish:
+        description: Publish only after every candidate gate passes
+        required: true
+        default: false
+        type: boolean
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: native-assets-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.version }}
+  cancel-in-progress: false
 
 jobs:
-  build-macos:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin,aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
-      - name: Build macOS arm64 dylib
-        run: |
-          cargo build \
-            --manifest-path packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/Cargo.toml \
-            --target aarch64-apple-darwin \
-            --release
-          mkdir -p dist/native-assets
-          cp target/aarch64-apple-darwin/release/libnexa_http_native_macos_ffi.dylib \
-            dist/native-assets/nexa_http-native-macos-arm64.dylib
-      - name: Build macOS x64 dylib
-        run: |
-          cargo build \
-            --manifest-path packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi/Cargo.toml \
-            --target x86_64-apple-darwin \
-            --release
-          mkdir -p dist/native-assets
-          cp target/x86_64-apple-darwin/release/libnexa_http_native_macos_ffi.dylib \
-            dist/native-assets/nexa_http-native-macos-x64.dylib
-      - name: Build iOS dylibs
-        run: ./scripts/build_native_ios.sh release
-      - name: Stage iOS assets
-        run: |
-          cp packages/nexa_http_native_ios/ios/Frameworks/libnexa_http_native-ios-arm64.dylib \
-            dist/native-assets/nexa_http-native-ios-arm64.dylib
-          cp packages/nexa_http_native_ios/ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib \
-            dist/native-assets/nexa_http-native-ios-sim-arm64.dylib
-          cp packages/nexa_http_native_ios/ios/Frameworks/libnexa_http_native-ios-sim-x64.dylib \
-            dist/native-assets/nexa_http-native-ios-sim-x64.dylib
-      - uses: actions/upload-artifact@v4
-        with:
-          name: native-assets-macos
-          path: dist/native-assets/*
-
-  build-android:
+  transaction-input:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    outputs:
+      version: ${{ steps.transaction.outputs.version }}
+      commit_sha: ${{ steps.transaction.outputs.commit_sha }}
+      fragment_matrix: ${{ steps.matrices.outputs.fragment_matrix }}
+      candidate_matrix: ${{ steps.matrices.outputs.candidate_matrix }}
+    steps:
+      - name: Checkout PR head for rehearsal
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Checkout trusted default branch for dispatch
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+      - name: Authorize dispatch commit
+        if: github.event_name == 'workflow_dispatch'
+        id: authorize-dispatch-commit
+        shell: bash
+        env:
+          RELEASE_COMMIT_INPUT: ${{ inputs.commit_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_COMMIT_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit_sha must be a canonical 40-character lowercase commit SHA"
+            exit 1
+          fi
+          git fetch --no-tags --prune origin \
+            "+refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          if ! resolved_commit=$(git rev-parse --verify "${RELEASE_COMMIT_INPUT}^{commit}"); then
+            echo "::error::commit_sha does not resolve to a commit"
+            exit 1
+          fi
+          if [[ "$resolved_commit" != "$RELEASE_COMMIT_INPUT" ]]; then
+            echo "::error::commit_sha must identify the commit object directly"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$RELEASE_COMMIT_INPUT" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "::error::commit_sha must be an ancestor of the trusted default branch"
+            exit 1
+          fi
+          echo "commit_sha=$RELEASE_COMMIT_INPUT" >> "$GITHUB_OUTPUT"
+      - name: Checkout authorized dispatch commit
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.authorize-dispatch-commit.outputs.commit_sha }}
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - run: dart pub get
+      - id: transaction
+        shell: bash
+        env:
+          RELEASE_VERSION_INPUT: ${{ inputs.version }}
+          RELEASE_COMMIT_INPUT: ${{ inputs.commit_sha }}
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            result=$(dart run scripts/release_transaction.dart validate \
+              --mode pull-request \
+              --workspace-root . \
+              --repository "$GITHUB_REPOSITORY" \
+              --commit-sha "${{ github.event.pull_request.head.sha }}")
+          else
+            result=$(dart run scripts/release_transaction.dart validate \
+              --mode dispatch \
+              --workspace-root . \
+              --repository "$GITHUB_REPOSITORY" \
+              --version "$RELEASE_VERSION_INPUT" \
+              --commit-sha "$RELEASE_COMMIT_INPUT")
+          fi
+          echo "version=$(jq -r .version <<<"$result")" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$(jq -r .commit_sha <<<"$result")" >> "$GITHUB_OUTPUT"
+      - id: matrices
+        shell: bash
+        run: |
+          echo "fragment_matrix=$(dart run scripts/workspace_tools.dart matrix --suite verify-integration)" >> "$GITHUB_OUTPUT"
+          echo "candidate_matrix=$(dart run scripts/workspace_tools.dart matrix --suite verify-release-candidate)" >> "$GITHUB_OUTPUT"
+
+  build-fragment:
+    needs: transaction-input
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.transaction-input.outputs.fragment_matrix) }}
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
-      - uses: android-actions/setup-android@v3
-      - name: Install Android NDK
+          ref: ${{ needs.transaction-input.outputs.commit_sha }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - uses: dtolnay/rust-toolchain@stable
+      - run: dart pub get
+      - if: matrix.execution_id == 'android-linux'
+        uses: android-actions/setup-android@v3
+      - if: matrix.execution_id == 'android-linux'
         run: sdkmanager "ndk;29.0.14206865"
-      - name: Export Android environment
+      - if: matrix.execution_id == 'android-linux'
+        shell: bash
         run: |
           echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/29.0.14206865" >> "$GITHUB_ENV"
-      - name: Build Android assets
-        run: |
-          ./scripts/build_native_android.sh release
-          mkdir -p dist/native-assets
-          cp packages/nexa_http_native_android/android/src/main/jniLibs/arm64-v8a/libnexa_http_native.so \
-            dist/native-assets/nexa_http-native-android-arm64-v8a.so
-          cp packages/nexa_http_native_android/android/src/main/jniLibs/armeabi-v7a/libnexa_http_native.so \
-            dist/native-assets/nexa_http-native-android-armeabi-v7a.so
-          cp packages/nexa_http_native_android/android/src/main/jniLibs/x86_64/libnexa_http_native.so \
-            dist/native-assets/nexa_http-native-android-x86_64.so
+      - run: >-
+          dart run scripts/release_transaction.dart build-fragment
+          --workspace-root .
+          --execution "${{ matrix.execution_id }}"
+          --output-dir "fragments/${{ matrix.execution_id }}"
       - uses: actions/upload-artifact@v4
         with:
-          name: native-assets-android
-          path: dist/native-assets/*
+          name: release-fragment-${{ matrix.execution_id }}
+          path: fragments/${{ matrix.execution_id }}
+          if-no-files-found: error
+          retention-days: 7
 
-  build-windows:
-    runs-on: windows-latest
+  assemble-candidate:
+    needs:
+      - transaction-input
+      - build-fragment
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_id: ${{ steps.upload-candidate.outputs.artifact-id }}
+      candidate_digest: ${{ steps.assemble.outputs.candidate_digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.transaction-input.outputs.commit_sha }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - run: dart pub get
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-fragment-*
+          path: candidate
+          merge-multiple: true
+      - id: assemble
+        shell: bash
+        run: |
+          result=$(dart run scripts/release_transaction.dart assemble \
+            --candidate-dir candidate \
+            --version "${{ needs.transaction-input.outputs.version }}" \
+            --repository "$GITHUB_REPOSITORY")
+          echo "candidate_digest=$(jq -r .candidate_digest <<<"$result")" >> "$GITHUB_OUTPUT"
+      - id: upload-candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-release-candidate-${{ github.run_id }}
+          path: candidate
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  aggregate-candidate:
+    needs:
+      - transaction-input
+      - assemble-candidate
+      - verify-candidate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.transaction-input.outputs.commit_sha }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - run: dart pub get
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-candidate-report-*
+          path: reports
+          merge-multiple: true
+      - run: >-
+          dart run scripts/workspace_tools.dart verify-release-candidate
+          --aggregate-reports reports
+
+  verify-candidate:
+    needs:
+      - transaction-input
+      - assemble-candidate
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.transaction-input.outputs.candidate_matrix) }}
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
-      - name: Build Windows asset
-        run: |
-          cargo build \
-            --manifest-path packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi/Cargo.toml \
-            --target x86_64-pc-windows-msvc \
-            --release
-          mkdir -p dist/native-assets
-          cp target/x86_64-pc-windows-msvc/release/nexa_http_native_windows_ffi.dll \
-            dist/native-assets/nexa_http-native-windows-x64.dll
-      - uses: actions/upload-artifact@v4
-        with:
-          name: native-assets-windows
-          path: dist/native-assets/*
-
-  publish:
-    runs-on: ubuntu-latest
-    needs:
-      - build-macos
-      - build-android
-      - build-windows
-    steps:
-      - uses: actions/checkout@v4
+          ref: ${{ needs.transaction-input.outputs.commit_sha }}
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.41.5
-      - uses: dart-lang/setup-dart@v1
-        with:
-          sdk: 3.11.3
-      - name: Install workspace dependencies
-        run: dart pub get
-      - name: Verify artifact contract
-        run: dart run scripts/workspace_tools.dart verify-artifact-consistency
+      - run: dart pub get
       - uses: actions/download-artifact@v4
         with:
-          pattern: native-assets-*
+          artifact-ids: ${{ needs.assemble-candidate.outputs.artifact_id }}
+          path: candidate
           merge-multiple: true
-          path: dist/native-assets
-      - name: Generate manifest and checksums
-        env:
-          TAG_NAME: ${{ github.ref_name }}
-          REPOSITORY: ${{ github.repository }}
+      - name: Start fixture server
+        run: dart run fixture_server/http_fixture_server.dart --port 8080 > fixture-server.log 2>&1 &
+      - if: matrix.execution_id == 'candidate-ios'
+        id: ios-device
         run: |
-          dart run scripts/generate_native_asset_manifest.dart \
-            --dist dist/native-assets \
-            --output dist/nexa_http_native_assets_manifest.json \
-            --sha-output dist/SHA256SUMS \
-            --base-url "https://github.com/${REPOSITORY}/releases/download/${TAG_NAME}"
-      - uses: softprops/action-gh-release@v2
+          device_id=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
+          test -n "$device_id"
+          xcrun simctl boot "$device_id" || true
+          xcrun simctl bootstatus "$device_id" -b
+          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
+      - if: matrix.execution_id == 'candidate-android'
+        uses: android-actions/setup-android@v3
+      - if: matrix.execution_id == 'candidate-android'
+        uses: reactivecircus/android-emulator-runner@v2
         with:
-          files: |
-            dist/native-assets/*
-            dist/nexa_http_native_assets_manifest.json
-            dist/SHA256SUMS
+          api-level: 35
+          target: aosp_atd
+          arch: x86_64
+          script: >-
+            bash scripts/wait_android_package_service.sh &&
+            dart run scripts/workspace_tools.dart verify-release-candidate
+            --execution "${{ matrix.execution_id }}"
+            --candidate-dir candidate
+            --candidate-id "gha:${{ github.run_id }}:${{ needs.assemble-candidate.outputs.artifact_id }}"
+            --candidate-digest "${{ needs.assemble-candidate.outputs.candidate_digest }}"
+            --sdk-ref "${{ needs.transaction-input.outputs.commit_sha }}"
+            --fixture-url http://127.0.0.1:8080/healthz
+            --device android=emulator-5554
+            --report-out "reports/${{ matrix.execution_id }}.json"
+      - if: matrix.execution_id == 'candidate-ios'
+        run: >-
+          dart run scripts/workspace_tools.dart verify-release-candidate
+          --execution "${{ matrix.execution_id }}"
+          --candidate-dir candidate
+          --candidate-id "gha:${{ github.run_id }}:${{ needs.assemble-candidate.outputs.artifact_id }}"
+          --candidate-digest "${{ needs.assemble-candidate.outputs.candidate_digest }}"
+          --sdk-ref "${{ needs.transaction-input.outputs.commit_sha }}"
+          --fixture-url http://127.0.0.1:8080/healthz
+          --device "ios=${{ steps.ios-device.outputs.device_id }}"
+          --report-out "reports/${{ matrix.execution_id }}.json"
+      - if: matrix.execution_id == 'candidate-macos'
+        run: >-
+          dart run scripts/workspace_tools.dart verify-release-candidate
+          --execution "${{ matrix.execution_id }}"
+          --candidate-dir candidate
+          --candidate-id "gha:${{ github.run_id }}:${{ needs.assemble-candidate.outputs.artifact_id }}"
+          --candidate-digest "${{ needs.assemble-candidate.outputs.candidate_digest }}"
+          --sdk-ref "${{ needs.transaction-input.outputs.commit_sha }}"
+          --fixture-url http://127.0.0.1:8080/healthz
+          --device macos=macos
+          --report-out "reports/${{ matrix.execution_id }}.json"
+      - if: matrix.execution_id == 'candidate-windows'
+        run: >-
+          dart run scripts/workspace_tools.dart verify-release-candidate
+          --execution "${{ matrix.execution_id }}"
+          --candidate-dir candidate
+          --candidate-id "gha:${{ github.run_id }}:${{ needs.assemble-candidate.outputs.artifact_id }}"
+          --candidate-digest "${{ needs.assemble-candidate.outputs.candidate_digest }}"
+          --sdk-ref "${{ needs.transaction-input.outputs.commit_sha }}"
+          --fixture-url http://127.0.0.1:8080/healthz
+          --device windows=windows
+          --report-out "reports/${{ matrix.execution_id }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-report-${{ matrix.execution_id }}
+          path: reports/${{ matrix.execution_id }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publisher:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == true && needs.aggregate-candidate.result == 'success' }}
+    needs:
+      - transaction-input
+      - assemble-candidate
+      - aggregate-candidate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.transaction-input.outputs.commit_sha }}
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.5
+      - run: dart pub get
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.assemble-candidate.outputs.artifact_id }}
+          path: candidate
+          merge-multiple: true
+      - run: >-
+          dart run scripts/release_transaction.dart publish
+          --workspace-root .
+          --repository "$GITHUB_REPOSITORY"
+          --version "${{ needs.transaction-input.outputs.version }}"
+          --commit-sha "${{ needs.transaction-input.outputs.commit_sha }}"
+          --candidate-dir candidate
+          --candidate-id "gha:${{ github.run_id }}:${{ needs.assemble-candidate.outputs.artifact_id }}"
+          --candidate-digest "${{ needs.assemble-candidate.outputs.candidate_digest }}"

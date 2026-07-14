@@ -1,5 +1,6 @@
 import '../../api/nexa_http_exception.dart';
 import '../../api/request.dart';
+import '../../api/request_body.dart';
 import '../../internal/config/client_options.dart';
 import '../dto/native_http_request_dto.dart';
 
@@ -32,7 +33,9 @@ final class NativeHttpRequestMapper {
       method: request.method,
       url: resolvedUri.toString(),
       headers: headers,
-      bodyBytes: request.body?.payloadBytes,
+      bodyBytes: request.body == null
+          ? null
+          : RequestBodyTransportAccess.bytes(request.body!),
       timeoutMs: request.timeout?.inMilliseconds,
     );
   }
@@ -43,10 +46,11 @@ final class NativeHttpRequestMapper {
     }
     if (baseUrl == null) {
       throw NexaHttpException(
-        code: 'invalid_request',
+        kind: NexaHttpFailureKind.invalidRequest,
         message:
             'Relative request URL requires NexaHttpClientBuilder.baseUrl().',
         uri: requestUri,
+        diagnostics: const <String, Object?>{'stage': 'request_mapping'},
       );
     }
     return baseUrl.resolveUri(requestUri);

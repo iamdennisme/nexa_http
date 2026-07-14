@@ -53,8 +53,6 @@ Future<void> materializeDistributionWorkspace({
     addWithLocalDeps(packageName);
   }
 
-  _validateArtifacts(root.path, packagesToCopy, packageDirs);
-
   final outputDir = Directory(outputDirectory).absolute;
   if (outputDir.existsSync()) {
     await outputDir.delete(recursive: true);
@@ -152,28 +150,6 @@ YamlMap _readPubspec(File pubspecFile) {
   return loaded;
 }
 
-void _validateArtifacts(
-  String workspaceRoot,
-  Set<String> packageNames,
-  Map<String, Directory> packageDirs,
-) {
-  for (final packageName in packageNames) {
-    final required = _requiredArtifacts[packageName];
-    if (required == null) {
-      continue;
-    }
-    final packageDir = packageDirs[packageName]!;
-    for (final relativePath in required) {
-      final file = File(p.join(packageDir.path, relativePath));
-      if (!file.existsSync()) {
-        throw StateError(
-          'Missing required artifact for $packageName: ${p.relative(file.path, from: workspaceRoot)}',
-        );
-      }
-    }
-  }
-}
-
 Future<void> _copyDirectoryFiltered(
   Directory sourceDir,
   Directory destinationDir,
@@ -243,25 +219,6 @@ bool _shouldSkip(String relativePath) {
   }
   return false;
 }
-
-final _requiredArtifacts = <String, List<String>>{
-  'nexa_http_native_android': <String>[
-    'android/src/main/jniLibs/arm64-v8a/libnexa_http_native.so',
-    'android/src/main/jniLibs/armeabi-v7a/libnexa_http_native.so',
-    'android/src/main/jniLibs/x86_64/libnexa_http_native.so',
-  ],
-  'nexa_http_native_ios': <String>[
-    'ios/Frameworks/libnexa_http_native-ios-arm64.dylib',
-    'ios/Frameworks/libnexa_http_native-ios-sim-arm64.dylib',
-    'ios/Frameworks/libnexa_http_native-ios-sim-x64.dylib',
-  ],
-  'nexa_http_native_macos': <String>[
-    'macos/Libraries/libnexa_http_native.dylib',
-  ],
-  'nexa_http_native_windows': <String>[
-    'windows/Libraries/nexa_http_native.dll',
-  ],
-};
 
 final class _Config {
   const _Config({

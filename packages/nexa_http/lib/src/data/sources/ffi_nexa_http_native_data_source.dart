@@ -3,9 +3,10 @@ import 'dart:convert';
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
-import 'package:nexa_http/nexa_http_bindings_generated.dart';
+import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
 import '../../api/nexa_http_exception.dart';
+import '../../internal/errors/nexa_http_failures.dart';
 import '../../internal/transport/transport_response.dart';
 import '../dto/native_http_client_config_dto.dart';
 import '../dto/native_http_error_dto.dart';
@@ -17,34 +18,16 @@ import 'ffi_nexa_http_request_encoder.dart';
 import 'ffi_nexa_http_response_decoder.dart';
 import 'nexa_http_native_data_source.dart';
 
-typedef BinaryResultFinalizerNative = Void Function(Pointer<Void> token);
+typedef BinaryResultFinalizerNative =
+    Void Function(Pointer<NexaHttpBinaryResult> token);
 typedef StringReleaseNative = Void Function(Pointer<Char> value);
 
 final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
-  factory FfiNexaHttpNativeDataSource({
-    required DynamicLibrary library,
-    NexaHttpBindings? bindings,
-    Pointer<NativeFunction<BinaryResultFinalizerNative>>? binaryResultFinalizer,
-    Pointer<NativeFunction<StringReleaseNative>>? stringRelease,
-  }) {
-    final resolvedBindings = bindings ?? NexaHttpBindings(library);
-    final resolvedBinaryResultFinalizer = binaryResultFinalizer ??
-        (bindings == null
-            ? library.lookup<NativeFunction<BinaryResultFinalizerNative>>(
-                'nexa_http_binary_result_free',
-              )
-            : nullptr);
-    final resolvedStringRelease = stringRelease ??
-        (bindings == null
-            ? library.lookup<NativeFunction<StringReleaseNative>>(
-                'nexa_http_string_free',
-              )
-            : nullptr);
-
+  factory FfiNexaHttpNativeDataSource({required NexaHttpBindings bindings}) {
     return FfiNexaHttpNativeDataSource._(
-      bindings: resolvedBindings,
-      binaryResultFinalizer: resolvedBinaryResultFinalizer,
-      releaseNativeString: resolvedStringRelease,
+      bindings: bindings,
+      binaryResultFinalizer: bindings.nexaHttpBinaryResultFreeAddress,
+      releaseNativeString: bindings.nexaHttpStringFreeAddress,
     );
   }
 
@@ -56,8 +39,7 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   }) : _bindings = bindings,
        _releaseNativeString = releaseNativeString == nullptr
            ? null
-           : releaseNativeString
-                 .asFunction<void Function(Pointer<Char>)>(),
+           : releaseNativeString.asFunction<void Function(Pointer<Char>)>(),
        _responseDecoder = FfiNexaHttpResponseDecoder(
          releaseBinaryResult: bindings.nexa_http_binary_result_free,
          binaryResultNativeFinalizer: binaryResultFinalizer == nullptr
@@ -98,15 +80,18 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
   }
 
   @override
-  Future<TransportResponse> execute(int clientId, NativeHttpRequestDto request,
-      {RegisterCancelRequest? onCancelReady}) async {
+  Future<TransportResponse> execute(
+    int clientId,
+    NativeHttpRequestDto request, {
+    RegisterCancelRequest? onCancelReady,
+  }) async {
     final requestId = _pendingRequests.nextRequestId();
-    final completer = _pendingRequests.register(requestId);
     final requestArgs = FfiNexaHttpRequestEncoder.encode(
       request,
       allocateBody: _bindings.nexa_http_request_body_alloc,
       releaseBody: _bindings.nexa_http_request_body_free,
     );
+    final completer = _pendingRequests.register(requestId);
 
     try {
       final dispatched = _bindings.nexa_http_client_execute_async(
@@ -118,22 +103,32 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
 
       if (dispatched == 0) {
         throw const NexaHttpException(
-          code: 'ffi_dispatch_failed',
+          kind: NexaHttpFailureKind.unavailable,
           message:
               'The nexa_http native library failed to dispatch the request.',
+          diagnostics: <String, Object?>{
+            'stage': 'request_dispatch',
+            'native_code': 'ffi_dispatch_failed',
+          },
         );
       }
       requestArgs.transferBodyOwnership();
       onCancelReady?.call(() {
-        final canceledCompleter = _pendingRequests.cancel(requestId);
+        if (completer.isCompleted) {
+          return;
+        }
+        final cancelAccepted =
+            _bindings.nexa_http_client_cancel_request(clientId, requestId) == 1;
+        if (!cancelAccepted) {
+          return;
+        }
+        final canceledCompleter = _pendingRequests.take(requestId);
         if (canceledCompleter == null || canceledCompleter.isCompleted) {
           return;
         }
-        _bindings.nexa_http_client_cancel_request(clientId, requestId);
         canceledCompleter.completeError(
-          NexaHttpException(
-            code: 'canceled',
-            message: 'The request was canceled.',
+          NexaHttpFailures.canceled(
+            stage: 'request_cancel',
             uri: Uri.tryParse(request.url),
           ),
         );
@@ -163,9 +158,13 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
     final errorPointer = _bindings.nexa_http_take_last_error_json();
     if (errorPointer == nullptr) {
       return const NexaHttpException(
-        code: 'native_bootstrap_failed',
-        message: 'The nexa_http native library failed to create an HTTP client.',
-        details: <String, Object?>{'stage': 'client_create'},
+        kind: NexaHttpFailureKind.unavailable,
+        message:
+            'The nexa_http native library failed to create an HTTP client.',
+        diagnostics: <String, Object?>{
+          'stage': 'client_create',
+          'native_code': 'native_bootstrap_failed',
+        },
       );
     }
 
@@ -173,10 +172,13 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       final decoded = jsonDecode(errorPointer.cast<Utf8>().toDartString());
       if (decoded is! Map) {
         return const NexaHttpException(
-          code: 'native_bootstrap_failed',
+          kind: NexaHttpFailureKind.internal,
           message:
               'The nexa_http native library returned an invalid bootstrap error payload.',
-          details: <String, Object?>{'stage': 'client_create'},
+          diagnostics: <String, Object?>{
+            'stage': 'client_create',
+            'native_code': 'native_bootstrap_failed',
+          },
         );
       }
 
@@ -184,6 +186,16 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
         NativeHttpErrorDto.fromJson(
           Map<String, dynamic>.from(decoded.cast<String, Object?>()),
         ),
+      );
+    } on Object catch (error) {
+      return NexaHttpFailures.internal(
+        message:
+            'The nexa_http native library returned malformed bootstrap diagnostics.',
+        stage: 'client_create',
+        error: error,
+        diagnostics: const <String, Object?>{
+          'native_code': 'native_bootstrap_failed',
+        },
       );
     } finally {
       _releaseNativeString?.call(errorPointer);
@@ -201,19 +213,12 @@ final class FfiNexaHttpNativeDataSource implements NexaHttpNativeDataSource {
       return;
     }
 
-    var releaseResultPointer = true;
     try {
       final response = _responseDecoder.decode(resultPointer);
-      releaseResultPointer = !_responseDecoder.adoptsBodyOwnership(
-        resultPointer.ref,
-      );
       completer.complete(response);
     } on Object catch (error, stackTrace) {
       completer.completeError(error, stackTrace);
     } finally {
-      if (releaseResultPointer) {
-        _bindings.nexa_http_binary_result_free(resultPointer);
-      }
       _pendingRequests.didCompletePendingRequest();
     }
   }

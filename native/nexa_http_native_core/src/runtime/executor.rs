@@ -46,6 +46,7 @@ enum InflightRequestState {
     Pending,
     CanceledPending,
     Active(tokio::task::AbortHandle),
+    CallbackCommitted,
 }
 
 struct InflightRequestGuard<P: PlatformRuntimeState> {
@@ -158,8 +159,11 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
         let cleanup_inner = Arc::clone(&self.inner);
         let task = self.inner.tokio.spawn(async move {
             let _guard = InflightRequestGuard::new(cleanup_inner, request_key);
-            let result = execute_request_with_limit(inner, client_id, request)
-                .await
+            let result = execute_request_with_limit(Arc::clone(&inner), client_id, request).await;
+            if !commit_callback(&inner, request_key) {
+                return;
+            }
+            let result = result
                 .map(build_binary_success_result)
                 .unwrap_or_else(|error| build_binary_error_result(error.into_http_error()));
 
@@ -179,6 +183,7 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
                 task.abort();
             }
             Some(InflightRequestState::Active(_)) => {}
+            Some(InflightRequestState::CallbackCommitted) => {}
             None => {
                 drop(inflight_requests);
                 task.abort();
@@ -206,6 +211,7 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
                     Some(InflightRequestState::Active(abort_handle)) => Some(abort_handle),
                     _ => None,
                 },
+                Some(InflightRequestState::CallbackCommitted) => return 0,
                 None => return 0,
             }
         };
@@ -224,13 +230,24 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
         NativeHttpOwnedRequestBody::alloc_raw_parts(body_len)
     }
 
-    pub fn request_body_free(body_ptr: *mut u8, body_len: usize) {
+    /// Releases a request body allocated by [`Self::request_body_alloc`].
+    ///
+    /// # Safety
+    ///
+    /// `body_ptr` and `body_len` must describe one live allocation returned by
+    /// [`Self::request_body_alloc`], or the canonical null/zero empty value.
+    pub unsafe fn request_body_free(body_ptr: *mut u8, body_len: usize) {
         unsafe {
             NativeHttpOwnedRequestBody::free_raw_parts(body_ptr, body_len);
         }
     }
 
-    pub fn binary_result_free(value: *mut NexaHttpBinaryResult) {
+    /// Releases a binary result returned by this runtime.
+    ///
+    /// # Safety
+    ///
+    /// `value` must be null or a live result pointer returned by this runtime.
+    pub unsafe fn binary_result_free(value: *mut NexaHttpBinaryResult) {
         if value.is_null() {
             return;
         }
@@ -238,6 +255,22 @@ impl<P: PlatformRuntimeState> NexaHttpRuntime<P> {
         unsafe {
             binary_result_free_impl(value);
         }
+    }
+}
+
+fn commit_callback<P: PlatformRuntimeState>(
+    inner: &NexaHttpRuntimeInner<P>,
+    key: InflightRequestKey,
+) -> bool {
+    let mut inflight_requests = inner.inflight_requests.lock().unwrap();
+    match inflight_requests.get_mut(&key) {
+        Some(state @ (InflightRequestState::Pending | InflightRequestState::Active(_))) => {
+            *state = InflightRequestState::CallbackCommitted;
+            true
+        }
+        Some(InflightRequestState::CanceledPending)
+        | Some(InflightRequestState::CallbackCommitted)
+        | None => false,
     }
 }
 
@@ -588,13 +621,13 @@ async fn execute_request_with_client_async(
 fn build_binary_success_result(response: NativeHttpRawResponse) -> NexaHttpBinaryResult {
     let (headers_ptr, headers_len) = match build_header_entries_buffer(response.headers) {
         Ok(value) => value,
-        Err(error) => return build_binary_error_result(error),
+        Err(error) => return build_binary_error_result(*error),
     };
     let (final_url_ptr, final_url_len) = match build_string_buffer(response.final_url) {
         Ok(value) => value,
         Err(error) => {
             free_header_entries_buffer(headers_ptr, headers_len);
-            return build_binary_error_result(error);
+            return build_binary_error_result(*error);
         }
     };
 
@@ -643,28 +676,32 @@ fn build_binary_error_result(error: NativeHttpError) -> NexaHttpBinaryResult {
 
 fn build_header_entries_buffer(
     headers: Vec<NativeHttpHeader>,
-) -> Result<(*mut NexaHttpHeaderEntry, usize), NativeHttpError> {
+) -> Result<(*mut NexaHttpHeaderEntry, usize), Box<NativeHttpError>> {
     if headers.is_empty() {
         return Ok((null_mut(), 0));
     }
 
     let mut entries = Vec::<NexaHttpHeaderEntry>::with_capacity(headers.len());
     for header in headers {
-        let name = CString::new(header.name).map_err(|_| NativeHttpError {
-            code: "serialization".to_string(),
-            message: "Failed to encode response header name.".to_string(),
-            status_code: None,
-            is_timeout: false,
-            uri: None,
-            details: None,
+        let name = CString::new(header.name).map_err(|_| {
+            Box::new(NativeHttpError {
+                code: "serialization".to_string(),
+                message: "Failed to encode response header name.".to_string(),
+                status_code: None,
+                is_timeout: false,
+                uri: None,
+                details: None,
+            })
         })?;
-        let value = CString::new(header.value).map_err(|_| NativeHttpError {
-            code: "serialization".to_string(),
-            message: "Failed to encode response header value.".to_string(),
-            status_code: None,
-            is_timeout: false,
-            uri: None,
-            details: None,
+        let value = CString::new(header.value).map_err(|_| {
+            Box::new(NativeHttpError {
+                code: "serialization".to_string(),
+                message: "Failed to encode response header value.".to_string(),
+                status_code: None,
+                is_timeout: false,
+                uri: None,
+                details: None,
+            })
         })?;
         let entry = NexaHttpHeaderEntry {
             name_len: name.as_bytes().len(),
@@ -681,17 +718,21 @@ fn build_header_entries_buffer(
     Ok((ptr, len))
 }
 
-fn build_string_buffer(value: Option<String>) -> Result<(*mut c_char, usize), NativeHttpError> {
+fn build_string_buffer(
+    value: Option<String>,
+) -> Result<(*mut c_char, usize), Box<NativeHttpError>> {
     let Some(value) = value else {
         return Ok((null_mut(), 0));
     };
-    let value = CString::new(value).map_err(|_| NativeHttpError {
-        code: "serialization".to_string(),
-        message: "Failed to encode final URL.".to_string(),
-        status_code: None,
-        is_timeout: false,
-        uri: None,
-        details: None,
+    let value = CString::new(value).map_err(|_| {
+        Box::new(NativeHttpError {
+            code: "serialization".to_string(),
+            message: "Failed to encode final URL.".to_string(),
+            status_code: None,
+            is_timeout: false,
+            uri: None,
+            details: None,
+        })
     })?;
     let length = value.as_bytes().len();
     Ok((value.into_raw(), length))
@@ -715,6 +756,55 @@ fn free_header_entries_buffer(headers_ptr: *mut NexaHttpHeaderEntry, headers_len
     }
 }
 
+fn build_headers(
+    headers: &HashMap<String, String>,
+    error_code: &'static str,
+) -> Result<HeaderMap, NativeError> {
+    let mut header_map = HeaderMap::new();
+    for (name, value) in headers {
+        let header_name = HeaderName::from_bytes(name.as_bytes())
+            .map_err(|error| NativeError::new(error_code, error.to_string()))?;
+        let header_value = HeaderValue::from_str(value)
+            .map_err(|error| NativeError::new(error_code, error.to_string()))?;
+        header_map.insert(header_name, header_value);
+    }
+    Ok(header_map)
+}
+
+fn map_reqwest_error(error: reqwest::Error, url: &str) -> NativeError {
+    let source_chain = reqwest_error_source_chain(&error);
+    let details = if source_chain.is_empty() {
+        None
+    } else {
+        Some(HashMap::from([("source_chain".to_string(), source_chain)]))
+    };
+    if error.is_timeout() {
+        let mapped = NativeError::new("timeout", error.to_string())
+            .with_timeout()
+            .with_uri(url.to_string());
+        return match details {
+            Some(details) => mapped.with_details(details),
+            None => mapped,
+        };
+    }
+
+    let mapped = NativeError::new("network", error.to_string()).with_uri(url.to_string());
+    match details {
+        Some(details) => mapped.with_details(details),
+        None => mapped,
+    }
+}
+
+fn reqwest_error_source_chain(error: &reqwest::Error) -> String {
+    let mut sources = Vec::<String>::new();
+    let mut current = std::error::Error::source(error);
+    while let Some(source) = current {
+        sources.push(source.to_string());
+        current = source.source();
+    }
+    sources.join(" <- ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -724,9 +814,15 @@ mod tests {
     use std::os::raw::c_char;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-    use std::sync::mpsc::{self, Sender};
+    use std::sync::mpsc::{self, Receiver, Sender};
     use std::sync::{LazyLock, Mutex};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
+
+    fn free_test_result<P: PlatformRuntimeState>(value: *mut NexaHttpBinaryResult) {
+        unsafe {
+            NexaHttpRuntime::<P>::binary_result_free(value);
+        }
+    }
 
     #[derive(Clone)]
     struct CountingCapabilities {
@@ -888,13 +984,61 @@ mod tests {
         }
     }
 
+    #[test]
+    fn network_errors_preserve_the_reqwest_source_chain() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind test port");
+        let address = listener.local_addr().expect("test port address");
+        drop(listener);
+        let url = format!("http://{address}/healthz");
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .expect("test client");
+        let error = tokio::runtime::Runtime::new()
+            .expect("test runtime")
+            .block_on(client.get(&url).send())
+            .expect_err("closed test port should reject the request");
+
+        let mapped = map_reqwest_error(error, &url);
+
+        assert_eq!(mapped.code, "network");
+        assert_eq!(mapped.uri.as_deref(), Some(url.as_str()));
+        assert!(
+            mapped
+                .details
+                .as_ref()
+                .and_then(|details| details.get("source_chain"))
+                .is_some_and(|source_chain| !source_chain.is_empty()),
+            "network errors should retain the underlying transport cause",
+        );
+    }
+
     static NEXT_TEST_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
     static TEST_RESULT_SENDERS: LazyLock<Mutex<HashMap<u64, Sender<usize>>>> =
         LazyLock::new(|| Mutex::new(HashMap::new()));
+    static BLOCKING_CALLBACKS: LazyLock<Mutex<HashMap<u64, BlockingCallback>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
+
+    struct BlockingCallback {
+        result_sender: Sender<usize>,
+        release_receiver: Receiver<()>,
+    }
 
     unsafe extern "C" fn capture_test_result(request_id: u64, result: *mut NexaHttpBinaryResult) {
         if let Some(sender) = TEST_RESULT_SENDERS.lock().unwrap().remove(&request_id) {
             let _ = sender.send(result as usize);
+        }
+    }
+
+    unsafe extern "C" fn capture_and_block_test_result(
+        request_id: u64,
+        result: *mut NexaHttpBinaryResult,
+    ) {
+        if let Some(callback) = BLOCKING_CALLBACKS.lock().unwrap().remove(&request_id) {
+            let _ = callback.result_sender.send(result as usize);
+            let _ = callback
+                .release_receiver
+                .recv_timeout(Duration::from_secs(1));
         }
     }
 
@@ -938,9 +1082,9 @@ mod tests {
         let calls_after_create = proxy_settings_calls.load(Ordering::Relaxed);
 
         let warmed = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(warmed);
+        free_test_result::<CountingCapabilities>(warmed);
         let steady_state = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<CountingCapabilities>::binary_result_free(steady_state);
+        free_test_result::<CountingCapabilities>(steady_state);
 
         assert_eq!(
             proxy_settings_calls.load(Ordering::Relaxed),
@@ -967,15 +1111,15 @@ mod tests {
         let calls_after_create = calls.load(Ordering::Relaxed);
 
         let warmup = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(warmup);
+        free_test_result::<SwitchingProxyCapabilities>(warmup);
 
         switch.store(true, Ordering::Relaxed);
         generation.store(1, Ordering::Relaxed);
 
         let refreshed = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(refreshed);
+        free_test_result::<SwitchingProxyCapabilities>(refreshed);
         let steady_state = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<SwitchingProxyCapabilities>::binary_result_free(steady_state);
+        free_test_result::<SwitchingProxyCapabilities>(steady_state);
 
         assert_eq!(
             calls.load(Ordering::Relaxed),
@@ -1005,9 +1149,9 @@ mod tests {
         generation.store(1, Ordering::Relaxed);
 
         let failed_refresh = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<InvalidProxyCapabilities>::binary_result_free(failed_refresh);
+        free_test_result::<InvalidProxyCapabilities>(failed_refresh);
         let first_retry = execute_for_test(&runtime, client_id, request.as_args());
-        NexaHttpRuntime::<InvalidProxyCapabilities>::binary_result_free(first_retry);
+        free_test_result::<InvalidProxyCapabilities>(first_retry);
 
         assert_eq!(
             proxy_settings_calls.load(Ordering::Relaxed),
@@ -1053,13 +1197,13 @@ mod tests {
 
         let calls_after_concurrency = proxy_settings_calls.load(Ordering::Relaxed);
         assert!(
-            calls_after_concurrency >= calls_after_create + 1,
+            calls_after_concurrency > calls_after_create,
             "at least one concurrent request should observe the changed generation",
         );
 
         let steady_request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
         let steady_state = execute_for_test(&runtime, client_id, steady_request.as_args());
-        NexaHttpRuntime::<DelayedGenerationCapabilities>::binary_result_free(steady_state);
+        free_test_result::<DelayedGenerationCapabilities>(steady_state);
 
         assert_eq!(
             proxy_settings_calls.load(Ordering::Relaxed),
@@ -1070,15 +1214,15 @@ mod tests {
 
     #[test]
     fn read_request_headers_preserves_repeated_entries_in_order() {
-        let header_names = vec![
+        let header_names = [
             CString::new("accept").unwrap(),
             CString::new("accept").unwrap(),
         ];
-        let header_values = vec![
+        let header_values = [
             CString::new("application/json").unwrap(),
             CString::new("application/problem+json").unwrap(),
         ];
-        let headers = vec![
+        let headers = [
             NexaHttpHeaderEntry {
                 name_ptr: header_names[0].as_ptr(),
                 name_len: header_names[0].as_bytes().len(),
@@ -1184,33 +1328,81 @@ mod tests {
                 .get(&request_key)
                 .is_none()
         );
+        assert!(
+            !commit_callback(&runtime.inner, request_key),
+            "accepted cancellation must suppress Callback Commit",
+        );
         runtime.inner.tokio.block_on(async {
             assert!(handle.await.is_err());
         });
     }
-}
 
-fn build_headers(
-    headers: &HashMap<String, String>,
-    error_code: &'static str,
-) -> Result<HeaderMap, NativeError> {
-    let mut header_map = HeaderMap::new();
-    for (name, value) in headers {
-        let header_name = HeaderName::from_bytes(name.as_bytes())
-            .map_err(|error| NativeError::new(error_code, error.to_string()))?;
-        let header_value = HeaderValue::from_str(value)
-            .map_err(|error| NativeError::new(error_code, error.to_string()))?;
-        header_map.insert(header_name, header_value);
-    }
-    Ok(header_map)
-}
+    #[test]
+    fn cancel_request_returns_zero_for_unknown_requests() {
+        let runtime = NexaHttpRuntime::new(CountingCapabilities {
+            proxy_settings_calls: Arc::new(AtomicUsize::new(0)),
+        });
 
-fn map_reqwest_error(error: reqwest::Error, url: &str) -> NativeError {
-    if error.is_timeout() {
-        return NativeError::new("timeout", error.to_string())
-            .with_timeout()
-            .with_uri(url.to_string());
+        assert_eq!(runtime.cancel_request(404, 999), 0);
     }
 
-    NativeError::new("network", error.to_string()).with_uri(url.to_string())
+    #[test]
+    fn cancel_request_returns_zero_after_callback_commit_and_callback_is_delivered() {
+        let runtime = NexaHttpRuntime::new(CountingCapabilities {
+            proxy_settings_calls: Arc::new(AtomicUsize::new(0)),
+        });
+        let config = TestClientConfigArgs::new();
+        let request = TestRequestArgs::new("GET", "http://127.0.0.1:9/ping", 1);
+        let client_id = runtime.create_client(config.as_args());
+        assert_ne!(client_id, 0);
+
+        let request_id = NEXT_TEST_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+        let (result_sender, result_receiver) = mpsc::channel();
+        let (release_sender, release_receiver) = mpsc::channel();
+        BLOCKING_CALLBACKS.lock().unwrap().insert(
+            request_id,
+            BlockingCallback {
+                result_sender,
+                release_receiver,
+            },
+        );
+
+        assert_eq!(
+            runtime.execute_async(
+                client_id,
+                request_id,
+                request.as_args(),
+                Some(capture_and_block_test_result),
+            ),
+            1,
+        );
+        let result = result_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("the committed callback must be delivered");
+
+        let cancel_result = runtime.cancel_request(client_id, request_id);
+        release_sender
+            .send(())
+            .expect("the blocked callback should still be waiting");
+        free_test_result::<CountingCapabilities>(result as *mut NexaHttpBinaryResult);
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while runtime
+            .inner
+            .inflight_requests
+            .lock()
+            .unwrap()
+            .contains_key(&InflightRequestKey {
+                client_id,
+                request_id,
+            })
+        {
+            assert!(
+                Instant::now() < deadline,
+                "the delivered callback should drain inflight tracking",
+            );
+            std::thread::yield_now();
+        }
+
+        assert_eq!(cancel_result, 0);
+    }
 }

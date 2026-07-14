@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ffi';
 
 import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
@@ -10,49 +9,42 @@ import 'package:nexa_http/src/internal/transport/transport_response.dart';
 import 'package:nexa_http/src/native_bridge/nexa_http_native_data_source_factory.dart';
 import 'package:test/test.dart';
 
+import 'support/fake_native_bindings.dart';
+
 void main() {
   tearDown(() {
     NexaHttpTestingOverrides.reset();
   });
 
-  test('clone preserves request semantics', () {
-    final client = NexaHttpClient();
-    final request = RequestBuilder()
-        .url(Uri.parse('https://example.com/items'))
-        .header('x-request-id', 'abc')
-        .post(
-          RequestBody.text(
-            '{"hello":"world"}',
-            contentType: MediaType.parse('application/json; charset=utf-8'),
+  test(
+    'cancel before execute completes canceled and consumes the call',
+    () async {
+      final client = NexaHttpClient();
+      final call = client.newCall(
+        RequestBuilder()
+            .url(Uri.parse('https://example.com/cancel'))
+            .get()
+            .build(),
+      );
+
+      call.cancel();
+
+      expect(call.isCanceled, isTrue);
+      await expectLater(
+        call.execute(),
+        throwsA(
+          isA<NexaHttpException>().having(
+            (error) => error.kind,
+            'kind',
+            NexaHttpFailureKind.canceled,
           ),
-        )
-        .build();
+        ),
+      );
+      await expectLater(call.execute(), throwsA(isA<StateError>()));
+    },
+  );
 
-    final original = client.newCall(request);
-    final clone = original.clone();
-
-    expect(clone.request.method, request.method);
-    expect(clone.request.url, request.url);
-    expect(clone.request.headers['x-request-id'], 'abc');
-    expect(clone.request.body, same(request.body));
-  });
-
-  test('cancel marks the call canceled and blocks execute before start', () {
-    final client = NexaHttpClient();
-    final call = client.newCall(
-      RequestBuilder()
-          .url(Uri.parse('https://example.com/cancel'))
-          .get()
-          .build(),
-    );
-
-    call.cancel();
-
-    expect(call.isCanceled, isTrue);
-    expect(call.execute(), throwsA(isA<StateError>()));
-  });
-
-  test('execute is single-shot and clone returns a fresh call', () async {
+  test('execute is single-shot and newCall creates a fresh call', () async {
     final dataSource = _FakeNativeDataSource(
       executeResponses: const <TransportResponse>[
         TransportResponse(statusCode: 204),
@@ -60,7 +52,7 @@ void main() {
       ],
     );
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () => DynamicLibrary.process(),
+      resolveBindings: FakeNativeBindings.new,
       createDataSource: (_) => dataSource,
     );
     NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
@@ -77,9 +69,10 @@ void main() {
     expect(call.isExecuted, isTrue);
     expect(call.execute(), throwsA(isA<StateError>()));
 
-    final clonedCall = call.clone();
-    final clonedResponse = await clonedCall.execute();
-    expect(clonedResponse.statusCode, 204);
+    final repeatedCall = client.newCall(request);
+    final repeatedResponse = await repeatedCall.execute();
+    expect(repeatedCall.request, same(request));
+    expect(repeatedResponse.statusCode, 204);
     expect(dataSource.createClientConfigs, hasLength(1));
     expect(dataSource.executeCalls, hasLength(2));
     expect(
@@ -93,8 +86,7 @@ void main() {
     () async {
       final dataSource = _CancelableNativeDataSource();
       final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-        loadDynamicLibrary: () =>
-            DynamicLibrary.process(),
+        resolveBindings: FakeNativeBindings.new,
         createDataSource: (_) => dataSource,
       );
       NexaHttpTestingOverrides.installNativeDataSourceFactory(
@@ -111,14 +103,15 @@ void main() {
       final future = call.execute();
       await Future<void>.delayed(Duration.zero);
       call.cancel();
+      call.cancel();
 
       await expectLater(
         future,
         throwsA(
           isA<NexaHttpException>().having(
-            (error) => error.code,
-            'code',
-            'canceled',
+            (error) => error.kind,
+            'kind',
+            NexaHttpFailureKind.canceled,
           ),
         ),
       );
@@ -128,10 +121,36 @@ void main() {
     },
   );
 
+  test('callback-committed response wins over later cancellation', () async {
+    final dataSource = _CallbackCommittedNativeDataSource();
+    final dataSourceFactory = NexaHttpNativeDataSourceFactory(
+      resolveBindings: FakeNativeBindings.new,
+      createDataSource: (_) => dataSource,
+    );
+    NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
+    final client = NexaHttpClient();
+    final call = client.newCall(
+      RequestBuilder()
+          .url(Uri.parse('https://example.com/response-wins'))
+          .get()
+          .build(),
+    );
+
+    final responseFuture = call.execute();
+    await Future<void>.delayed(Duration.zero);
+    call.cancel();
+    dataSource.complete(const TransportResponse(statusCode: 204));
+
+    final response = await responseFuture;
+    expect(response.statusCode, 204);
+    expect(call.isCanceled, isTrue);
+    expect(dataSource.cancelInvocationCount, 1);
+  });
+
   test('cancel after completion does not forward cancellation again', () async {
     final dataSource = _CompletedCancelableNativeDataSource();
     final dataSourceFactory = NexaHttpNativeDataSourceFactory(
-      loadDynamicLibrary: () => DynamicLibrary.process(),
+      resolveBindings: FakeNativeBindings.new,
       createDataSource: (_) => dataSource,
     );
     NexaHttpTestingOverrides.installNativeDataSourceFactory(dataSourceFactory);
@@ -218,7 +237,7 @@ final class _CancelableNativeDataSource implements NexaHttpNativeDataSource {
       cancelInvocationCount += 1;
       completer.completeError(
         NexaHttpException(
-          code: 'canceled',
+          kind: NexaHttpFailureKind.canceled,
           message: 'The request was canceled.',
           uri: Uri.parse(request.url),
         ),
@@ -254,5 +273,37 @@ final class _CompletedCancelableNativeDataSource
     });
     cancelReadyCount += 1;
     return const TransportResponse(statusCode: 204);
+  }
+}
+
+final class _CallbackCommittedNativeDataSource
+    implements NexaHttpNativeDataSource {
+  final Completer<TransportResponse> _completer =
+      Completer<TransportResponse>();
+  int cancelInvocationCount = 0;
+
+  void complete(TransportResponse response) {
+    _completer.complete(response);
+  }
+
+  @override
+  void closeClient(int clientId) {}
+
+  @override
+  int createClient(NativeHttpClientConfigDto config) => 103;
+
+  @override
+  void dispose() {}
+
+  @override
+  Future<TransportResponse> execute(
+    int clientId,
+    NativeHttpRequestDto request, {
+    RegisterCancelRequest? onCancelReady,
+  }) {
+    onCancelReady?.call(() {
+      cancelInvocationCount += 1;
+    });
+    return _completer.future;
   }
 }

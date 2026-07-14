@@ -10,16 +10,30 @@ import '../hook/build.dart' as nexa_http_native_macos_build_hook;
 
 void main() {
   test(
-    'build hook produces the macOS artifact from the fixed source-build contract',
+    'build hook adds the exact prepared macOS file as its CodeAsset',
     () async {
-      if (!Platform.isMacOS) {
-        markTestSkipped('Requires macOS host.');
-        return;
-      }
+      final temp = await Directory.systemTemp.createTemp(
+        'nexa_http_macos_hook_identity_',
+      );
+      addTearDown(() async => temp.delete(recursive: true));
+      final preparedFile = File('${temp.path}/prepared-macos.dylib');
+      await preparedFile.writeAsString('prepared');
 
       await _runInPackageRoot(() async {
         await testCodeBuildHook(
-          mainMethod: nexa_http_native_macos_build_hook.main,
+          mainMethod: (arguments) => nexa_http_native_macos_build_hook.main(
+            arguments,
+            prepareArtifact:
+                ({
+                  required packageRoot,
+                  required outputDirectory,
+                  required targetOS,
+                  required targetArchitecture,
+                  required targetSdk,
+                  candidateDirectory,
+                  candidateRef,
+                }) async => preparedFile,
+          ),
           targetOS: OS.macOS,
           targetArchitecture: Architecture.arm64,
           check: (input, output) async {
@@ -31,14 +45,7 @@ void main() {
             );
             expect(asset.linkMode, isA<DynamicLoadingBundled>());
             expect(asset.file, isNotNull);
-            expect(
-              File.fromUri(asset.file!).path,
-              endsWith('/macos/Libraries/libnexa_http_native.dylib'),
-            );
-            final packagedFile = File(
-              p.join('macos', 'Libraries', 'libnexa_http_native.dylib'),
-            );
-            expect(packagedFile.existsSync(), isTrue);
+            expect(asset.file, preparedFile.uri);
           },
         );
       });
@@ -63,6 +70,7 @@ void main() {
 
     final file = await materializeNexaHttpNativeReleaseArtifact(
       packageRoot: packageRoot.path,
+      outputDirectory: p.join(tempDir.path, 'hook-output'),
       targetOS: 'macos',
       targetArchitecture: 'arm64',
       targetSdk: null,
@@ -70,10 +78,11 @@ void main() {
         repositorySlug: 'example/nexa_http',
         tag: 'v0.0.3',
       ),
-      fetchBytes: (uri) async {
+      fetchStream: (uri) async {
         fetchCount += 1;
         if (fetchCount == 1) {
-          return utf8.encode('''
+          return Stream<List<int>>.value(
+            utf8.encode('''
 {
   "package": "nexa_http",
   "assets": [
@@ -86,7 +95,8 @@ void main() {
     }
   ]
 }
-''');
+'''),
+          );
         }
         expect(
           uri,
@@ -94,12 +104,15 @@ void main() {
             'https://github.com/example/nexa_http/releases/download/v0.0.3/nexa_http-native-macos-arm64.dylib',
           ),
         );
-        return expectedBytes;
+        return Stream<List<int>>.value(expectedBytes);
       },
     );
 
     expect(file.existsSync(), isTrue);
-    expect(file.path, endsWith('macos/Libraries/libnexa_http_native.dylib'));
+    expect(
+      file.path,
+      endsWith('release/macos/arm64/none/nexa_http-native-macos-arm64.dylib'),
+    );
     expect(await file.readAsBytes(), expectedBytes);
   });
 

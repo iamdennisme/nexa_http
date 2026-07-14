@@ -3,11 +3,14 @@ import 'dart:io';
 import 'package:code_assets/code_assets.dart';
 import 'package:hooks/hooks.dart';
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
-import 'package:path/path.dart' as p;
 
 import '../lib/src/nexa_http_native_windows_asset_bundle.dart';
 
-Future<void> main(List<String> args) async {
+Future<void> main(
+  List<String> args, {
+  NexaHttpNativeArtifactPreparer prepareArtifact =
+      prepareNexaHttpNativeCarrierArtifact,
+}) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets ||
         input.config.code.targetOS != OS.windows) {
@@ -15,52 +18,35 @@ Future<void> main(List<String> args) async {
     }
 
     final packageRoot = Directory.fromUri(input.packageRoot).path;
-    if (_isWorkspacePackage(packageRoot)) {
-      await _prepareWorkspaceWindowsArtifacts(packageRoot);
-    } else {
-      await materializeNexaHttpNativeReleaseArtifact(
-        packageRoot: packageRoot,
-        targetOS: 'windows',
-        targetArchitecture: _targetArchitecture(input.config.code.targetArchitecture),
-        targetSdk: null,
-      );
-    }
+    final preparedFile = await prepareArtifact(
+      packageRoot: packageRoot,
+      outputDirectory: Directory.fromUri(input.outputDirectory).path,
+      targetOS: 'windows',
+      targetArchitecture: _targetArchitecture(
+        input.config.code.targetArchitecture,
+      ),
+      targetSdk: null,
+      candidateDirectory: input.userDefines
+          .path(nexaHttpNativeCandidateDirectoryDefine)
+          ?.toFilePath(),
+      candidateRef:
+          input.userDefines[nexaHttpNativeCandidateRefDefine] as String?,
+    );
 
     output.assets.code.add(
-      await NexaHttpNativeWindowsAssetBundle.resolve(input),
+      await NexaHttpNativeWindowsAssetBundle.resolveFromFile(
+        packageName: input.packageName,
+        file: preparedFile,
+      ),
     );
   });
-}
-
-bool _isWorkspacePackage(String packageRoot) {
-  final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
-  return Directory(p.join(workspaceRoot, '.git')).existsSync();
-}
-
-Future<void> _prepareWorkspaceWindowsArtifacts(String packageRoot) async {
-  final artifactsDir = Directory(p.join(packageRoot, 'windows', 'Libraries'));
-  if (artifactsDir.existsSync()) {
-    await artifactsDir.delete(recursive: true);
-  }
-
-  final workspaceRoot = p.normalize(p.join(packageRoot, '..', '..'));
-  final script = p.join(workspaceRoot, 'scripts', 'build_native_windows.sh');
-  final result = await Process.run('bash', <String>[script, 'debug']);
-  if (result.exitCode != 0) {
-    throw ProcessException(
-      'bash',
-      <String>[script, 'debug'],
-      '${result.stdout}${result.stderr}',
-      result.exitCode,
-    );
-  }
 }
 
 String _targetArchitecture(Architecture architecture) {
   return switch (architecture) {
     Architecture.x64 => 'x64',
     _ => throw UnsupportedError(
-        'No Windows target mapping for architecture $architecture.',
-      ),
+      'No Windows target mapping for architecture $architecture.',
+    ),
   };
 }

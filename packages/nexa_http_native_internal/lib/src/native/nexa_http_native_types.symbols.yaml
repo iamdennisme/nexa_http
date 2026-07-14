@@ -1,0 +1,19 @@
+format_version: 1.0.0
+files:
+  package:nexa_http_native_internal/src/native/nexa_http_native_types.dart:
+    used-config:
+      ffi-native: false
+    symbols:
+      NexaHttpExecuteCallbackFunction:
+        name: NexaHttpExecuteCallbackFunction
+        dart-name: DartNexaHttpExecuteCallbackFunction
+      c:@S@NexaHttpBinaryResult:
+        name: NexaHttpBinaryResult
+      c:@S@NexaHttpClientConfigArgs:
+        name: NexaHttpClientConfigArgs
+      c:@S@NexaHttpHeaderEntry:
+        name: NexaHttpHeaderEntry
+      c:@S@NexaHttpRequestArgs:
+        name: NexaHttpRequestArgs
+      c:nexa_http_native.h@T@NexaHttpExecuteCallback:
+        name: NexaHttpExecuteCallback

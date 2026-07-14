@@ -5,27 +5,31 @@ import 'package:nexa_http_native_macos/nexa_http_native_macos.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('registerWith installs the macOS runtime', () {
+  setUp(resetNexaHttpNativeBindingsForTesting);
+
+  test('registerWith installs macOS Native Asset bindings', () {
     NexaHttpNativeMacosPlugin.registerWith();
-    expect(isNexaHttpNativeRuntimeRegistered(), isTrue);
+    expect(
+      NexaHttpNativeBindingsRegistry.assetId,
+      'package:nexa_http_native_macos/src/native/nexa_http_native_ffi.dart',
+    );
   });
 
-  test('macOS plugin keeps a fixed runtime loading contract', () async {
+  test('macOS production plugin has no manual loader or bundle path', () async {
     final contents = await File(
       'lib/src/nexa_http_native_macos_plugin.dart',
     ).readAsString();
-
-    expect(contents, contains('DynamicLibrary.open(_resolvedBundledLibraryPath())'));
-    expect(contents, contains('Platform.resolvedExecutable'));
-    expect(contents, contains("'Frameworks'"));
-    expect(contents, contains("'nexa_http_native_macos.framework'"));
-    expect(contents, contains("'nexa_http_native.bundle'"));
-    expect(contents, contains("'libnexa_http_native.dylib'"));
-    expect(contents, isNot(contains('NEXA_HTTP_NATIVE_MACOS_LIB_PATH')));
-    expect(contents, isNot(contains('NEXA_HTTP_NATIVE_MACOS_CONTRACT_PATH')));
-    expect(contents, isNot(contains('Platform.environment[_environmentVariable]')));
-    expect(contents, isNot(contains('DynamicLibrary.open(explicitPath.trim())')));
-    expect(contents, isNot(contains('contractPath.trim()')));
-    expect(contents, isNot(contains('walkUpDynamicLibraryCandidates')));
+    final generated = await File(
+      'lib/src/native/nexa_http_native_ffi.dart',
+    ).readAsString();
+    expect(contents, isNot(contains('DynamicLibrary')));
+    expect(contents, isNot(contains('Frameworks')));
+    expect(contents, isNot(contains('bundle')));
+    expect(
+      generated,
+      contains(
+        "package:nexa_http_native_macos/src/native/nexa_http_native_ffi.dart",
+      ),
+    );
   });
 }

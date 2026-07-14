@@ -140,16 +140,14 @@ final class FixtureHandler {
 
     if (_isStatusPath(path)) {
       final statusCode = int.parse(path.split('/').last);
-      _writeStatusResponse(
-        request: request,
-        statusCode: statusCode,
-      );
+      _writeStatusResponse(request: request, statusCode: statusCode);
       return;
     }
 
     if (_isRedirectPath(path)) {
       final statusCode = int.parse(path.split('/').last);
-      final location = request.uri.queryParameters['location'] ??
+      final location =
+          request.uri.queryParameters['location'] ??
           '/redirect-target?source=redirected';
       response
         ..statusCode = statusCode
@@ -186,7 +184,8 @@ final class FixtureHandler {
     final response = request.response;
     response.statusCode = statusCode;
 
-    final disallowBody = request.method.toUpperCase() == 'HEAD' ||
+    final disallowBody =
+        request.method.toUpperCase() == 'HEAD' ||
         statusCode == HttpStatus.noContent ||
         statusCode == HttpStatus.notModified;
     if (disallowBody) {
@@ -246,15 +245,17 @@ final class FixtureHandler {
   }
 
   static Future<List<int>> _fixtureImageBytes() {
-    return _cachedFixtureImageBytes ??=
-        _loadFixtureImageBytes();
+    return _cachedFixtureImageBytes ??= _loadFixtureImageBytes();
   }
 
   static Future<List<int>> _loadFixtureImageBytes() async {
     final candidates = <String>[
       'app/demo/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+      '../../app/demo/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
       'app/demo/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+      '../../app/demo/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
       'example/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+      '../../example/macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
     ];
 
     for (final candidate in candidates) {

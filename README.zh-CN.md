@@ -10,7 +10,7 @@
 
 - 应用侧 API 尽量保持简单
 - 传输层由 Rust 驱动
-- Android / iOS / macOS / Windows 都有明确的 carrier 包
+- Android / iOS / macOS / Windows 都有显式 platform carrier 包
 - 仓库里有一个可直接运行的 demo，可以把 Flutter → FFI → Rust 这条链路跑一遍
 
 ## 支持平台
@@ -20,26 +20,35 @@
 - macOS
 - Windows
 
+## 架构
+
+这个 monorepo 只有两个主层：
+
+- **Flutter SDK 层**：`packages/nexa_http`、`packages/nexa_http_native_internal`、各平台 carrier package、build hook 和验证工具。
+- **原生 native 层**：共享 Rust core、各平台 FFI crate 和 native build scripts。
+
+Platform carrier、build hook、release asset 和 clean-host verification 都是连接这两层的机制，不是宿主 App 直接使用的独立 API。
+
 ## 安装
 
-普通应用通常只需要两类依赖：
-
-1. `nexa_http`
-2. 你目标平台对应的 carrier package
+普通应用的 runtime 代码只 import `package:nexa_http/nexa_http.dart`，
+但 `pubspec.yaml` 需要同时声明 `nexa_http` 和目标平台对应的 carrier package。
 
 ### Git 依赖
+
+必须使用真实已发布 release tag。下面示例使用 `v1.0.2`。
 
 ```yaml
 dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: vX.Y.Z
+      ref: v1.0.2
       path: packages/nexa_http_native_macos
 ```
 
@@ -73,7 +82,11 @@ final request = RequestBuilder()
 
 final response = await client.newCall(request).execute();
 final body = await response.body?.string();
+await client.close();
 ```
+
+`Call` 和 `ResponseBody` 都是一次性的。重复同一个 `Request` 时重新调用
+`client.newCall(request)`；每个响应体只调用一次 `bytes()` 或 `string()`。
 
 ## Demo
 
@@ -85,7 +98,7 @@ final body = await response.body?.string();
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-然后在 macOS 上运行 demo：
+如果你在维护这个仓库，先准备本地 debug artifact，再运行 workspace demo：
 
 ```bash
 ./scripts/build_native_macos.sh debug
@@ -104,25 +117,55 @@ demo 里有两部分：
 
 ## 包结构
 
+Flutter SDK 层：
+
 - `packages/nexa_http` —— 公开 Dart SDK
-- `packages/nexa_http_native_internal` —— 内部 runtime/loading 层
+- `packages/nexa_http_native_internal` —— 内部 runtime/loading 与 artifact materialization helper
 - `packages/nexa_http_native_android` —— Android carrier
 - `packages/nexa_http_native_ios` —— iOS carrier
 - `packages/nexa_http_native_macos` —— macOS carrier
 - `packages/nexa_http_native_windows` —— Windows carrier
+
+原生 native 层：
+
 - `native/nexa_http_native_core` —— 共享 Rust transport core
+- `packages/nexa_http_native_*/native/*_ffi` —— 平台 FFI crate
+
+发布时 GitHub Release 会包含 native 下载产物。Carrier build hook 会下载、校验这些产物，并把对应平台动态库物化到 carrier/App 的构建布局中。
 
 ## 开发与验证
 
 如果你在维护这个仓库，最常用的本地检查是：
 
 ```bash
-fvm dart run scripts/workspace_tools.dart verify-artifact-consistency
-fvm dart run scripts/workspace_tools.dart verify-development-path
-fvm dart run scripts/workspace_tools.dart verify-external-consumer
+fvm dart run scripts/workspace_tools.dart verify-static --execution static-linux
+fvm dart run scripts/workspace_tools.dart matrix --suite verify-integration
+fvm dart run scripts/workspace_tools.dart check rust-format --execution static-linux
 ```
 
+`verify-integration` 与 `verify-release-candidate` 必须显式传入 Catalog matrix
+给出的 execution、fixture URL 和 device。原子 `check` 只用于诊断；CI 与发布门禁
+只能使用完整 suite。
+
 更完整的验证流程在 [`docs/verification-playbook.md`](./docs/verification-playbook.md)。
+
+## Native 发布事务
+
+Native 发布只有一个不可变事务 workflow：
+`.github/workflows/release-native-assets.yml`。Pull Request 会真实执行不可发布的
+rehearsal；手动 dispatch 必须显式提供稳定版本号、完整 40 位 commit SHA 和
+`publish` 布尔值。
+
+Workflow 按 canonical matrix 构建 Android、Apple、Windows 三个 fragment，原地
+assembly 为一个私有 candidate artifact，再让 Android、iOS、macOS、Windows
+四个 blocking clean-host gate 验证同一个 artifact ID 与 digest。只有手动
+dispatch 且 `publish=true` 才能进入 publisher。Publisher 不重新 build、不重命名、
+不复制另一套 candidate，也不重新生成 manifest/checksums；它只重新校验并以原名
+上传同一组 bytes。
+
+仓库没有 tag-push 发布路径、兼容 workflow、fallback publisher 或
+draft/prerelease staging。Rehearsal 或 gate 失败时只保留私有 Actions 诊断，绝不
+创建 public tag 或 GitHub Release。
 
 ## License
 

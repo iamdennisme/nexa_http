@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/guides/project-layering-contract.md", "reason": "Confirmed two-layer monorepo architecture and external integration contract"}
+{"file": ".trellis/spec/guides/flutter-sdk-authoring-contract.md", "reason": "Flutter SDK/package boundary and release consumer rules"}
+{"file": ".trellis/spec/guides/documentation-language-policy.md", "reason": "Chinese-first rule for Trellis spec documents"}
+{"file": "CONTEXT.md", "reason": "Current domain glossary and architecture vocabulary"}

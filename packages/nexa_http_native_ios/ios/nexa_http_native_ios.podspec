@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'nexa_http_native_ios'
-  s.version          = '0.1.1'
+  s.version          = '2.0.0'
   s.summary          = 'iOS carrier package for nexa_http native artifacts.'
   s.description      = <<-DESC
 iOS carrier package for nexa_http native artifacts.
@@ -11,7 +11,6 @@ iOS carrier package for nexa_http native artifacts.
 
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
-  s.preserve_paths = 'Frameworks/**/*'
   s.dependency 'Flutter'
   s.platform = :ios, '12.0'
   s.pod_target_xcconfig = {

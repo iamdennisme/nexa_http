@@ -1,0 +1,47 @@
+# Four-platform Native Assets clean cutover
+
+## Goal
+
+在一个原子子任务内让 Android、iOS、macOS、Windows 全部以 Flutter Native Assets/CodeAsset 作为唯一 native artifact packaging 与 runtime loading authority，并删除所有传统打包、固定路径 loader、影子产物和 fallback。
+
+## Dependencies
+
+- 依赖 `07-10-v2-public-http-api-cutover`，所有 runtime smoke 使用最终 v2 API。
+- 依赖 `07-10-verification-catalog-ci-suites`，所有 target、ABI、artifact uniqueness 和 clean-host checks 注册到同一 Catalog。
+- 本任务必须四平台整体完成；不得把单个平台完成状态作为可归档 child task 或可合并架构状态。
+
+## Requirements
+
+- `prepareNexaHttpNativeCarrierArtifact(...)` 返回的同一个 `File` 直接进入 `CodeAsset`；hook 不再忽略返回值或重新硬编码 packaged path。
+- Canonical target matrix 唯一定义 target tuple、Rust target、source artifact、release filename、packaging identity 和 runner mapping。
+- Runtime loader、ABI verifier、artifact uniqueness scan 和 clean-host smoke 指向同一个 target artifact identity，禁止“验证 A、运行 B”。
+- 删除 CocoaPods resource bundle、carrier-owned `jniLibs` copy、CMake bundled-library copy、固定 bundle path、`DynamicLibrary.process()`/manual open shadow strategy 和所有 fallback branch。
+- 删除 committed/materialized legacy native binaries及其生成/复制规则；App 每个 target 只能存在一个导出 canonical `nexa_http_*` ABI 的 payload。
+- Workspace build 必须真正由请求 target tuple 驱动，不能用 host build 冒充 x64/arm64 等目标。
+- Hook output/cache 以 target identity 隔离，避免并发 target 互删或覆盖；文件完成采用原子 materialization。
+- 平台失败必须输出 stage、target tuple、SDK ref、expected action 和 underlying error，不得降级到另一路径。
+- 旧代码、tests、docs、Podspec/Gradle/CMake 配置和 verification path 同任务删除或重写，不留“后续清理”。
+
+## Acceptance Criteria
+
+- [x] Android、iOS、macOS、Windows 全部由 Native Assets/CodeAsset 打包并通过正式 runtime loader 调用。
+- [x] 每个支持 target 的 build output 仅存在一个 canonical ABI payload；macOS 不再包含两份约 15 MB native library。
+- [x] 所有传统 packaging、fixed-path/manual loader、fallback、legacy binaries 和相关测试/文档均不存在。
+- [x] Target matrix tests 证明每个 tuple 驱动正确 Rust target、source file、asset identity 和 runner。
+- [x] 最终 CodeAsset 对每个 target 通过 exact ABI missing/unexpected comparison。
+- [x] 四个平台 clean host 实际完成 plugin registration、Native Asset loading、FFI client creation、fixture HTTP request、callback 和 body release。
+- [x] 并发/重复/多架构 build 隔离测试通过，没有共享目录删除竞态。
+- [x] Catalog 的 integration/candidate checks 只消费最终 Native Asset identity。
+
+## Verification status
+
+- 本机 Apple blocking row 已在共享workspace fingerprint cache切换后重新通过：schema v2、`status=passed`，覆盖5个prepared targets、iOS/macOS各1个最终payload和两次完整runtime lifecycle proof；carrier hook未重复native build。
+- Apple prepared/package raw SHA 因 Xcode install-name rewrite 与 codesign 不同；两端 raw SHA 均保留，Mach-O `LC_UUID` 集合派生的 `identity_sha256` 一致。
+- GitHub Actions run `29224569319`（head `d6398583084e4a0503077d13dd1158cd7af76f9b`）全部通过，包含Catalog matrix、static、Android、Apple、Windows与最终`ci-gate`。
+- schema v2 reports全部为`status=passed`：Android 3个prepared targets与1个x64 runtime payload；Apple 5个prepared targets与iOS/macOS各1个runtime payload；Windows 1个prepared target与1个runtime payload。所有runtime均`payload_count=1`且request/callback/body consumed/body released/client closed五项为`true`。
+- Android与Windows prepared/package raw SHA及`identity_sha256`精确相等；Apple prepared/package raw SHA按Xcode rewrite/codesign设计不同，但Mach-O identity精确相等。三份report再次通过本地aggregate解析。
+
+## Out of Scope
+
+- 创建公开 tag 或 GitHub Release。
+- 与外部契约无关的 Dart transport/Rust executor/proxy 内部重构。

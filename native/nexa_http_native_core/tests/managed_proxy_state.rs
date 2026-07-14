@@ -41,15 +41,13 @@ fn managed_proxy_state_tracks_generation_and_latest_snapshot() {
     };
 
     let state = ManagedProxyState::new(source);
-    let initial = state.current_platform_state();
-    assert_eq!(initial.proxy_generation, 0);
-    assert_eq!(initial.platform_features.proxy, ProxySettings::default());
+    assert_eq!(state.proxy_generation(), 0);
+    assert_eq!(state.current_proxy_snapshot(), ProxySettings::default());
 
     assert!(state.refresh_now());
-    let updated = state.current_platform_state();
-    assert_eq!(updated.proxy_generation, 1);
+    assert_eq!(state.proxy_generation(), 1);
     assert_eq!(
-        updated.platform_features.proxy.http.as_deref(),
+        state.current_proxy_snapshot().http.as_deref(),
         Some("http://127.0.0.1:8888"),
     );
 }

@@ -5,23 +5,29 @@ import 'package:nexa_http_native_ios/nexa_http_native_ios.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('registerWith installs the iOS runtime', () {
+  setUp(resetNexaHttpNativeBindingsForTesting);
+
+  test('registerWith installs iOS Native Asset bindings', () {
     NexaHttpNativeIosPlugin.registerWith();
-    expect(isNexaHttpNativeRuntimeRegistered(), isTrue);
+    expect(
+      NexaHttpNativeBindingsRegistry.assetId,
+      'package:nexa_http_native_ios/src/native/nexa_http_native_ffi.dart',
+    );
   });
 
-  test('iOS plugin keeps a fixed runtime loading contract', () async {
+  test('iOS production plugin has no manual loader', () async {
     final contents = await File(
       'lib/src/nexa_http_native_ios_plugin.dart',
     ).readAsString();
-
-    expect(contents, contains('DynamicLibrary.process()'));
-    expect(contents, isNot(contains('NEXA_HTTP_NATIVE_IOS_LIB_PATH')));
-    expect(contents, isNot(contains('Platform.environment[_environmentVariable]')));
-    expect(contents, isNot(contains('DynamicLibrary.open(explicitPath.trim())')));
-    expect(contents, isNot(contains('Frameworks')));
-    expect(contents, isNot(contains('target')));
-    expect(contents, isNot(contains('walkUpDynamicLibraryCandidates')));
-    expect(contents, isNot(contains('resolveNexaHttpDynamicLibraryCandidates')));
+    final generated = await File(
+      'lib/src/native/nexa_http_native_ffi.dart',
+    ).readAsString();
+    expect(contents, isNot(contains('DynamicLibrary')));
+    expect(
+      generated,
+      contains(
+        "package:nexa_http_native_ios/src/native/nexa_http_native_ffi.dart",
+      ),
+    );
   });
 }
