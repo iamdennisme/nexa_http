@@ -37,13 +37,19 @@ Archive the completed OpenSpec change `simplify-native-layering` by syncing its 
 
 ## Acceptance Criteria
 
-- [ ] Main OpenSpec specs reflect the `simplify-native-layering` delta requirements.
-- [ ] Main OpenSpec specs no longer contain the old requirements removed by the delta specs.
-- [ ] The active change directory is moved to `openspec/changes/archive/2026-07-03-simplify-native-layering/`.
-- [ ] `git diff --check` passes before the work commit.
-- [ ] The work commit records the OpenSpec sync/archive work.
-- [ ] Trellis task archive and session journal are recorded after the work commit.
-- [ ] Remaining active OpenSpec changes are reported accurately.
+- [x] Main OpenSpec specs reflect the `simplify-native-layering` delta requirements.
+- [x] Main OpenSpec specs no longer contain the old requirements removed by the delta specs.
+- [x] The active change directory is moved to `openspec/changes/archive/2026-07-03-simplify-native-layering/`.
+- [x] `git diff --check` passes before the work commit.
+- [x] The work commit records the OpenSpec sync/archive work.
+- [x] Trellis task archive and session journal are recorded after the work commit.
+- [x] Remaining active OpenSpec changes are reported accurately.
+
+## Completion Evidence
+
+- Work commit `e91af2d` synchronized and archived the OpenSpec change.
+- Trellis archive commit `b620ecb` closed the task; developer journal Session 4 records the archive/spec-sync checks.
+- A later approved clean cutover removed the entire OpenSpec tree, so the historical archive directory is intentionally absent from the current repository rather than being an incomplete migration residue.
 
 ## Out of Scope
 

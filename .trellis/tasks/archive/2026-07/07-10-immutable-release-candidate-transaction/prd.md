@@ -32,14 +32,22 @@
 
 ## Acceptance Criteria
 
-- [ ] Gate 失败演练不会产生 tag、Release、draft 或 prerelease，仅保留私有诊断。
-- [ ] 所有四平台 job 报告相同 candidate-set identity，并通过 runtime smoke。
-- [ ] Publisher executable/contract tests证明只按原名上传已验证candidate的11个文件、逐个核对远端digest，且publisher中没有build、copy、rename或metadata regeneration；本任务不执行`publish=true`。
-- [ ] Workflow 不再包含 tag-push trigger，旧 script 不再 push/create/reset tag。
-- [ ] iOS 与其他三平台同等进入 blocking gate，不存在 allow-failure/skip 分支。
-- [ ] Publication job 对 version、commit、existing tag/release、manifest/checksum 和 asset completeness 做失败优先验证。
-- [ ] Workflow contract tests 证明 publication 依赖全部 gate，权限和 artifact flow 无旁路。
-- [ ] PR rehearsal在当前feature head真实生成一次candidate set并通过Android/iOS/macOS/Windows aggregate，同时publisher job为skipped且远端无新tag/release。
+- [x] Gate 失败演练不会产生 tag、Release、draft 或 prerelease，仅保留私有诊断。
+- [x] 所有四平台 job 报告相同 candidate-set identity，并通过 runtime smoke。
+- [x] Publisher executable/contract tests证明只按原名上传已验证candidate的11个文件、逐个核对远端digest，且publisher中没有build、copy、rename或metadata regeneration；本任务不执行`publish=true`。
+- [x] Workflow 不再包含 tag-push trigger，旧 script 不再 push/create/reset tag。
+- [x] iOS 与其他三平台同等进入 blocking gate，不存在 allow-failure/skip 分支。
+- [x] Publication job 对 version、commit、existing tag/release、manifest/checksum 和 asset completeness 做失败优先验证。
+- [x] Workflow contract tests 证明 publication 依赖全部 gate，权限和 artifact flow 无旁路。
+- [x] PR rehearsal在当前feature head真实生成一次candidate set并通过Android/iOS/macOS/Windows aggregate，同时publisher job为skipped且远端无新tag/release。
+
+## 验证状态（2026-07-14）
+
+- 显式失败演练 run `29246093726` 在可信 default-branch ancestry preflight 阶段拒绝无效 dispatch；build、assembly、四平台 gate、aggregate 与 publisher 全部未启动。
+- 最新 CI run `29305735654` 全绿；最新 PR rehearsal run `29305735640` 的三个 build fragments、唯一 assembly、Android/iOS/macOS/Windows candidate rows 与 aggregate 全部成功，publisher 为 skipped。
+- 四份 schema v2 report 使用同一 source identity：`candidate:gha:29305735640:8300239662:98e42d897fd101f2987a0856480a2e3016653f83d25a5b80d98bfa42d79a219e`。
+- Publisher、remote digest、transaction compensation、trust preflight、exact artifact flow 与 no-build/no-copy/no-rename 由 release transaction 和 workflow contract tests 覆盖。
+- 失败与成功演练前后远端公开状态均为 9 个 tags、9 个正式 Releases、0 drafts、0 prereleases；本任务从未运行 `publish=true`。
 
 ## Out of Scope
 

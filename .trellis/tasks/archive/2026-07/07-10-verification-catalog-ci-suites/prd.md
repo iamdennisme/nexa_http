@@ -79,16 +79,24 @@
 
 ## Acceptance Criteria
 
-- [ ] Catalog tests 证明 check ID 唯一、三个 suite membership 完整、未知/重复/无覆盖配置失败，且没有静默漏项。
-- [ ] `workspace_tools.dart` 是薄 CLI；source contract 拒绝其拥有 `Process.run`、fixture materialization、native build 或 suite composition 实现。
-- [ ] planner tests 证明同一 execution key 只执行一次，Android/Apple/Windows build group 不因多个 logical targets 重复 build。
-- [ ] inventory、fixture、candidate digest instrumentation 证明单次 suite 中各自只准备/读取一次；candidate 与 native artifact 不发生检查间完整复制。
-- [ ] dynamic Actions matrix 与 canonical native target matrix 双向一致，每个 target 恰好属于一个 execution group，JSON schema 可由 Actions 直接解析。
-- [ ] `verify-static` 在 Catalog 定义的 runner 组合覆盖全部 Dart/Rust required checks；重复 workspace tests 不再跨 check 或 runner无意义重跑。
-- [ ] `verify-integration` 在 Android、Apple 和 Windows build execution groups覆盖正式build/ABI，并分别证明 Android、iOS、macOS、Windows 的 development/external clean-host runtime行为；缺 prerequisite明确失败。
-- [ ] `verify-release-candidate` 能针对本地 staged candidate 输入验证 identity、digest、manifest/checksum 和 runtime-smoke contract，并输出完整 issue-ready diagnostics。
-- [ ] CI workflow 只加载 Catalog matrix并调用完整 suite；contract test 拒绝 direct gate composition、手写 target/asset/build command 和旧 command。
-- [ ] 旧 release workflow、旧 CLI commands/aliases、forwarding functions、旧 tests 与旧文档入口全部删除，无 fallback、deprecated alias 或双轨中间态。
+- [x] Catalog tests 证明 check ID 唯一、三个 suite membership 完整、未知/重复/无覆盖配置失败，且没有静默漏项。
+- [x] `workspace_tools.dart` 是薄 CLI；source contract 拒绝其拥有 `Process.run`、fixture materialization、native build 或 suite composition 实现。
+- [x] planner tests 证明同一 execution key 只执行一次，Android/Apple/Windows build group 不因多个 logical targets 重复 build。
+- [x] inventory、fixture、candidate digest instrumentation 证明单次 suite 中各自只准备/读取一次；candidate 与 native artifact 不发生检查间完整复制。
+- [x] dynamic Actions matrix 与 canonical native target matrix 双向一致，每个 target 恰好属于一个 execution group，JSON schema 可由 Actions 直接解析。
+- [x] `verify-static` 在 Catalog 定义的 runner 组合覆盖全部 Dart/Rust required checks；重复 workspace tests 不再跨 check 或 runner无意义重跑。
+- [x] `verify-integration` 在 Android、Apple 和 Windows build execution groups覆盖正式build/ABI，并分别证明 Android、iOS、macOS、Windows 的 development/external clean-host runtime行为；缺 prerequisite明确失败。
+- [x] `verify-release-candidate` 能针对本地 staged candidate 输入验证 identity、digest、manifest/checksum 和 runtime-smoke contract，并输出完整 issue-ready diagnostics。
+- [x] CI workflow 只加载 Catalog matrix并调用完整 suite；contract test 拒绝 direct gate composition、手写 target/asset/build command 和旧 command。
+- [x] 旧 release workflow、旧 CLI commands/aliases、forwarding functions、旧 tests 与旧文档入口全部删除，无 fallback、deprecated alias 或双轨中间态。
+
+## 验证状态（2026-07-14）
+
+- Work commit `81b7725` 建立 Catalog、planner/executor、动态 matrix、三个完整 suite 与 CI aggregate；archive commit `44fd37e` 归档任务。
+- 最新 CI run `29305735654` 的 `verify-static`、Android/Apple/Windows `verify-integration` 与 `ci-gate` 全部成功。
+- 最新 release rehearsal `29305735640` 证明同一 Catalog 的四平台 `verify-release-candidate` rows 与 aggregate 全部成功。
+- `test/verification`、thin-entrypoint、planner memoization、matrix coverage、candidate streaming digest、workflow absence/ownership contract 均已进入 `verify-static` 门禁。
+- 当前仓库只保留正式 suite 与 Catalog `check` 诊断入口；旧 aliases、forwarders 和备用 release authority 无生产残留。
 
 ## Out of Scope
 
