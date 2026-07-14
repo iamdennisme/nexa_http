@@ -403,3 +403,47 @@ Completed the atomic Android/iOS/macOS/Windows Native Assets cutover with no fal
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: Complete immutable release candidate transaction
+
+**Date**: 2026-07-14
+**Task**: Complete immutable release candidate transaction
+**Package**: nexa_http_native_core
+
+### Summary
+
+Completed the immutable build-once release transaction and four-platform clean-host gates. Hardened dispatch trust, candidate identity and no-rebuild promotion; stabilized Android release runtime with explicit main-manifest network permission, structured phase/failure diagnostics, preserved native source chains, and a single adb reverse loopback transport. CI run 29303463935 and rehearsal run 29303463915 passed; aggregate succeeded, publisher was skipped, and public tags/releases remained unchanged.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `90d55ec` | (see git log) |
+| `349fec8` | (see git log) |
+| `b3a34ec` | (see git log) |
+| `67d2c54` | (see git log) |
+| `ba364bd` | (see git log) |
+| `d62b790` | (see git log) |
+| `7b4402f` | (see git log) |
+| `e47587a` | (see git log) |
+| `07045a3` | (see git log) |
+| `463c99d` | (see git log) |
+| `4da14e3` | (see git log) |
+| `c7d2208` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
