@@ -369,7 +369,7 @@ output.assets.code.add(
 - Report 同时记录 prepared/package raw SHA-256 与 `identity_sha256`。Android与Windows的Flutter packaging都是byte-for-byte copy，identity必须等于raw digest；Apple framework会被Xcode改install name并重签名，identity固定为按architecture排序的Mach-O `LC_UUID`集合SHA-256。aggregate比较identity digest，两端raw值始终保留用于审计。
 - Workspace integration的Catalog native-build producer先把同一组target一次构建到共享workspace cache并记录fingerprint；development path、external consumer和carrier hook只能复用这些File，不得通过被hook剥离的环境变量传递prepared目录，也不得二次build同一tuple。
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
-- clean-host fixture必须依次输出`NEXA_HTTP_RUNTIME_PHASE binding_ready`、`app_mounted`、`client_built`、`request_started`、`response_received`、`client_closed`，最终才输出proof。Tracker只把proof计入成功，但零proof错误必须附带本轮已观测phase，区分Dart isolate/Flutter mount/client construction/native callback/body/close卡点；phase不能替代proof。
+- clean-host fixture必须依次输出`NEXA_HTTP_RUNTIME_PHASE binding_ready`、`app_mounted`、`client_built`、`request_started`、`response_received`、`client_closed`，最终才输出proof。Catch必须把错误通过JSON编码的`NEXA_HTTP_RUNTIME_FAILURE {"error":"..."}`写到stdout，不能只依赖release Android不可见的stderr。Tracker只把proof计入成功，但零proof错误必须附带本轮去重phase和failure，区分Dart isolate/Flutter mount/client construction/native callback/body/close卡点；phase/failure不能替代proof。
 - Android clean-host只允许一次`flutter build apk --release`，并在这次build中注入fixture URL。Flutter app模板只在debug/profile manifest默认声明`android.permission.INTERNET`，因此path/candidate consumer与released consumer必须在build前共同调用fixture配置入口，把恰好一条`<uses-permission android:name="android.permission.INTERNET"/>`写入`android/app/src/main/AndroidManifest.xml`；不能依赖debug/profile manifest，也不能各自维护配置实现。两个consumer必须复用同一个build-argument projection，不能各自拼装define。Runtime row必须复用`app-release.apk`，按`adb install -t -r`、`adb logcat -c`、`adb shell am start -W`顺序启动；不得调用`flutter run`，也不得直接启动会进入VM-service/debug attach路径的debug APK。启动后只对同device的`flutter:I`日志执行最多60次有界轮询；真实ATD冷启动可能在第30次之后才交付callback，仍要求恰好一条完整marker，不得扫描无关system日志或依赖固定sleep猜测日志已flush；proof判定结束后best-effort force-stop fixture，避免污染同device后续row。
 - Android fixture输出成功marker后不得主动`exit(0)`；由验证端观测marker后结束row。iOS/macOS/Windows可以在短暂flush窗口后退出，但任何平台的process exit code都不能替代marker。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
@@ -390,7 +390,7 @@ output.assets.code.add(
 - candidate directory/ref仅有一个、类型错误或路径不存在 -> hook直接失败；不得回退workspace/release source。
 - Windows candidate directory以`D:\...`原生路径而不是`file:///D:/...`写入user-defines -> hook path解析或Native Assets build失败；修复producer序列化，不得增加另一路径探测或fallback。
 - Android Flutter stdout无marker且清空后的同device filtered logcat在有界轮询内也无marker -> runtime失败；不得把App启动、DDS连接或进程退出当作lifecycle proof。
-- runtime无proof -> 错误必须包含`phases=<本轮顺序>`；完全没有phase表示Dart fixture未进入可观测main，停在`request_started`表示native execute/callback未完成。不得把phase当成功证据。
+- runtime无proof -> 错误必须包含`phases=<本轮去重顺序>; failures=<结构化错误>`；完全没有phase表示Dart fixture未进入可观测main，停在`request_started`且有failure表示execute以异常结束。不得把phase/failure当成功证据。
 - Android直接启动debug APK后只出现Dart VM service而无fixture marker -> build profile错误；consumer统一改用唯一release APK，不能继续延长轮询或恢复`flutter run`。
 - Android main manifest不存在、XML中缺少`<manifest>`根元素或已包含多条INTERNET permission -> fixture配置失败并阻断build；不得改用debug/profile APK或重复插入权限。
 - Workspace build 产物 architecture 与请求 target 不一致 -> 验证失败，不得使用 host build 代替。
@@ -414,7 +414,7 @@ output.assets.code.add(
 - Proof report test：schema v2拒绝缺失raw/identity digest、相对路径、payload count非1、lifecycle false、target/asset/identity mismatch；aggregate精确覆盖9个target和4个平台runtime。
 - ABI test：对最终 CodeAsset artifact 做 exact missing/unexpected symbol comparison。
 - Runtime smoke：clean host 必须实际创建 client、执行 fixture HTTP request、接收 callback 并释放 response body。
-- Runtime phase test：生成fixture的六个phase必须按binding/mount/client/request/response/close顺序出现，proof在最后；tracker零proof错误必须只报告本轮观测phase。
+- Runtime phase test：生成fixture的六个phase必须按binding/mount/client/request/response/close顺序出现，proof在最后；catch的JSON failure marker必须先于stderr；tracker零proof错误必须只报告本轮去重phase与failure。
 - Workspace reuse test：Catalog producer与两个不同hook output请求返回同一个共享cache File，build invocation保持一次；source或target tuple变化会失效。
 - Hook config test：candidate user-defines的相对目录按workspace pubspec base path解析，absolute POSIX/Windows目录由consumer producer序列化为`file:` URI，directory/ref成对传给preparer；自定义环境变量不参与contract。
 - Android marker test：path/candidate与released consumer都模拟无INTERNET permission的Flutter main manifest，并断言唯一一次Flutter release APK build开始前manifest已包含恰好一条permission、build包含fixture define并产出`app-release.apk`；随后按install、清空logcat、`am start -W`、有界轮询、force-stop执行且不存在`flutter run`；覆盖延迟到达、旧marker、零marker、重复marker和结束后的fixture清理。

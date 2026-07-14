@@ -13,7 +13,7 @@
 - Actions使用`aosp_atd` image，并在emulator启动前通过Catalog `check native-build`预热共享workspace fingerprint cache；完整suite必须复用同一File，不能第二次Cargo build或复制prepared set。
 - Android runtime marker采集必须复用唯一一次`flutter build apk --release`的`app-release.apk`：path/candidate与released fixture在build前通过同一个配置器让`android/app/src/main/AndroidManifest.xml`包含恰好一条`android.permission.INTERNET`，build阶段注入fixture URL，runtime按`adb install -t -r`、清空logcat、`adb shell am start -W`启动，不得依赖只存在于debug/profile manifest的权限，不得调用`flutter run`、二次Gradle assemble或直接启动debug APK。随后只对同device本轮`flutter:I`日志做最多60次有界轮询；Actions已观测到真实ATD callback在第30次之后到达，仍要求唯一完整marker，超出上限直接失败，proof判定后best-effort force-stop fixture。
 - Fixture打印marker后不得主动退出或依赖固定flush sleep；验证端观测marker后才结束row。process exit 0不构成runtime proof。
-- Fixture在proof前输出binding、mount、client、request、response、close六个固定phase；Android零proof错误必须携带本轮phase序列以定位release AOT/native callback边界，但phase永远不能替代proof。
+- Fixture在proof前输出binding、mount、client、request、response、close六个固定phase，catch通过stdout输出JSON failure；Android零proof错误必须携带本轮去重phase与failure以定位release AOT/native callback边界，但诊断永远不能替代proof。
 
 ## 禁止模式
 

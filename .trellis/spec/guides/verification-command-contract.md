@@ -121,7 +121,7 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - Android runtime必须复用consumer阶段唯一一次`flutter build apk --release`产生的`app-release.apk`；path/candidate consumer与released consumer共同调用`configureExternalConsumerFixture`，在build前让`android/app/src/main/AndroidManifest.xml`包含恰好一条`android.permission.INTERNET`，并共同调用`externalConsumerBuildArguments`注入fixture URL，不能维护两份宿主配置或build参数。Runtime只执行`adb install -t -r`、清空目标device logcat和`adb shell am start -W`，不得调用`flutter run`，也不得启动debug APK进入VM-service/debug attach路径。启动后只允许最多60次有界轮询同device的`flutter:I`日志；真实ATD冷启动曾在第30次之后才完成callback。仍无单一完整marker则失败，proof判定后best-effort force-stop fixture，cleanup失败不得冒充或覆盖proof结果。
 - Android release fixture的main manifest缺失、无`<manifest>`根元素或包含重复INTERNET permission -> consumer配置失败，唯一release build不得启动；不得回退debug/profile manifest。
 - Android fixture不得在`print(NEXA_HTTP_RUNTIME_PROOF ...)`后主动退出，也不得用固定sleep推断日志已flush；验证端必须先观测完整marker。任何平台仍以marker内容而不是退出码判定通过。
-- clean-host fixture在proof前必须输出固定顺序的`NEXA_HTTP_RUNTIME_PHASE`诊断；零proof失败包含本轮phase序列，phase本身不改变gate结论，也不得作为兼容成功路径。
+- clean-host fixture在proof前必须输出固定顺序的`NEXA_HTTP_RUNTIME_PHASE`诊断，并在catch时把JSON编码的`NEXA_HTTP_RUNTIME_FAILURE`写到stdout；零proof失败包含本轮去重phase与failure，诊断本身不改变gate结论，也不得作为兼容成功路径。
 - candidate缺artifact、存在未知artifact、manifest/SHA256SUMS/实际bytes不一致 -> candidate set失败。
 - 缺device、fixture URL、candidate identity/digest/SDK ref -> CLI usage失败。
 - 平台toolchain或device缺失 -> suite失败，不得skip-as-pass。
@@ -143,7 +143,7 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - `cargo test --workspace`
 - `verify-static --execution static-linux` 必须通过真实Catalog runner。
 - Android consumer测试必须在mocked `flutter create`后写入无网络权限的main manifest，并断言path/candidate与released runner在唯一release build前都将其变为恰好一条INTERNET permission。
-- Runtime诊断测试必须断言六个phase在生成source中有序且位于proof前，并断言tracker的零proof错误包含本轮phase序列。
+- Runtime诊断测试必须断言六个phase在生成source中有序且位于proof前、failure marker先于stderr，并断言tracker的零proof错误包含本轮去重phase与failure。
 - CI contract test断言release workflow只有唯一transaction DAG、动态matrix、单一candidate artifact、四平台完整suite、report aggregate和唯一publisher；旧tag authority必须不存在。
 
 ### 7. Wrong vs Correct

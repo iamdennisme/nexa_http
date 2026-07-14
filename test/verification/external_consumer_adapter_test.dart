@@ -73,6 +73,20 @@ void main() {
     );
   });
 
+  test('consumer runtime emits a structured failure marker on stdout', () {
+    final source = buildExternalConsumerRuntimeMain();
+    final failureMarker = source.indexOf('NEXA_HTTP_RUNTIME_FAILURE ');
+    final stderrMarker = source.indexOf('NEXA_HTTP_RUNTIME_SMOKE_FAILED:');
+
+    expect(source, contains("import 'dart:convert';"));
+    expect(failureMarker, greaterThan(source.indexOf('catch (error')));
+    expect(stderrMarker, greaterThan(failureMarker));
+    expect(
+      source,
+      contains('jsonEncode(<String, String>{"error": "\$error"})'),
+    );
+  });
+
   test('path consumer declares only the public package and target carrier', () {
     final pubspec = buildPathConsumerPubspec('/snapshot', targetOS: 'ios');
 
@@ -383,6 +397,34 @@ void main() {
           (error) => error.message,
           'message',
           contains('phases=client_built,request_started'),
+        ),
+      ),
+    );
+  });
+
+  test('runtime proof failure reports the fixture error marker', () {
+    final tracker = ExternalRuntimeProofMarkerTracker()
+      ..observeLine('flutter: NEXA_HTTP_RUNTIME_PHASE request_started')
+      ..observeLine(
+        'flutter: NEXA_HTTP_RUNTIME_FAILURE '
+        '{"error":"NexaHttpException: unavailable"}',
+      );
+
+    expect(
+      () => tracker.requireSingleProofSince(
+        0,
+        previousFailureCount: 0,
+        previousPhaseCount: 0,
+        targetOS: 'android',
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          allOf(
+            contains('phases=request_started'),
+            contains('failures={"error":"NexaHttpException: unavailable"}'),
+          ),
         ),
       ),
     );

@@ -36,14 +36,28 @@ const _externalConsumerAndroidApplicationId =
 final class ExternalRuntimeProofMarkerTracker {
   static const marker = 'NEXA_HTTP_RUNTIME_PROOF ';
   static const phaseMarker = 'NEXA_HTTP_RUNTIME_PHASE ';
+  static const failureMarker = 'NEXA_HTTP_RUNTIME_FAILURE ';
 
   final List<Map<String, Object?>> _proofs = <Map<String, Object?>>[];
   final List<String> _phases = <String>[];
+  final List<String> _failures = <String>[];
 
   int get proofCount => _proofs.length;
   int get phaseCount => _phases.length;
+  int get failureCount => _failures.length;
 
   void observeLine(String line) {
+    final failureMarkerIndex = line.indexOf(failureMarker);
+    if (failureMarkerIndex >= 0) {
+      final failure = line
+          .substring(failureMarkerIndex + failureMarker.length)
+          .trim();
+      if (failure.isEmpty) {
+        throw const FormatException('Invalid runtime failure marker');
+      }
+      _failures.add(failure);
+      return;
+    }
     final phaseMarkerIndex = line.indexOf(phaseMarker);
     if (phaseMarkerIndex >= 0) {
       final phase = line
@@ -80,16 +94,19 @@ final class ExternalRuntimeProofMarkerTracker {
 
   void requireSingleProofSince(
     int previousCount, {
+    int previousFailureCount = 0,
     int previousPhaseCount = 0,
     required String targetOS,
   }) {
     final produced = _proofs.length - previousCount;
     if (produced != 1) {
-      final observedPhases = _phases.skip(previousPhaseCount).join(',');
+      final observedPhases = _phases.skip(previousPhaseCount).toSet().join(',');
+      final observedFailures = _failures.skip(previousFailureCount).join('|');
       throw StateError(
         'Expected exactly one runtime proof marker for $targetOS, '
         'found $produced; phases='
-        '${observedPhases.isEmpty ? '<none>' : observedPhases}',
+        '${observedPhases.isEmpty ? '<none>' : observedPhases}; failures='
+        '${observedFailures.isEmpty ? '<none>' : observedFailures}',
       );
     }
   }
@@ -117,6 +134,7 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
     }
     final previousProofCount = proofTracker.proofCount;
     final previousPhaseCount = proofTracker.phaseCount;
+    final previousFailureCount = proofTracker.failureCount;
     Object? flutterError;
     StackTrace? flutterStackTrace;
     try {
@@ -217,6 +235,7 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
       if (proofTracker.proofCount == previousProofCount + 1) {
         proofTracker.requireSingleProofSince(
           previousProofCount,
+          previousFailureCount: previousFailureCount,
           previousPhaseCount: previousPhaseCount,
           targetOS: platform.targetOS,
         );
@@ -227,6 +246,7 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
       }
       proofTracker.requireSingleProofSince(
         previousProofCount,
+        previousFailureCount: previousFailureCount,
         previousPhaseCount: previousPhaseCount,
         targetOS: platform.targetOS,
       );
@@ -858,6 +878,7 @@ Future<void> enableAndroidReleaseInternetPermission(
 
 String buildExternalConsumerRuntimeMain() {
   return '''
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -893,6 +914,9 @@ Future<void> main() async {
       throw StateError('Fixture response body is empty');
     }
   } catch (error, stackTrace) {
+    print(
+      'NEXA_HTTP_RUNTIME_FAILURE \${jsonEncode(<String, String>{"error": "\$error"})}',
+    );
     stderr.writeln('NEXA_HTTP_RUNTIME_SMOKE_FAILED: \${error}');
     stderr.writeln(stackTrace);
     exitCode = 1;
