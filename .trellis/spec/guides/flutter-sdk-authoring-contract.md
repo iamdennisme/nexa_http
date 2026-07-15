@@ -220,11 +220,14 @@ flutter build macos
 ### 2. Signatures
 
 - `fvm dart run scripts/workspace_tools.dart check released-consumer --execution <id> --repo-url <url> --ref <real-ref> --fixture-url <url> --device <target-os>=<device-id>`
+- `discoverNexaHttpNativeGitReleaseRef(packageRoot) -> NexaHttpNativeGitReleaseRef(repositorySlug, exactTag)`
 
 ### 3. Contracts
 
 - `released-consumer` 必须显式接收真实 repo URL 与 release tag/ref，不能把 `vX.Y.Z` 占位符写入临时 consumer pubspec。
-- 不允许从环境变量、当前 `HEAD` 或 exact tag 状态隐式猜测 ref。
+- `released-consumer` CLI不得从环境变量或命令执行workspace的`HEAD`/exact tag状态隐式猜测输入ref；build hook仍必须从实际dependency checkout的exact tag确定下载身份。
+- Dart pub 的标准 Git checkout 中，checkout `origin` 指向本机 `.pub-cache/git/cache/<repo-hash>` bare repository，而该 bare repository 的 `origin` 才是 canonical GitHub URL。Release ref resolver必须解析这一层固定indirection，再以cache origin确定repository slug；这属于package-manager标准路径，不是fallback或第二artifact source。
+- Resolver仍必须从dependency checkout的`HEAD`读取exact tag。不得从package version、branch、当前workspace HEAD或cache repository HEAD猜测tag，也不得递归追踪任意多层local remote。
 - 当前未发布改动不能用旧 tag 证明；旧 tag 只能证明已发布 release consumer 路径仍可用。
 - 本场景是已发布版本的诊断/回归检查，不属于 pre-publication Release Gate，不能替代 `verify-release-candidate`。
 
@@ -233,34 +236,40 @@ flutter build macos
 - repo URL 或 ref 为空 -> usage error，提示显式提供 typed input。
 - ref 是 `vX.Y.Z` -> `StateError`，提示不能使用占位符。
 - git ref 不存在 -> `flutter pub get` 失败，说明目标 release/tag 不存在或未推送。
+- dependency checkout origin是绝对local cache path，但cache repository没有canonical GitHub origin -> `release ref resolution`失败；不得把local path拼成Release URL。
+- dependency checkout `HEAD`没有exact tag -> `release ref resolution`失败，即使cache origin和package version看起来有效也不得继续下载。
 
 ### 5. Good/Base/Bad Cases
 
 - Good: 通过 `check released-consumer` 显式传入真实 repo URL、release ref、execution、fixture URL 与 device。
-- Base: 对真实已发布 ref 运行诊断，并让宿主只依赖公开主包与目标 carrier。
-- Bad: 使用 `vX.Y.Z`、隐式环境变量或旧 top-level command 猜测 release ref。
+- Base: 对真实已发布 ref 运行诊断；checkout origin指向Dart pub bare cache，resolver通过cache的GitHub origin得到repository slug，并让宿主只依赖公开主包与目标 carrier。
+- Bad: 把`.pub-cache/git/cache/...`当成unsupported remote，或使用`vX.Y.Z`、package version、隐式环境变量、旧 top-level command猜测release ref。
 
 ### 6. Tests Required
 
 - `fvm dart test test/verification/cli_test.dart`
 - `fvm dart test test/verification/released_consumer_adapter_test.dart`
+- `fvm dart test packages/nexa_http_native_internal/test/nexa_http_native_release_consumer_test.dart`，使用真实Git命令构造“checkout origin为local bare cache、cache origin为GitHub、checkout HEAD为exact tag”的Dart pub拓扑，并断言解析出的repository slug/tag。
 - 对已发布 tag 运行 `check released-consumer` 诊断
 
 ### 7. Wrong vs Correct
 
 #### Wrong
 
-```yaml
-ref: vX.Y.Z
+```text
+dependency checkout origin = /home/user/.pub-cache/git/cache/nexa_http-hash
+→ 直接判定 unsupported remote
 ```
 
 #### Correct
 
 ```bash
+# Resolver先读取checkout origin，再读取唯一一层pub cache origin；tag只取checkout exact HEAD。
+# 将<real-release-tag>替换为已经发布且包含本契约实现的真实tag。
 fvm dart run scripts/workspace_tools.dart check released-consumer \
   --execution windows-x64 \
   --repo-url https://github.com/iamdennisme/nexa_http.git \
-  --ref v1.0.8 \
+  --ref <real-release-tag> \
   --fixture-url http://127.0.0.1:8080/healthz \
   --device windows=windows
 ```

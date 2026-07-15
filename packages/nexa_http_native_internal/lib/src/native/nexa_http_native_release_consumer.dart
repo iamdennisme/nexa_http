@@ -484,17 +484,7 @@ Future<NexaHttpNativeGitReleaseRef> discoverNexaHttpNativeGitReleaseRef(
     );
   }
 
-  final origin = await _runGitAndReadStdout(repoRoot, <String>[
-    'config',
-    '--get',
-    'remote.origin.url',
-  ]);
-  final repositorySlug = parseGitHubRepositorySlug(origin);
-  if (repositorySlug == null) {
-    throw StateError(
-      'Unsupported git remote for release-consumer native resolution: $origin.',
-    );
-  }
+  final repositorySlug = await _discoverGitHubRepositorySlug(repoRoot);
 
   final tag = await _runGitAndReadStdout(repoRoot, <String>[
     'describe',
@@ -509,6 +499,37 @@ Future<NexaHttpNativeGitReleaseRef> discoverNexaHttpNativeGitReleaseRef(
   }
 
   return NexaHttpNativeGitReleaseRef(repositorySlug: repositorySlug, tag: tag);
+}
+
+Future<String> _discoverGitHubRepositorySlug(String repoRoot) async {
+  final origin = await _runGitAndReadStdout(repoRoot, <String>[
+    'config',
+    '--get',
+    'remote.origin.url',
+  ]);
+  final directSlug = parseGitHubRepositorySlug(origin);
+  if (directSlug != null) {
+    return directSlug;
+  }
+
+  if (!p.isAbsolute(origin) || !Directory(origin).existsSync()) {
+    throw StateError(
+      'Unsupported git remote for release-consumer native resolution: $origin.',
+    );
+  }
+  final cacheOrigin = await _runGitAndReadStdout(origin, <String>[
+    'config',
+    '--get',
+    'remote.origin.url',
+  ]);
+  final cacheSlug = parseGitHubRepositorySlug(cacheOrigin);
+  if (cacheSlug == null) {
+    throw StateError(
+      'Unsupported pub cache git remote for release-consumer native resolution: '
+      '$origin -> $cacheOrigin.',
+    );
+  }
+  return cacheSlug;
 }
 
 String? findAncestorGitRepositoryRoot(String startPath) {
