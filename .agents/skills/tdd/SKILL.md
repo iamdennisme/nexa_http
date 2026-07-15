@@ -46,7 +46,7 @@ RIGHT (vertical):
 
 ### 1. Planning
 
-When exploring the codebase, read `CONTEXT.md` (if it exists) so that test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
+When exploring the codebase, read `CONTEXT-MAP.md` first when it exists, then load only the context glossary relevant to the behavior under test. Fall back to a root `CONTEXT.md` only for single-context repositories. Use that language in test names and interfaces, and respect ADRs in the area you're touching.
 
 Before writing any code:
 
