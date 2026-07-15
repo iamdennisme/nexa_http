@@ -42,15 +42,28 @@ Platform carrier、build hook、release asset 和 clean-host verification 都是
 dependencies:
   nexa_http:
     git:
-      url: git@github.com:iamdennisme/nexa_http.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v2.0.1
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
-      url: git@github.com:iamdennisme/nexa_http.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v2.0.1
       path: packages/nexa_http_native_macos
 ```
+
+App 构建哪些平台，就声明哪些 carrier package：
+
+| 目标平台 | Carrier dependency path |
+| --- | --- |
+| Android | `packages/nexa_http_native_android` |
+| iOS | `packages/nexa_http_native_ios` |
+| macOS | `packages/nexa_http_native_macos` |
+| Windows | `packages/nexa_http_native_windows` |
+
+所有 Git 依赖必须使用同一个仓库 URL 和 release tag。多平台 App 可以同时
+声明多个 carrier，但应用代码仍然只 import
+`package:nexa_http/nexa_http.dart`。
 
 ### 本地 path 依赖
 
@@ -98,11 +111,10 @@ await client.close();
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-如果你在维护这个仓库，先准备本地 debug artifact，再运行 workspace demo：
+如果你在维护这个仓库，直接通过标准 Flutter 工具链运行 demo。Workspace build
+hook 会在 Flutter build 过程中准备并缓存当前 target 所需的 native artifact：
 
 ```bash
-./scripts/build_native_macos.sh debug
-./scripts/build_native_ios.sh debug
 cd app/demo
 fvm flutter pub get
 fvm flutter run -d macos
@@ -131,7 +143,9 @@ Flutter SDK 层：
 - `native/nexa_http_native_core` —— 共享 Rust transport core
 - `packages/nexa_http_native_*/native/*_ffi` —— 平台 FFI crate
 
-发布时 GitHub Release 会包含 native 下载产物。Carrier build hook 会下载、校验这些产物，并把对应平台动态库物化到 carrier/App 的构建布局中。
+发布时 GitHub Release 会包含 native 下载产物。Carrier build hook 会下载、校验
+目标产物，并把它物化到 target-scoped hook output；Flutter Native Assets 是唯一
+packaging/loading authority，宿主不需要手工复制动态库或修改 native 工程。
 
 ## 开发与验证
 

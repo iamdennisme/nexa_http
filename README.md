@@ -43,15 +43,28 @@ Use a real published release tag. The example below uses `v2.0.1`.
 dependencies:
   nexa_http:
     git:
-      url: git@github.com:iamdennisme/nexa_http.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v2.0.1
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
-      url: git@github.com:iamdennisme/nexa_http.git
+      url: https://github.com/iamdennisme/nexa_http.git
       ref: v2.0.1
       path: packages/nexa_http_native_macos
 ```
+
+Declare the carrier package for every platform the app builds:
+
+| Target | Carrier dependency path |
+| --- | --- |
+| Android | `packages/nexa_http_native_android` |
+| iOS | `packages/nexa_http_native_ios` |
+| macOS | `packages/nexa_http_native_macos` |
+| Windows | `packages/nexa_http_native_windows` |
+
+All Git dependencies must use the same repository URL and release tag. A
+multi-platform app declares each carrier it targets, while application code
+still imports only `package:nexa_http/nexa_http.dart`.
 
 ### Local path dependency
 
