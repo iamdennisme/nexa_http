@@ -27,11 +27,10 @@ From the repository root, start the fixture server:
 fvm dart run fixture_server/http_fixture_server.dart --port 8080
 ```
 
-Then build fresh local artifacts and run the demo on macOS:
+Then run the demo on macOS. The workspace build hook prepares and caches the
+required native artifact as part of the standard Flutter build:
 
 ```bash
-./scripts/build_native_macos.sh debug
-./scripts/build_native_ios.sh debug
 cd app/demo
 fvm flutter pub get
 fvm flutter run -d macos
@@ -81,6 +80,9 @@ fvm flutter run -d macos \
 
 ## Notes
 
-For local native debugging, prepare fresh artifacts with the platform build scripts before running the demo. The demo should consume prepared binaries at runtime instead of rebuilding Rust implicitly during app integration.
+For local native debugging, use the standard `flutter run` path above. The
+workspace build hook and verification catalog share the same target-scoped
+native cache; contributors should not invoke platform build scripts or copy
+native libraries into the app manually.
 
 For the full verification flow, including Windows guidance and git+tag consumer validation, see [`../../docs/verification-playbook.md`](../../docs/verification-playbook.md).
