@@ -41,9 +41,6 @@ void main() {
 
     expect(identical(first, second), isTrue);
     expect(first['accept'], 'application/json');
-    expect(
-      () => first['accept'] = 'application/xml',
-      throwsUnsupportedError,
-    );
+    expect(() => first['accept'] = 'application/xml', throwsUnsupportedError);
   });
 }

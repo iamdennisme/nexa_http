@@ -32,8 +32,7 @@ final class DartResponseBodyOwner implements ResponseBodyOwner {
   }
 }
 
-final class NativeResponseBodyOwner
-    implements ResponseBodyOwner, Finalizable {
+final class NativeResponseBodyOwner implements ResponseBodyOwner, Finalizable {
   NativeResponseBodyOwner(
     this._view, {
     required void Function() release,

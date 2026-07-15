@@ -80,16 +80,15 @@ final class Headers {
   Headers add(String name, String value) {
     final normalizedName = _normalizeName(name);
     final updated = <String, List<String>>{
-      ..._values.map(
-        (key, values) => MapEntry(key, List<String>.from(values)),
-      ),
+      ..._values.map((key, values) => MapEntry(key, List<String>.from(values))),
     };
     (updated[normalizedName] ??= <String>[]).add(value);
     return Headers._(_normalize(updated));
   }
 
   static Map<String, List<String>> _normalize(
-      Map<String, List<String>> values) {
+    Map<String, List<String>> values,
+  ) {
     return Map<String, List<String>>.unmodifiable(
       values.map(
         (key, value) => MapEntry(

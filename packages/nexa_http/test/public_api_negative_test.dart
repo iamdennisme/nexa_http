@@ -3,9 +3,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 void main() {
-  final fixtureDirectory = Directory(
-    '.dart_tool/public_api_contract_test',
-  );
+  final fixtureDirectory = Directory('.dart_tool/public_api_contract_test');
 
   setUp(() {
     fixtureDirectory.createSync(recursive: true);
@@ -29,41 +27,43 @@ void main() {
     expect(rootLibraries, const <String>['nexa_http.dart']);
   });
 
-  test('the generated bindings are unavailable from the package root', () async {
-    final positive = File('${fixtureDirectory.path}/positive.dart')
-      ..writeAsStringSync('''
+  test(
+    'the generated bindings are unavailable from the package root',
+    () async {
+      final positive = File('${fixtureDirectory.path}/positive.dart')
+        ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http.dart';
 
 void main() {
   NexaHttpClient();
 }
 ''');
-    final negative = File('${fixtureDirectory.path}/negative.dart')
-      ..writeAsStringSync('''
+      final negative = File('${fixtureDirectory.path}/negative.dart')
+        ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http_bindings_generated.dart';
 
 void main() {}
 ''');
 
-    final positiveResult = await _analyze(positive);
-    expect(
-      positiveResult.exitCode,
-      0,
-      reason: '${positiveResult.stdout}\n${positiveResult.stderr}',
-    );
+      final positiveResult = await _analyze(positive);
+      expect(
+        positiveResult.exitCode,
+        0,
+        reason: '${positiveResult.stdout}\n${positiveResult.stderr}',
+      );
 
-    final negativeResult = await _analyze(negative);
-    expect(negativeResult.exitCode, isNot(0));
-    expect(
-      '${negativeResult.stdout}\n${negativeResult.stderr}',
-      contains('nexa_http_bindings_generated.dart'),
-    );
-  });
+      final negativeResult = await _analyze(negative);
+      expect(negativeResult.exitCode, isNot(0));
+      expect(
+        '${negativeResult.stdout}\n${negativeResult.stderr}',
+        contains('nexa_http_bindings_generated.dart'),
+      );
+    },
+  );
 
   test('legacy HTTP Failure fields are unavailable', () async {
-    final negative = File(
-      '${fixtureDirectory.path}/exception_fields.dart',
-    )..writeAsStringSync('''
+    final negative = File('${fixtureDirectory.path}/exception_fields.dart')
+      ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http.dart';
 
 Object? readCode(NexaHttpException error) => error.code;
@@ -81,17 +81,13 @@ Object? readDetails(NexaHttpException error) => error.details;
       'isTimeout',
       'details',
     ]) {
-      expect(
-        output,
-        contains(field),
-      );
+      expect(output, contains(field));
     }
   });
 
   test('the public Callback type is unavailable', () async {
-    final negative = File(
-      '${fixtureDirectory.path}/callback.dart',
-    )..writeAsStringSync('''
+    final negative = File('${fixtureDirectory.path}/callback.dart')
+      ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http.dart';
 
 Callback? callback;
@@ -99,16 +95,12 @@ Callback? callback;
 
     final result = await _analyze(negative);
     expect(result.exitCode, isNot(0));
-    expect(
-      '${result.stdout}\n${result.stderr}',
-      contains('Callback'),
-    );
+    expect('${result.stdout}\n${result.stderr}', contains('Callback'));
   });
 
   test('Call.enqueue is unavailable', () async {
-    final negative = File(
-      '${fixtureDirectory.path}/call_enqueue.dart',
-    )..writeAsStringSync('''
+    final negative = File('${fixtureDirectory.path}/call_enqueue.dart')
+      ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http.dart';
 
 void enqueue(Call call) => call.enqueue(null);
@@ -120,9 +112,8 @@ void enqueue(Call call) => call.enqueue(null);
   });
 
   test('Call.clone is unavailable', () async {
-    final negative = File(
-      '${fixtureDirectory.path}/call_clone.dart',
-    )..writeAsStringSync('''
+    final negative = File('${fixtureDirectory.path}/call_clone.dart')
+      ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http.dart';
 
 Call clone(Call call) => call.clone();
@@ -134,9 +125,8 @@ Call clone(Call call) => call.clone();
   });
 
   test('NexaHttpClient.execute is unavailable', () async {
-    final negative = File(
-      '${fixtureDirectory.path}/client_execute.dart',
-    )..writeAsStringSync('''
+    final negative = File('${fixtureDirectory.path}/client_execute.dart')
+      ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http.dart';
 
 Future<Response> execute(NexaHttpClient client, Request request) =>
@@ -149,9 +139,8 @@ Future<Response> execute(NexaHttpClient client, Request request) =>
   });
 
   test('legacy RequestBody factory and read surface are unavailable', () async {
-    final negative = File(
-      '${fixtureDirectory.path}/request_body_legacy.dart',
-    )..writeAsStringSync('''
+    final negative = File('${fixtureDirectory.path}/request_body_legacy.dart')
+      ..writeAsStringSync('''
 import 'dart:typed_data';
 
 import 'package:nexa_http/nexa_http.dart';
@@ -175,27 +164,29 @@ final legacyPayload = body.payloadBytes;
     }
   });
 
-  test('RequestBody transport access is unavailable from the root API', () async {
-    final negative = File(
-      '${fixtureDirectory.path}/request_body_transport_access.dart',
-    )..writeAsStringSync('''
+  test(
+    'RequestBody transport access is unavailable from the root API',
+    () async {
+      final negative =
+          File('${fixtureDirectory.path}/request_body_transport_access.dart')
+            ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http.dart';
 
 RequestBodyTransportAccess? access;
 ''');
 
-    final result = await _analyze(negative);
-    expect(result.exitCode, isNot(0));
-    expect(
-      '${result.stdout}\n${result.stderr}',
-      contains('RequestBodyTransportAccess'),
-    );
-  });
+      final result = await _analyze(negative);
+      expect(result.exitCode, isNot(0));
+      expect(
+        '${result.stdout}\n${result.stderr}',
+        contains('RequestBodyTransportAccess'),
+      );
+    },
+  );
 
   test('legacy ResponseBody streaming and adoption are unavailable', () async {
-    final negative = File(
-      '${fixtureDirectory.path}/response_body_legacy.dart',
-    )..writeAsStringSync('''
+    final negative = File('${fixtureDirectory.path}/response_body_legacy.dart')
+      ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http.dart';
 
 final body = ResponseBody.bytes(const <int>[]);
@@ -210,28 +201,30 @@ final legacyAdoption = adoptResponseBodyBytes(const <int>[]);
     expect(output, contains('adoptResponseBodyBytes'));
   });
 
-  test('ResponseBody transport access is unavailable from the root API', () async {
-    final negative = File(
-      '${fixtureDirectory.path}/response_body_transport_access.dart',
-    )..writeAsStringSync('''
+  test(
+    'ResponseBody transport access is unavailable from the root API',
+    () async {
+      final negative =
+          File('${fixtureDirectory.path}/response_body_transport_access.dart')
+            ..writeAsStringSync('''
 import 'package:nexa_http/nexa_http.dart';
 
 ResponseBodyTransportAccess? access;
 ''');
 
-    final result = await _analyze(negative);
-    expect(result.exitCode, isNot(0));
-    expect(
-      '${result.stdout}\n${result.stderr}',
-      contains('ResponseBodyTransportAccess'),
-    );
-  });
+      final result = await _analyze(negative);
+      expect(result.exitCode, isNot(0));
+      expect(
+        '${result.stdout}\n${result.stderr}',
+        contains('ResponseBodyTransportAccess'),
+      );
+    },
+  );
 }
 
 Future<ProcessResult> _analyze(File fixture) {
-  return Process.run(
-    'dart',
-    <String>['analyze', fixture.path],
-    workingDirectory: Directory.current.path,
-  );
+  return Process.run('dart', <String>[
+    'analyze',
+    fixture.path,
+  ], workingDirectory: Directory.current.path);
 }
