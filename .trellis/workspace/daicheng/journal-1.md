@@ -484,3 +484,37 @@ Completed the immutable build-once release transaction and four-platform clean-h
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: Verify v2.0.1 integration documentation
+
+**Date**: 2026-07-15
+**Task**: Verify v2.0.1 integration documentation
+**Package**: nexa_http_native_core
+**Branch**: `main`
+
+### Summary
+
+审计并修正中英文根 README 与主包 README：统一 HTTPS v2.0.1 Git 依赖、四平台 carrier 映射、标准 Flutter demo 路径和 Native Assets 唯一 packaging/loading authority；相关契约测试与链接检查通过。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d0c896f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
