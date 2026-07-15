@@ -1,3 +1,8 @@
+## 2.0.1
+
+- Resolve the canonical GitHub release identity through Dart pub's local bare
+  Git cache so real Git consumers can materialize published native assets.
+
 ## 2.0.0
 
 - Make `Call.execute()` + `Call.cancel()` the only request execution surface;

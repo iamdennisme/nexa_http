@@ -36,19 +36,19 @@ Platform carrier、build hook、release asset 和 clean-host verification 都是
 
 ### Git 依赖
 
-必须使用真实已发布 release tag。下面示例使用 `v2.0.0`。
+必须使用真实已发布 release tag。下面示例使用 `v2.0.1`。
 
 ```yaml
 dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v2.0.0
+      ref: v2.0.1
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v2.0.0
+      ref: v2.0.1
       path: packages/nexa_http_native_macos
 ```
 
