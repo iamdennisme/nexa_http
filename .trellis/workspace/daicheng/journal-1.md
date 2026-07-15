@@ -447,3 +447,40 @@ Completed the immutable build-once release transaction and four-platform clean-h
 ### Next Steps
 
 - None - task complete
+
+
+## Session 13: Clean local v2.0.1 workspace
+
+**Date**: 2026-07-15
+**Task**: Clean local v2.0.1 workspace
+**Package**: nexa_http_native_core
+**Branch**: `main`
+
+### Summary
+
+整理并提交领域上下文拆分、post-v2 架构 backlog、Dart 格式化和 Demo 启动文档；删除不完整 skill 与过期任务；同步 main 到 v2.0.1 并清理已合并本地分支和 worktree。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `95dad7a` | (see git log) |
+| `9f3fcfb` | (see git log) |
+| `360e916` | (see git log) |
+| `0ca95bc` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

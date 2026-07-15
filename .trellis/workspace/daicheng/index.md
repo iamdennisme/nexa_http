@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 12
-- **Last Active**: 2026-07-14
+- **Total Sessions**: 13
+- **Last Active**: 2026-07-15
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~449 | Active |
+| `journal-1.md` | ~486 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 13 | 2026-07-15 | Clean local v2.0.1 workspace | `95dad7a`, `9f3fcfb`, `360e916`, `0ca95bc` | `main` |
 | 12 | 2026-07-14 | Complete immutable release candidate transaction | `90d55ec`, `349fec8`, `b3a34ec`, `67d2c54`, `ba364bd`, `d62b790`, `7b4402f`, `e47587a`, `07045a3`, `463c99d`, `4da14e3`, `c7d2208` | `-` |
 | 11 | 2026-07-13 | Complete four-platform Native Assets clean cutover | `3226231`, `30695f3`, `1d43a11`, `269488a`, `ff3a6f6`, `0bb094b`, `3f1e85a`, `00e2563`, `591ea19`, `8917d64`, `d639858`, `55dee2d` | `main` |
 | 10 | 2026-07-11 | V2 public HTTP API clean cutover | `20c3786` | `main` |
