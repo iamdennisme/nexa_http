@@ -518,3 +518,36 @@ Completed the immutable build-once release transaction and four-platform clean-h
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: Trellis architecture spec governance
+
+**Date**: 2026-07-16
+**Task**: Trellis architecture spec governance
+**Branch**: `main`
+
+### Summary
+
+Registered 13 package owners, migrated Rust specs, added architecture navigation, and enforced governance contracts.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6d3ae1e` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
