@@ -2,6 +2,8 @@
 
 > **目的**：在编码前暴露容易漏掉的问题，并保存项目级规则。
 
+项目的 bounded context、Accepted ADR、package spec 和 review provenance 统一从 [架构索引](../../../docs/architecture.md) 导航；本目录只保存跨 package 的执行规则。
+
 ---
 
 ## 可用指南

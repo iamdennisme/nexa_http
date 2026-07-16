@@ -6,14 +6,14 @@
 - [x] Run `python3 ./.trellis/scripts/task.py start .trellis/tasks/07-09-deepen-apple-proxy-settings-parser` only after user approval.
 - [x] Load `trellis-before-dev` before editing product code.
 - [x] Read applicable specs:
-  - `.trellis/spec/nexa_http_native_macos_ffi/backend/index.md`
-  - `.trellis/spec/nexa_http_native_macos_ffi/backend/directory-structure.md`
-  - `.trellis/spec/nexa_http_native_macos_ffi/backend/error-handling.md`
-  - `.trellis/spec/nexa_http_native_macos_ffi/backend/quality-guidelines.md`
-  - `.trellis/spec/nexa_http_native_ios_ffi/backend/index.md`
-  - `.trellis/spec/nexa_http_native_ios_ffi/backend/directory-structure.md`
-  - `.trellis/spec/nexa_http_native_ios_ffi/backend/error-handling.md`
-  - `.trellis/spec/nexa_http_native_ios_ffi/backend/quality-guidelines.md`
+  - `.trellis/spec/nexa_http_native_macos_ffi/rust/index.md`
+  - `.trellis/spec/nexa_http_native_macos_ffi/rust/directory-structure.md`
+  - `.trellis/spec/nexa_http_native_macos_ffi/rust/error-handling.md`
+  - `.trellis/spec/nexa_http_native_macos_ffi/rust/quality-guidelines.md`
+  - `.trellis/spec/nexa_http_native_ios_ffi/rust/index.md`
+  - `.trellis/spec/nexa_http_native_ios_ffi/rust/directory-structure.md`
+  - `.trellis/spec/nexa_http_native_ios_ffi/rust/error-handling.md`
+  - `.trellis/spec/nexa_http_native_ios_ffi/rust/quality-guidelines.md`
   - `.trellis/spec/guides/tdd-development-policy.md`
   - `.trellis/spec/guides/project-layering-contract.md`
   - `.trellis/spec/guides/code-reuse-thinking-guide.md`

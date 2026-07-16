@@ -29,3 +29,14 @@ Flutter Native Assets/CodeAsset 是所有支持平台唯一权威的 native arti
 - Native Assets 与传统平台打包长期并存：拒绝，因为它保留两套事实来源。
 - 先新增 Native Assets、以后再删旧路径：拒绝，因为未完成的中间态会被后续任务当成稳定架构。
 - 以 CocoaPods、Gradle、CMake 为长期权威路径并删除 CodeAsset：拒绝，因为它延续四套平台装载知识，并削弱现有 hook、target matrix 和标准 Flutter 构建链路的价值。
+
+## 当前来源
+
+- `packages/nexa_http_native_internal/lib/src/native/nexa_http_native_carrier_artifact.dart`
+- `packages/nexa_http_native_internal/lib/src/native/nexa_http_native_target_matrix.dart`
+- `.trellis/spec/nexa_http_native_internal/dart/artifact-lifecycle.md`
+- `.trellis/spec/nexa_http_native_android/flutter/index.md`
+- `.trellis/spec/nexa_http_native_ios/flutter/index.md`
+- `.trellis/spec/nexa_http_native_macos/flutter/index.md`
+- `.trellis/spec/nexa_http_native_windows/flutter/index.md`
+- `.trellis/spec/guides/flutter-sdk-authoring-contract.md`

@@ -29,3 +29,11 @@ Request mapper、内部 DTO 和 transport handoff 保持同一个 canonical Dart
 - 保留 `bytes()` 并返回内部 buffer：拒绝，因为会泄漏已转移 ownership 的 mutable state。
 - 保留 `bytes()` 并每次返回 defensive copy：拒绝，因为为非核心 introspection API 引入不受控整段复制。
 - 从 public RequestBody 直接持有 native memory 实现零 dispatch copy：拒绝，因为它把 FFI lifecycle 和 native availability 泄漏进 HTTP API 构造阶段。
+
+## 当前来源
+
+- `packages/nexa_http/lib/src/api/request_body.dart`
+- `packages/nexa_http/lib/src/data/sources/ffi_nexa_http_request_encoder.dart`
+- `packages/nexa_http/test/request_body_test.dart`
+- `.trellis/spec/nexa_http/dart/public-api.md`
+- `.trellis/spec/nexa_http/dart/native-transport.md`

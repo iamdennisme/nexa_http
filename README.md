@@ -29,6 +29,8 @@ The monorepo has two main layers:
 
 Platform carriers, build hooks, release assets, and clean-host verification are mechanisms that connect those two layers. They are not separate app-facing APIs.
 
+The [architecture index](./docs/architecture.md) links the bounded contexts, accepted ADRs, package specs, authority order, and current review evidence.
+
 ## Installation
 
 A normal app imports only `package:nexa_http/nexa_http.dart` in runtime code,

@@ -36,23 +36,23 @@ the rest conversationally.
 
 ### Package: nexa_http_native_core (`spec/nexa_http_native_core/`)
 
-- Backend guidelines: `.trellis/spec/nexa_http_native_core/backend/`
+- Rust guidelines: `.trellis/spec/nexa_http_native_core/rust/`
 
 ### Package: nexa_http_native_macos_ffi (`spec/nexa_http_native_macos_ffi/`)
 
-- Backend guidelines: `.trellis/spec/nexa_http_native_macos_ffi/backend/`
+- Rust guidelines: `.trellis/spec/nexa_http_native_macos_ffi/rust/`
 
 ### Package: nexa_http_native_windows_ffi (`spec/nexa_http_native_windows_ffi/`)
 
-- Backend guidelines: `.trellis/spec/nexa_http_native_windows_ffi/backend/`
+- Rust guidelines: `.trellis/spec/nexa_http_native_windows_ffi/rust/`
 
 ### Package: nexa_http_native_ios_ffi (`spec/nexa_http_native_ios_ffi/`)
 
-- Backend guidelines: `.trellis/spec/nexa_http_native_ios_ffi/backend/`
+- Rust guidelines: `.trellis/spec/nexa_http_native_ios_ffi/rust/`
 
 ### Package: nexa_http_native_android_ffi (`spec/nexa_http_native_android_ffi/`)
 
-- Backend guidelines: `.trellis/spec/nexa_http_native_android_ffi/backend/`
+- Rust guidelines: `.trellis/spec/nexa_http_native_android_ffi/rust/`
 
 
 ### Thinking guides (already populated)

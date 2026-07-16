@@ -1,6 +1,6 @@
 # Workspace Index
 
-> 记录本仓库 AI 开发会话、活跃开发者和 journal 入口。
+> 记录本仓库 AI developer workspace 与 journal 的稳定入口。
 
 ---
 
@@ -19,14 +19,6 @@ workspace/
 
 .trellis/tasks/             # 当前和归档 Trellis task artifacts
 ```
-
----
-
-## Active Developers
-
-| Developer | Last Active | Sessions | Active File |
-|-----------|-------------|----------|-------------|
-| daicheng | 2026-07-07 | 5 | `.trellis/workspace/daicheng/journal-1.md` |
 
 ---
 

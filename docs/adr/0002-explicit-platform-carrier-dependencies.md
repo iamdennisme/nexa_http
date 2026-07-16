@@ -44,6 +44,11 @@ Accepted
 - `packages/nexa_http_native_ios/README.md`
 - `packages/nexa_http_native_macos/README.md`
 - `packages/nexa_http_native_windows/README.md`
+- `.trellis/spec/nexa_http_native_internal/dart/artifact-lifecycle.md`
+- `.trellis/spec/nexa_http_native_android/flutter/index.md`
+- `.trellis/spec/nexa_http_native_ios/flutter/index.md`
+- `.trellis/spec/nexa_http_native_macos/flutter/index.md`
+- `.trellis/spec/nexa_http_native_windows/flutter/index.md`
 - `.trellis/spec/guides/flutter-sdk-authoring-contract.md`
 - `.trellis/spec/guides/project-layering-contract.md`
 - `.trellis/tasks/archive/2026-07/07-06-domain-model-architecture-review/design.md`

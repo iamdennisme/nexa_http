@@ -29,6 +29,8 @@
 
 Platform carrier、build hook、release asset 和 clean-host verification 都是连接这两层的机制，不是宿主 App 直接使用的独立 API。
 
+[架构索引](./docs/architecture.md) 集中导航 bounded context、Accepted ADR、package spec、权威顺序和当前 review 证据。
+
 ## 安装
 
 普通应用的 runtime 代码只 import `package:nexa_http/nexa_http.dart`，
@@ -132,7 +134,7 @@ demo 里有两部分：
 Flutter SDK 层：
 
 - `packages/nexa_http` —— 公开 Dart SDK
-- `packages/nexa_http_native_internal` —— 内部 runtime/loading 与 artifact materialization helper
+- `packages/nexa_http_native_internal` —— 内部 target matrix、artifact lifecycle 与 bindings registry helper
 - `packages/nexa_http_native_android` —— Android carrier
 - `packages/nexa_http_native_ios` —— iOS carrier
 - `packages/nexa_http_native_macos` —— macOS carrier

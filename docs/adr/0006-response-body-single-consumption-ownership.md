@@ -31,3 +31,11 @@ Native Transport 当前可以把 native response bytes 以 zero-copy view 交给
 - 公开长期 native-backed bytes 并要求调用者手动 close：拒绝，因为正常 ownership 依赖使用者纪律。
 - 在 decoder、mapper 和 public body 多层 defensive copy：拒绝，因为复制次数随分层增加。
 - 保留当前假的 `byteStream()`：拒绝，因为完整缓冲后发送一个 event 不是真实 streaming contract。
+
+## 当前来源
+
+- `packages/nexa_http/lib/src/api/response_body.dart`
+- `packages/nexa_http/lib/src/data/sources/ffi_nexa_http_response_decoder.dart`
+- `packages/nexa_http/test/response_body_test.dart`
+- `.trellis/spec/nexa_http/dart/public-api.md`
+- `.trellis/spec/nexa_http/dart/native-transport.md`

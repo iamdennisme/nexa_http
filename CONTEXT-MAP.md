@@ -16,4 +16,4 @@
 - **Artifact Integration → Native Transport**：Artifact Integration 交付包含 `Uniform C ABI` 的唯一 `Native Asset`，供 Native Transport 使用。
 - **Artifact Integration → HTTP API**：Artifact Integration 对宿主 runtime 代码保持隐藏；宿主只声明 SDK/carrier 依赖并使用 HTTP API。
 
-架构决定记录在 [`docs/adr/`](./docs/adr/)，实现与验证契约记录在 [`.trellis/spec/`](./.trellis/spec/)。
+架构决定记录在 [`docs/adr/`](./docs/adr/)，实现与验证契约记录在 [`.trellis/spec/`](./.trellis/spec/)。[架构索引](./docs/architecture.md) 说明它们的权威顺序、取代规则和 review provenance。

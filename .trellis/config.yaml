@@ -111,16 +111,29 @@ channel:
 
 # Auto-detected monorepo packages
 packages:
+  nexa_http_workspace:
+    path: .
+  nexa_http:
+    path: packages/nexa_http
+  nexa_http_native_internal:
+    path: packages/nexa_http_native_internal
+  nexa_http_native_android:
+    path: packages/nexa_http_native_android
+  nexa_http_native_ios:
+    path: packages/nexa_http_native_ios
+  nexa_http_native_macos:
+    path: packages/nexa_http_native_macos
+  nexa_http_native_windows:
+    path: packages/nexa_http_native_windows
   nexa_http_native_core:
     path: native/nexa_http_native_core
   nexa_http_native_apple_proxy:
     path: native/nexa_http_native_apple_proxy
+  nexa_http_native_android_ffi:
+    path: packages/nexa_http_native_android/native/nexa_http_native_android_ffi
+  nexa_http_native_ios_ffi:
+    path: packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi
   nexa_http_native_macos_ffi:
     path: packages/nexa_http_native_macos/native/nexa_http_native_macos_ffi
   nexa_http_native_windows_ffi:
     path: packages/nexa_http_native_windows/native/nexa_http_native_windows_ffi
-  nexa_http_native_ios_ffi:
-    path: packages/nexa_http_native_ios/native/nexa_http_native_ios_ffi
-  nexa_http_native_android_ffi:
-    path: packages/nexa_http_native_android/native/nexa_http_native_android_ffi
-default_package: nexa_http_native_core

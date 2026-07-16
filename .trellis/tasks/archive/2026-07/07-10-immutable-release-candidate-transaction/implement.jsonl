@@ -3,4 +3,4 @@
 {"file":".trellis/spec/guides/verification-command-contract.md","reason":"定义 Catalog suite、candidate identity/report aggregate、CI ownership 与 release workflow 契约。"}
 {"file":".trellis/spec/guides/project-layering-contract.md","reason":"确保 release、verification 与 Native Assets 仍收敛到 Flutter SDK/native 两层并原子删除旧路径。"}
 {"file":".trellis/spec/guides/tdd-development-policy.md","reason":"要求 release workflow、consumer runtime 与 bug fix 逐个 RED→GREEN→REFACTOR。"}
-{"file":".trellis/spec/nexa_http_native_android_ffi/backend/quality-guidelines.md","reason":"约束 Android ATD、单次 APK build、marker 采集、无重复 native build/copy。"}
+{"file":".trellis/spec/nexa_http_workspace/tooling/verification-and-release.md","reason":"约束 Android ATD、单次 APK build、marker 采集、无重复 native build/copy。"}

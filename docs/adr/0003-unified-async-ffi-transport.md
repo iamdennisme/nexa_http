@@ -41,6 +41,7 @@ Accepted
 
 - `native/nexa_http_native_core/src/api/ffi.rs`
 - `packages/nexa_http/lib/src/data/sources/ffi_nexa_http_native_data_source.dart`
-- `.trellis/spec/nexa_http_native_core/backend/directory-structure.md`
+- `.trellis/spec/nexa_http/dart/native-transport.md`
+- `.trellis/spec/nexa_http_native_core/rust/directory-structure.md`
 - `.trellis/spec/guides/project-layering-contract.md`
 - `.trellis/tasks/archive/2026-07/07-06-domain-model-architecture-review/design.md`

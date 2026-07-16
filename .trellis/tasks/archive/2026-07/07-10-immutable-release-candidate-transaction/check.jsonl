@@ -3,4 +3,4 @@
 {"file":".trellis/spec/guides/verification-command-contract.md","reason":"检查完整 suite、动态 matrix、report schema/aggregate、artifact flow 与 no-rebuild。"}
 {"file":".trellis/spec/guides/project-layering-contract.md","reason":"检查无 fallback、deprecated alias、forwarder、旧 workflow 或双轨中间态。"}
 {"file":".trellis/spec/guides/tdd-development-policy.md","reason":"复核行为变化均有先失败的回归测试和最终绿色证据。"}
-{"file":".trellis/spec/nexa_http_native_android_ffi/backend/quality-guidelines.md","reason":"检查 Android APK 只 build 一次并通过 adb 启动同一 clean-host 产物。"}
+{"file":".trellis/spec/nexa_http_workspace/tooling/verification-and-release.md","reason":"检查 Android APK 只 build 一次并通过 adb 启动同一 clean-host 产物。"}

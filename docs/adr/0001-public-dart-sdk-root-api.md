@@ -65,5 +65,7 @@ Byte-backed request body 只通过 `RequestBody.takeBytes(...)` 构造并显式�
 - `README.zh-CN.md`
 - `packages/nexa_http/README.md`
 - `packages/nexa_http/lib/nexa_http.dart`
+- `.trellis/spec/nexa_http/dart/public-api.md`
+- `.trellis/spec/nexa_http/dart/native-transport.md`
 - `.trellis/spec/guides/flutter-sdk-authoring-contract.md`
 - `.trellis/tasks/archive/2026-07/07-06-domain-model-architecture-review/design.md`

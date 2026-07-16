@@ -102,7 +102,7 @@ Flutter SDK 层负责：
 - 接收 iOS/macOS FFI crate 已读取的 SystemConfiguration 原始值，返回 core `ProxySettings`。
 - 拥有 Apple proxy URL normalization、值清洗和 bypass canonicalization。
 - 不调用 CoreFoundation/SystemConfiguration，不拥有 runtime state、C ABI 或 native artifact。
-- 具体接口与错误矩阵见 `nexa_http_native_apple_proxy/backend/proxy-parser-contract.md`。
+- 具体接口与错误矩阵见 `nexa_http_native_apple_proxy/rust/proxy-parser-contract.md`。
 
 Platform FFI crate 是 native platform adapter：
 
@@ -165,13 +165,13 @@ dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
+      ref: v2.0.1
       path: packages/nexa_http
 
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v1.0.2
+      ref: v2.0.1
       path: packages/nexa_http_native_macos
 ```
 

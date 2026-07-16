@@ -42,9 +42,10 @@ Accepted
 
 - `native/nexa_http_native_core/src/platform/source.rs`
 - `native/nexa_http_native_core/src/runtime/managed_proxy_state.rs`
-- `.trellis/spec/nexa_http_native_core/backend/directory-structure.md`
-- `.trellis/spec/nexa_http_native_android_ffi/backend/directory-structure.md`
-- `.trellis/spec/nexa_http_native_ios_ffi/backend/directory-structure.md`
-- `.trellis/spec/nexa_http_native_macos_ffi/backend/directory-structure.md`
-- `.trellis/spec/nexa_http_native_windows_ffi/backend/directory-structure.md`
+- `.trellis/spec/nexa_http_native_core/rust/directory-structure.md`
+- `.trellis/spec/nexa_http_native_android_ffi/rust/directory-structure.md`
+- `.trellis/spec/nexa_http_native_ios_ffi/rust/directory-structure.md`
+- `.trellis/spec/nexa_http_native_macos_ffi/rust/directory-structure.md`
+- `.trellis/spec/nexa_http_native_windows_ffi/rust/directory-structure.md`
+- `.trellis/spec/nexa_http_native_apple_proxy/rust/proxy-parser-contract.md`
 - `.trellis/tasks/archive/2026-07/07-06-domain-model-architecture-review/design.md`
