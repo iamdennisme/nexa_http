@@ -551,3 +551,39 @@ Registered 13 package owners, migrated Rust specs, added architecture navigation
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: Complete architecture deepening backlog
+
+**Date**: 2026-07-17
+**Task**: Complete architecture deepening backlog
+**Branch**: `main`
+
+### Summary
+
+Completed and archived proxy normalization, Rust executor decomposition, and Dart native transport consolidation; repaired the archived governance audit link; verified repository static gates and Apple clean-host integration.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e2017b8` | (see git log) |
+| `39d4219` | (see git log) |
+| `9aa4421` | (see git log) |
+| `7bdfde9` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
