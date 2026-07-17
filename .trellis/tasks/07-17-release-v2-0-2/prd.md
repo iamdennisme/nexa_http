@@ -64,15 +64,15 @@
 
 ## Acceptance Criteria
 
-- [ ] AC1 (`R1`): 六个release package版本和tracked path lock resolution统一为`2.0.2`，CHANGELOG完整。
-- [ ] AC2 (`R2`): 三份README和layering spec使用`v2.0.2`，历史`v2.0.1` provenance未被篡改。
-- [ ] AC3 (`R3`): Public API、C ABI、bindings、target/artifact/release workflow均无行为性diff。
-- [ ] AC4 (`R4`): Focused release tests、governance tests与最终`verify-static`全部通过。
-- [ ] AC5 (`R4`): Release commit以普通fast-forward push到`origin/main`，远端精确包含批准SHA。
-- [ ] AC6 (`R5`): `publish=false` rehearsal成功覆盖四平台和aggregate，且没有新增public tag/Release。
-- [ ] AC7 (`R6`): `publish=true` run成功，`v2.0.2` tag/Release指向批准SHA并包含精确11个assets。
-- [ ] AC8 (`R6`): Android、iOS、macOS、Windows runtime proof的request/callback/body consume/release/client close均为true且candidate identity一致。
-- [ ] AC9 (`R7`): 发布证据写入任务工件，任务归档、journal记录、bookkeeping commits推送后worktree clean且无active task。
+- [x] AC1 (`R1`): 六个release package版本和tracked path lock resolution统一为`2.0.2`，CHANGELOG完整。
+- [x] AC2 (`R2`): 三份README和layering spec使用`v2.0.2`，历史`v2.0.1` provenance未被篡改。
+- [x] AC3 (`R3`): Public API、C ABI、bindings、target/artifact/release workflow均无行为性diff。
+- [x] AC4 (`R4`): Focused release tests、governance tests与最终`verify-static`全部通过。
+- [x] AC5 (`R4`): Release commit以普通fast-forward push到`origin/main`，远端精确包含批准SHA。
+- [x] AC6 (`R5`): `publish=false` rehearsal成功覆盖四平台和aggregate，且没有新增public tag/Release。
+- [x] AC7 (`R6`): `publish=true` run成功，`v2.0.2` tag/Release指向批准SHA并包含精确11个assets。
+- [x] AC8 (`R6`): Android、iOS、macOS、Windows runtime proof的request/callback/body consume/release/client close均为true且candidate identity一致。
+- [x] AC9 (`R7`): 发布证据写入任务工件，任务归档、journal记录、bookkeeping commits推送后worktree clean且无active task。
 
 ## Out Of Scope
 

@@ -20,14 +20,14 @@
 - [x] Run focused release transaction, governance and documentation checks.
 - [x] Run final `verify-static --execution static-linux` and save a machine-readable report.
 - [x] Review the complete metadata diff; confirm runtime, ABI, bindings, workflow, target and artifact files are unchanged.
-- [ ] Commit the release preparation as one coherent work commit.
-- [ ] Fetch origin, prove fast-forward ancestry, push main without force and verify the exact SHA remotely.
-- [ ] Run local dispatch validation against the pushed SHA.
-- [ ] Dispatch and monitor `publish=false`; require every fragment, candidate row and aggregate to pass.
-- [ ] Assert rehearsal created no `v2.0.2` tag, draft, prerelease or Release.
-- [ ] Dispatch and monitor `publish=true` for the same SHA; require publisher success.
-- [ ] Verify annotated tag target, stable Release and exact 11-asset set/digests.
-- [ ] Record run IDs/candidate evidence, complete ACs, archive task, journal session and push bookkeeping commits.
+- [x] Commit the release preparation as one coherent work commit.
+- [x] Fetch origin, prove fast-forward ancestry, push main without force and verify the exact SHA remotely.
+- [x] Run local dispatch validation against the pushed SHA.
+- [x] Dispatch and monitor `publish=false`; require every fragment, candidate row and aggregate to pass.
+- [x] Assert rehearsal created no `v2.0.2` tag, draft, prerelease or Release.
+- [x] Dispatch and monitor `publish=true` for the same SHA; require publisher success.
+- [x] Verify annotated tag target, stable Release and exact 11-asset set/digests.
+- [x] Record run IDs/candidate evidence, complete ACs, archive task, journal session and push bookkeeping commits.
 
 ## Local Validation Commands
 
