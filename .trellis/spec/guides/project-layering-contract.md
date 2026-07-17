@@ -165,13 +165,13 @@ dependencies:
   nexa_http:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v2.0.1
+      ref: v2.0.2
       path: packages/nexa_http
 
   nexa_http_native_macos:
     git:
       url: git@github.com:iamdennisme/nexa_http.git
-      ref: v2.0.1
+      ref: v2.0.2
       path: packages/nexa_http_native_macos
 ```
 

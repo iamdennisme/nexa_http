@@ -1,3 +1,12 @@
+## 2.0.2
+
+- Centralize cross-platform proxy normalization while preserving each
+  platform's discovery and refresh behavior.
+- Split the Rust executor into explicit FFI decode/result, in-flight request,
+  request execution, and client-registry owners without changing the C ABI.
+- Consolidate Dart native transport code under one internal feature module
+  while preserving the public API, cancellation, and body ownership contracts.
+
 ## 2.0.1
 
 - Resolve the canonical GitHub release identity through Dart pub's local bare

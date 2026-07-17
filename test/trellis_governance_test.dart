@@ -267,7 +267,7 @@ void main() {
       '.trellis/spec/guides/project-layering-contract.md',
     ).readAsStringSync();
     expect(layering, isNot(contains('ref: v1.0.2')));
-    expect(layering, contains('ref: v2.0.1'));
+    expect(layering, contains('ref: v2.0.2'));
 
     for (final platform in <String>['android', 'ios', 'macos', 'windows']) {
       final readme = File(

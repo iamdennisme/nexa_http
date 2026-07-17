@@ -37,7 +37,7 @@
 | [Immutable release candidate transaction](../07-10-immutable-release-candidate-transaction/prd.md) | 最终 package metadata、CHANGELOG 和 candidate consumer contract |
 | V2 integration and release readiness（历史 task artifact 未保留） | 全量 legacy absence 与 release readiness 基线 |
 
-[Dart native transport deepening](../../../07-10-deepen-dart-native-transport-module/prd.md) 是非阻断 follow-up，不得被并入本任务，也不得成为保留 forwarding file 或中间态的理由。
+[Dart native transport deepening](../07-10-deepen-dart-native-transport-module/prd.md) 是非阻断 follow-up，不得被并入本任务，也不得成为保留 forwarding file 或中间态的理由。
 
 ## Public surface allowlist
 
