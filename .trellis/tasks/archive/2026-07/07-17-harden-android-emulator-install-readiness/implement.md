@@ -62,6 +62,26 @@
   `/tmp/android-install-readiness-static.json` with `status=passed` and exact
   equality between seven planned and completed check IDs.
 
+## Hosted Validation Evidence
+
+- Work commit `42a4c042857d089bcbd5e05abe6d9536bab868d5` was pushed to
+  `main` by fast-forward and triggered CI run `29567885219`.
+- Attempt 1 completed successfully: Catalog `87844568139`, static
+  `87844778740`, Android `87844778760`, Windows `87844778767`, Apple
+  `87844778796`, and aggregate `ci-gate` `87848403910` all passed.
+- Attempt 1 Android log contained one `Performing Streamed Install`, followed
+  by `NEXA_HTTP_RUNTIME_PROOF` with request completed, callback received, body
+  consumed/released, and client closed all `true`.
+- The successful Android job was rerun on a fresh hosted runner as attempt 2,
+  job `87849145561`. It again contained one install and the complete runtime
+  proof; dependent `ci-gate` `87852164021` passed.
+- The authoritative run URL is
+  `https://github.com/iamdennisme/nexa_http/actions/runs/29567885219`.
+- Only Node 20 deprecation annotations from GitHub-maintained Actions remained;
+  no suite failure, runtime failure, skipped target, or product diagnostic was
+  present.
+- Published `v2.0.2` was not dispatched, retagged, or otherwise mutated.
+
 ## Focused Validation
 
 ```bash

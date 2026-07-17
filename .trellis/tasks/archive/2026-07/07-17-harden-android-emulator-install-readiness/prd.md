@@ -112,7 +112,7 @@ first APK write.
   recorded in the task artifacts.
 - [x] AC7 (`R6`): Specs and governance tests describe one shared, bounded
   readiness/recovery contract with no workflow-local duplicate logic.
-- [ ] AC8 (`R7`): Final local static gate and hosted `android-linux`/`ci-gate`
+- [x] AC8 (`R7`): Final local static gate and hosted `android-linux`/`ci-gate`
   both pass; worktree is clean and the task is archived.
 
 ## Out Of Scope
