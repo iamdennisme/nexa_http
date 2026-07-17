@@ -587,3 +587,37 @@ Completed and archived proxy normalization, Rust executor decomposition, and Dar
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Release v2.0.2
+
+**Date**: 2026-07-17
+**Task**: Release v2.0.2
+**Branch**: `main`
+
+### Summary
+
+完成 v2.0.2 版本准备、全量本地验证、main 快进推送、四平台非发布演练与正式 immutable release transaction；正式 Android 首次因 emulator PackageManagerInternal 初始化异常停止，确认零 public state 后对同一 candidate 重跑失败链并通过，最终验证 annotated tag、稳定 Release、11 个 assets、四平台 lifecycle proof 与 digest 一致性。
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4baef319fbddcdb47722c5696ee6f7bacc7bda15` | (see git log) |
+| `39f4575e452cf30ed53fb5b7aa93941c1f50d4b5` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
