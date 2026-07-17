@@ -654,3 +654,37 @@ Added bounded command diagnostics and exact-signature Android APK install recove
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: Release v2.0.3
+
+**Date**: 2026-07-17
+**Task**: Release v2.0.3
+**Branch**: `main`
+
+### Summary
+
+完成 v2.0.3 版本准备、本地与精确 SHA CI 验证、四平台非发布演练和正式 immutable release transaction；验证 annotated tag 指向批准提交、稳定 Release 含精确 11 个 assets、四平台 lifecycle proof 与 manifest/SHA256SUMS/GitHub digest 一致，并归档发布证据。
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0bdc99357e53e4f19838ce12bcd203c912fa1e73` | (see git log) |
+| `e95ed62` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
