@@ -1,6 +1,11 @@
-use nexa_http_native_core::platform::{ProxyConfigSource, ProxySettings, RefreshMode};
-use reqwest::Url;
-use std::collections::{BTreeMap, BTreeSet};
+use nexa_http_native_core::platform::{
+    ProxyConfigSource, ProxySettings, RefreshMode, canonicalize_bypass_rules, normalize_proxy_url,
+    split_bypass_rules,
+};
+use std::collections::BTreeMap;
+
+#[cfg(target_os = "android")]
+use nexa_http_native_core::platform::clean_proxy_value;
 use std::time::Duration;
 
 #[cfg(target_os = "android")]
@@ -61,10 +66,10 @@ fn proxy_settings_from_getprop_values(props: &BTreeMap<String, String>) -> Proxy
 
     let mut bypass = Vec::<String>::new();
     if let Some(value) = props.get("http.nonProxyHosts") {
-        bypass.extend(parse_bypass_list(value));
+        bypass.extend(split_bypass_rules(value));
     }
     if let Some(value) = props.get("https.nonProxyHosts") {
-        bypass.extend(parse_bypass_list(value));
+        bypass.extend(split_bypass_rules(value));
     }
 
     let mut settings = ProxySettings {
@@ -73,57 +78,8 @@ fn proxy_settings_from_getprop_values(props: &BTreeMap<String, String>) -> Proxy
         all: socks,
         bypass,
     };
-    dedup_bypass(&mut settings);
+    settings.bypass = canonicalize_bypass_rules(settings.bypass);
     settings
-}
-
-fn dedup_bypass(settings: &mut ProxySettings) {
-    let mut set = BTreeSet::<String>::new();
-    for item in &settings.bypass {
-        let trimmed = item.trim();
-        if !trimmed.is_empty() {
-            set.insert(trimmed.to_ascii_lowercase());
-        }
-    }
-    settings.bypass = set.into_iter().collect();
-}
-
-fn parse_bypass_list(value: &str) -> Vec<String> {
-    value
-        .split([',', ';', '|'])
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(|item| item.to_string())
-        .collect()
-}
-
-#[cfg(target_os = "android")]
-fn clean_value(value: String) -> Option<String> {
-    let cleaned = value
-        .trim()
-        .trim_matches('"')
-        .trim_matches('\'')
-        .trim()
-        .to_string();
-    if cleaned.is_empty() {
-        None
-    } else {
-        Some(cleaned)
-    }
-}
-
-fn normalize_proxy_url(value: &str, default_scheme: &str) -> Option<String> {
-    let candidate = if value.contains("://") {
-        value.to_string()
-    } else {
-        format!("{default_scheme}://{value}")
-    };
-
-    let parsed = Url::parse(&candidate).ok()?;
-    match parsed.scheme() {
-        "http" | "https" | "socks4" | "socks4a" | "socks5" | "socks5h" => Some(parsed.to_string()),
-        _ => None,
-    }
 }
 
 fn with_port(host: String, port: Option<String>, default_port: u16) -> Option<String> {
@@ -183,5 +139,7 @@ fn getprop(key: &str) -> Option<String> {
     if !output.status.success() {
         return None;
     }
-    String::from_utf8(output.stdout).ok().and_then(clean_value)
+    String::from_utf8(output.stdout)
+        .ok()
+        .and_then(|value| clean_proxy_value(&value))
 }

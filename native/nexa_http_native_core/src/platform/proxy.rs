@@ -1,9 +1,12 @@
 use ipnet::IpNet;
 use reqwest::ClientBuilder;
 use reqwest::Url;
-use std::collections::BTreeSet;
 use std::env;
 use std::net::IpAddr;
+
+use super::proxy_normalization::{
+    canonicalize_bypass_rules, clean_proxy_value, normalize_proxy_url, split_bypass_rules,
+};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlatformFeatures {
@@ -70,7 +73,7 @@ fn merge_env_fallback_with_settings(
     features.proxy.all = features.proxy.all.or(env_proxy.all.take());
 
     features.proxy.bypass.append(&mut env_proxy.bypass);
-    canonicalize_bypass_rules(&mut features.proxy.bypass);
+    features.proxy.bypass = canonicalize_bypass_rules(std::mem::take(&mut features.proxy.bypass));
     features
 }
 
@@ -88,7 +91,7 @@ impl ProxySnapshot {
     }
 
     fn dedup_no_proxy(&mut self) {
-        canonicalize_bypass_rules(&mut self.no_proxy);
+        self.no_proxy = canonicalize_bypass_rules(std::mem::take(&mut self.no_proxy));
     }
 }
 
@@ -273,67 +276,18 @@ fn env_proxy_settings() -> ProxySettings {
             .or_else(|| env_lookup("SOCKS_PROXY", "socks_proxy"))
             .and_then(|value| normalize_proxy_url(&value, "http")),
         bypass: env_lookup("NO_PROXY", "no_proxy")
-            .map(|value| parse_no_proxy_list(&value))
+            .map(|value| split_bypass_rules(&value))
             .unwrap_or_default(),
     };
-    canonicalize_bypass_rules(&mut settings.bypass);
+    settings.bypass = canonicalize_bypass_rules(settings.bypass);
     settings
-}
-
-fn canonicalize_bypass_rules(bypass: &mut Vec<String>) {
-    let mut set = BTreeSet::<String>::new();
-    for item in bypass.iter() {
-        let trimmed = item.trim();
-        if !trimmed.is_empty() {
-            set.insert(trimmed.to_ascii_lowercase());
-        }
-    }
-    *bypass = set.into_iter().collect();
 }
 
 fn env_lookup(primary: &str, secondary: &str) -> Option<String> {
     env::var(primary)
         .ok()
         .or_else(|| env::var(secondary).ok())
-        .and_then(clean_value)
-}
-
-fn clean_value(value: String) -> Option<String> {
-    let cleaned = value
-        .trim()
-        .trim_matches('"')
-        .trim_matches('\'')
-        .trim()
-        .to_string();
-
-    if cleaned.is_empty() {
-        None
-    } else {
-        Some(cleaned)
-    }
-}
-
-fn normalize_proxy_url(value: &str, default_scheme: &str) -> Option<String> {
-    let candidate = if value.contains("://") {
-        value.to_string()
-    } else {
-        format!("{default_scheme}://{value}")
-    };
-
-    let parsed = Url::parse(&candidate).ok()?;
-    match parsed.scheme() {
-        "http" | "https" | "socks4" | "socks4a" | "socks5" | "socks5h" => Some(parsed.to_string()),
-        _ => None,
-    }
-}
-
-fn parse_no_proxy_list(value: &str) -> Vec<String> {
-    value
-        .split([',', ';', '|'])
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(|item| item.to_string())
-        .collect()
+        .and_then(|value| clean_proxy_value(&value))
 }
 
 #[cfg(test)]

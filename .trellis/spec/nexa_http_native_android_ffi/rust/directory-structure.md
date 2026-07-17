@@ -15,14 +15,14 @@ packages/nexa_http_native_android/native/nexa_http_native_android_ffi/
 
 - `src/lib.rs` 只定义 Android `RUNTIME` 和 runtime wiring，并调用 core `export_nexa_http_ffi!` 生成统一 C ABI exports。
 - `src/proxy_source.rs` 实现 `AndroidProxySource`，通过 Android `getprop` 读取系统 proxy 设置。
-- `tests/proxy_settings.rs` 验证 `getprop` 字段解析、bypass 分隔符和 refresh mode。
+- `tests/proxy_settings.rs` 验证 `getprop` 字段解析、core shared bypass 分隔符/canonicalization 和 refresh mode。
 
 ## Android proxy 字段
 
 - HTTP proxy 使用 `http.proxyHost` 和 `http.proxyPort`，默认端口是 `80`。
 - HTTPS proxy 使用 `https.proxyHost` 和 `https.proxyPort`，默认端口是 `443`。
 - SOCKS proxy 使用 `socksProxyHost` 和 `socksProxyPort`，默认端口是 `1080`，写入 `ProxySettings::all`。
-- Bypass list 合并 `http.nonProxyHosts` 和 `https.nonProxyHosts`，支持 `,`、`;`、`|` 分隔，并按小写去重。
+- Bypass list 合并 `http.nonProxyHosts` 和 `https.nonProxyHosts`，调用 core `split_bypass_rules` 与 `canonicalize_bypass_rules` 支持 `,`、`;`、`|` 分隔并按小写去重；Android 自己不复制这些规则。
 
 ## 禁止模式
 

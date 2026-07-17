@@ -100,7 +100,7 @@ Flutter SDK 层负责：
 `native/nexa_http_native_apple_proxy` 是 Apple 平台共享的纯 parser：
 
 - 接收 iOS/macOS FFI crate 已读取的 SystemConfiguration 原始值，返回 core `ProxySettings`。
-- 拥有 Apple proxy URL normalization、值清洗和 bypass canonicalization。
+- 拥有 Apple entry/port/default-scheme/`<local>` 字段组合；通用 URL normalization、value cleanup 和 bypass canonicalization 由 `nexa_http_native_core::platform` 提供。
 - 不调用 CoreFoundation/SystemConfiguration，不拥有 runtime state、C ABI 或 native artifact。
 - 具体接口与错误矩阵见 `nexa_http_native_apple_proxy/rust/proxy-parser-contract.md`。
 

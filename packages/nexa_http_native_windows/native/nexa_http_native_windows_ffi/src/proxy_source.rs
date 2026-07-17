@@ -1,6 +1,7 @@
-use nexa_http_native_core::platform::{ProxyConfigSource, ProxySettings, RefreshMode};
-use reqwest::Url;
-use std::collections::BTreeSet;
+use nexa_http_native_core::platform::{
+    ProxyConfigSource, ProxySettings, RefreshMode, canonicalize_bypass_rules, normalize_proxy_url,
+    split_bypass_rules,
+};
 #[cfg(target_os = "windows")]
 use winreg::{RegKey, enums};
 
@@ -79,43 +80,11 @@ fn proxy_settings_from_proxy_server(server: &str, bypass: Option<&str>) -> Proxy
         settings.https = normalized;
     }
 
-    settings.bypass = bypass.map(parse_bypass_list).unwrap_or_default();
-    dedup_bypass(&mut settings);
+    settings.bypass = bypass
+        .map(split_bypass_rules)
+        .map(canonicalize_bypass_rules)
+        .unwrap_or_default();
     settings
-}
-
-fn parse_bypass_list(value: &str) -> Vec<String> {
-    value
-        .split([',', ';', '|'])
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(|item| item.to_string())
-        .collect()
-}
-
-fn dedup_bypass(settings: &mut ProxySettings) {
-    let mut set = BTreeSet::<String>::new();
-    for item in &settings.bypass {
-        let trimmed = item.trim();
-        if !trimmed.is_empty() {
-            set.insert(trimmed.to_ascii_lowercase());
-        }
-    }
-    settings.bypass = set.into_iter().collect();
-}
-
-fn normalize_proxy_url(value: &str, default_scheme: &str) -> Option<String> {
-    let candidate = if value.contains("://") {
-        value.to_string()
-    } else {
-        format!("{default_scheme}://{value}")
-    };
-
-    let parsed = Url::parse(&candidate).ok()?;
-    match parsed.scheme() {
-        "http" | "https" | "socks4" | "socks4a" | "socks5" | "socks5h" => Some(parsed.to_string()),
-        _ => None,
-    }
 }
 
 #[cfg(target_os = "windows")]

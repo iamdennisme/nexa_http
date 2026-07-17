@@ -30,6 +30,68 @@
 - `native/nexa_http_native_core/tests/managed_proxy_state.rs`：覆盖 construction-boundary 和 polling refresh 模式。
 - `packages/nexa_http/test/ffi_nexa_http_native_data_source_test.dart`：Dart 侧验证 FFI config、request、response 和 cancellation contract。
 
+## Scenario: Shared proxy normalization primitives
+
+### 1. Scope / Trigger
+
+- Trigger：修改 `platform/proxy_normalization.rs`、core env proxy fallback，或 Android/Windows/Apple adapter 的 shared normalization 调用。
+- 该契约只覆盖纯值转换，不覆盖 OS discovery、platform grammar、refresh policy、proxy matching 或 C ABI。
+
+### 2. Signatures
+
+```rust
+pub fn clean_proxy_value(value: &str) -> Option<String>;
+pub fn normalize_proxy_url(value: &str, default_scheme: &str) -> Option<String>;
+pub fn split_bypass_rules(value: &str) -> Vec<String>;
+pub fn canonicalize_bypass_rules(rules: Vec<String>) -> Vec<String>;
+```
+
+### 3. Contracts
+
+- cleanup 按既有顺序 trim、去首尾双引号、去首尾单引号、再 trim；空值返回 `None`。
+- URL 无 scheme 时补 `default_scheme`；只接受 `http`、`https`、`socks4`、`socks4a`、`socks5`、`socks5h`，输出 parser canonical string。
+- splitter 只处理 `,`、`;`、`|`，保留 token case/quotes；canonicalizer 只对已分词值做 trim、ASCII lowercase、去重、字典序排序。
+- Apple exceptions 是已分项数组，不调用 splitter；Apple 先 cleanup 再 canonicalize。Windows 不调用 cleanup，以保留 registry quote 语义。
+- primitives 无 OS I/O、日志、runtime state 或 C ABI side effect。
+
+### 4. Validation & Error Matrix
+
+- empty/blank cleanup -> `None`。
+- unsupported scheme、malformed URL 或非法 port -> `None`，不影响同一 `ProxySettings` 的其他字段。
+- delimited input -> 非空 trimmed tokens；empty separators 被丢弃。
+- duplicate/case-variant rules -> 单个 lowercase item，结果按字典序排序。
+- Apple item 含 `,;|` -> 作为一个 bypass rule 保留，不拆分。
+
+### 5. Good/Base/Bad Cases
+
+- Good：platform crate 处理自己的 host/port grammar 后直接调用 `normalize_proxy_url`。
+- Base：core env、Android、Windows 使用 splitter 后一次 canonicalizer。
+- Bad：在任一 adapter 复制 scheme allowlist、`BTreeSet` canonicalizer 或 quote cleanup。
+
+### 6. Tests Required
+
+- `native/nexa_http_native_core/tests/proxy_normalization.rs` 使用 `tests/fixtures/proxy_normalization_cases.rs` 覆盖 cleanup、全部 supported schemes、invalid URL、split 和 canonicalization。
+- Apple/Android/Windows proxy tests 必须读取同一 fixture source，并覆盖 valid、empty/direct、invalid sibling；Apple 还需断言 atomic exception，Windows 需断言 quote preservation。
+- `cargo test --workspace` 和受影响 crate strict Clippy 必须通过。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```rust
+fn normalize_proxy_url(value: &str, default_scheme: &str) -> Option<String> {
+    // platform crate 私自复制 URL scheme allowlist
+}
+```
+
+#### Correct
+
+```rust
+use nexa_http_native_core::platform::normalize_proxy_url;
+
+let proxy = normalize_proxy_url(address, "http");
+```
+
 ## Scenario: 统一平台 FFI 导出契约
 
 ### 1. Scope / Trigger

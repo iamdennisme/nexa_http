@@ -2,6 +2,9 @@ use nexa_http_native_apple_proxy::{
     AppleProxyEntry, AppleProxySettings, parse_apple_proxy_settings,
 };
 
+#[path = "../../nexa_http_native_core/tests/fixtures/proxy_normalization_cases.rs"]
+mod fixtures;
+
 #[test]
 fn enabled_http_proxy_uses_http_default_scheme() {
     let settings = parse_apple_proxy_settings(AppleProxySettings {
@@ -15,7 +18,7 @@ fn enabled_http_proxy_uses_http_default_scheme() {
 
     assert_eq!(
         settings.http.as_deref(),
-        Some("http://proxy.example.com:3128/")
+        fixtures::SETTINGS_EXPECTATIONS[0].http
     );
 }
 
@@ -144,4 +147,41 @@ fn disabled_and_blank_proxy_entries_are_ignored() {
     assert_eq!(settings.http, None);
     assert_eq!(settings.https, None);
     assert_eq!(settings.all, None);
+}
+
+#[test]
+fn apple_exception_items_are_not_split_by_string_delimiters() {
+    let settings = parse_apple_proxy_settings(AppleProxySettings {
+        exceptions: vec![" example.com,internal.example;local|host ".to_string()],
+        ..AppleProxySettings::default()
+    });
+
+    assert_eq!(
+        settings.bypass,
+        vec!["example.com,internal.example;local|host".to_string()]
+    );
+}
+
+#[test]
+fn apple_invalid_proxy_does_not_remove_valid_sibling() {
+    let settings = parse_apple_proxy_settings(AppleProxySettings {
+        http: AppleProxyEntry {
+            enabled: true,
+            host: Some("ftp://bad.example.com".to_string()),
+            port: Some(3128),
+        },
+        https: AppleProxyEntry {
+            enabled: true,
+            host: Some("secure.example.com".to_string()),
+            port: Some(8443),
+        },
+        exceptions: vec!["localhost".to_string()],
+        ..AppleProxySettings::default()
+    });
+    let expected = &fixtures::SETTINGS_EXPECTATIONS[2];
+
+    assert_eq!(settings.http.as_deref(), expected.http);
+    assert_eq!(settings.https.as_deref(), expected.https);
+    assert_eq!(settings.all.as_deref(), expected.all);
+    assert_eq!(settings.bypass, vec!["localhost"]);
 }

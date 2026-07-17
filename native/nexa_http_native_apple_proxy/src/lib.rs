@@ -1,6 +1,6 @@
-use nexa_http_native_core::platform::ProxySettings;
-use std::collections::BTreeSet;
-use url::Url;
+use nexa_http_native_core::platform::{
+    ProxySettings, canonicalize_bypass_rules, clean_proxy_value, normalize_proxy_url,
+};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AppleProxyEntry {
@@ -35,18 +35,13 @@ pub fn parse_apple_proxy_settings(input: AppleProxySettings) -> ProxySettings {
         http: parse_entry(http, "http"),
         https: parse_entry(https, "http"),
         all: parse_entry(socks, "socks5"),
-        bypass: canonicalize_bypass(exceptions),
+        bypass: canonicalize_bypass_rules(
+            exceptions
+                .into_iter()
+                .filter_map(|value| clean_proxy_value(&value))
+                .collect(),
+        ),
     }
-}
-
-fn canonicalize_bypass(exceptions: Vec<String>) -> Vec<String> {
-    exceptions
-        .into_iter()
-        .filter_map(clean_value)
-        .map(|value| value.to_ascii_lowercase())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
 }
 
 fn parse_entry(entry: AppleProxyEntry, default_scheme: &str) -> Option<String> {
@@ -54,38 +49,10 @@ fn parse_entry(entry: AppleProxyEntry, default_scheme: &str) -> Option<String> {
         return None;
     }
 
-    let host = clean_value(entry.host?)?;
+    let host = clean_proxy_value(entry.host.as_deref()?)?;
     let host_port = match entry.port.filter(|port| *port > 0) {
         Some(port) => format!("{host}:{port}"),
         None => host,
     };
     normalize_proxy_url(&host_port, default_scheme)
-}
-
-fn normalize_proxy_url(value: &str, default_scheme: &str) -> Option<String> {
-    let candidate = if value.contains("://") {
-        value.to_string()
-    } else {
-        format!("{default_scheme}://{value}")
-    };
-
-    let parsed = Url::parse(&candidate).ok()?;
-    match parsed.scheme() {
-        "http" | "https" | "socks4" | "socks4a" | "socks5" | "socks5h" => Some(parsed.to_string()),
-        _ => None,
-    }
-}
-
-fn clean_value(value: String) -> Option<String> {
-    let cleaned = value
-        .trim()
-        .trim_matches('"')
-        .trim_matches('\'')
-        .trim()
-        .to_string();
-    if cleaned.is_empty() {
-        None
-    } else {
-        Some(cleaned)
-    }
 }

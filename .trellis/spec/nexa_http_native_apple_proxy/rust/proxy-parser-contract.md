@@ -32,12 +32,12 @@ pub fn parse_apple_proxy_settings(
 ### 3. Contracts
 
 - iOS/macOS FFI crate 负责调用 `SCDynamicStoreCopyProxies`、读取 CoreFoundation dictionary，并构造 `AppleProxySettings`。
-- 本 crate 不依赖 CoreFoundation/SystemConfiguration；它只依赖 `nexa_http_native_core` 的 `ProxySettings` 和 `url` parser。
+- 本 crate 不依赖 CoreFoundation/SystemConfiguration；它只依赖 `nexa_http_native_core` 的 `ProxySettings` 和 shared proxy normalization primitives。
 - `http` 与 `https` 缺省 scheme 都是 `http`；`socks` 缺省 scheme 是 `socks5`，输出到 `ProxySettings::all`。
 - 只接受 `http`、`https`、`socks4`、`socks4a`、`socks5`、`socks5h` scheme。
-- host 与 exceptions 在解析前去除首尾空白和单双引号；空值被忽略。
+- host 与 exceptions 在解析前通过 core `clean_proxy_value` 去除首尾空白和单双引号；空值被忽略。
 - 端口只有大于零时才拼接；超出 URL 合法范围的值由 URL parser 判为无效。
-- bypass 规则转为 ASCII 小写、去重并按字典序排序；`exclude_simple_hostnames=true` 时加入 `<local>`。
+- 已清洗的 bypass items 通过 core `canonicalize_bypass_rules` 转为 ASCII 小写、去重并按字典序排序；`exclude_simple_hostnames=true` 时加入 `<local>`。Apple exceptions 是数组 item，不经过 delimited splitter。
 - 返回值不产生 error/log；单个无效 proxy 条目降级为 `None`，不影响其他字段。
 - 共享 crate 静态链接进既有 iOS/macOS 动态库，不新增 host dependency、plugin、release artifact 或正式配置。
 
@@ -53,6 +53,7 @@ pub fn parse_apple_proxy_settings(
 | `port <= 0` | 省略端口后继续解析 host |
 | exception 空白 | 丢弃该项 |
 | exception 重复或大小写不同 | 转小写后保留一项 |
+| exception 内容含 `,`、`;` 或 `|` | 作为一个数组 item 保留，不拆分 |
 | `exclude_simple_hostnames=true` | bypass 中包含 `<local>` |
 | SystemConfiguration 返回 null | 由平台 FFI crate 返回 `ProxySettings::default()`，不调用本 parser |
 
@@ -66,6 +67,7 @@ pub fn parse_apple_proxy_settings(
 ### 6. Tests Required
 
 - `cargo test -p nexa_http_native_apple_proxy`：断言 HTTP/HTTPS/SOCKS 默认 scheme、disabled/blank、quoted host、无效 scheme、非正端口和 bypass canonicalization。
+- 共享 fixture `native/nexa_http_native_core/tests/fixtures/proxy_normalization_cases.rs` 必须由 Apple parser test 读取；测试还需覆盖 atomic exception 和 invalid sibling isolation。
 - `cargo test -p nexa_http_native_macos_ffi`：断言 macOS raw-value adapter wiring、runtime state 和 `RefreshMode::ConstructionBoundary`。
 - `cargo test -p nexa_http_native_ios_ffi`：断言 iOS raw-value adapter wiring、runtime state 和 `RefreshMode::ConstructionBoundary`。
 - `cargo test --workspace`：断言共享依赖未破坏 Android/Windows/core。
@@ -77,14 +79,13 @@ pub fn parse_apple_proxy_settings(
 
 ```rust
 // 平台 crate 私自拥有解析规则，iOS/macOS 会再次漂移。
-let proxy = normalize_proxy_url(raw_host, "http");
-dedup_bypass(&mut settings);
+fn normalize_proxy_url(raw_host: &str) -> Option<String> { /* duplicated */ }
 ```
 
 #### Correct
 
 ```rust
-// 平台 crate 只映射系统值，共享 crate 拥有全部纯解析规则。
+// parser 只保留 Apple 字段组合，共享 core 拥有通用纯规则。
 let settings = parse_apple_proxy_settings(AppleProxySettings {
     http: AppleProxyEntry {
         enabled: http_enabled,

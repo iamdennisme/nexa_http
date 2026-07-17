@@ -5,6 +5,7 @@
 - `Cargo.toml` 同时声明 `cdylib` 和 `rlib`。
 - 所有 public C ABI export 通过 core `export_nexa_http_ffi!` 生成，平台 `lib.rs` 不复制 wrapper。
 - `WindowsProxySource` 只拥有 Internet Settings registry adapter 与 proxy parser，refresh mode 保持 `ConstructionBoundary`。
+- URL normalization、bypass splitting/canonicalization 从 `nexa_http_native_core::platform` 导入；Windows 不调用 value cleanup，以保留 registry quote 语义。
 - `ProxyEnable`、`ProxyServer`、`ProxyOverride`、bypass 和 default state 必须由 `tests/proxy_settings.rs` 覆盖。
 
 ## 禁止模式

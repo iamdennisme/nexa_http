@@ -17,6 +17,7 @@ native/nexa_http_native_core/
 │   ├── platform/
 │   │   ├── capabilities.rs
 │   │   ├── proxy.rs
+│   │   ├── proxy_normalization.rs
 │   │   └── source.rs
 │   ├── runtime/
 │   │   ├── client_registry.rs
@@ -35,7 +36,9 @@ native/nexa_http_native_core/
 - `api/error.rs` 定义 `NativeError` 与可序列化的 `NativeHttpError`。跨 FFI 的错误 JSON 必须从这里的模型出发。
 - `runtime/executor.rs` 是 HTTP client、request dispatch、cancellation、callback 和 result free 的主要实现位置。
 - `runtime/managed_proxy_state.rs` 负责 proxy state 刷新策略，调用 `platform::ProxyConfigSource`。
-- `platform/` 只定义跨平台抽象和 shared proxy 匹配逻辑，不读取具体 OS 配置。
+- `platform/` 只定义跨平台抽象、shared proxy normalization/matching，不读取具体 OS 配置。
+- `platform/proxy_normalization.rs` 是 workspace-internal pure primitive 的唯一实现点：value cleanup、supported-scheme URL normalization、delimited bypass splitting，以及已分词 bypass canonicalization。
+- `platform/proxy.rs` 负责 env fallback、snapshot、matching 和 reqwest application；必须调用 `proxy_normalization`，不能重新实现其规则。
 
 ## 命名约定
 
@@ -62,5 +65,6 @@ native/nexa_http_native_core/
 
 - `native/nexa_http_native_core/src/runtime/executor.rs`：集中管理 client registry、in-flight request、callback 和 result free。
 - `native/nexa_http_native_core/src/platform/source.rs`：定义 `ProxyConfigSource` 与 `RefreshMode`，平台 crate 只实现该 trait。
+- `native/nexa_http_native_core/src/platform/proxy_normalization.rs`：定义平台 crate 共用的纯 proxy normalization primitives；不读取 OS、不拥有 refresh state。
 - `native/nexa_http_native_core/tests/runtime_smoke.rs`：覆盖 FFI runtime smoke、callback 和 request/response 行为。
 - `native/nexa_http_native_core/tests/proxy_runtime.rs`：用测试 source 验证进程内 proxy state，不依赖数据库。
