@@ -76,7 +76,7 @@ Trellis package spec 把 ADR 转换成当前可执行约束。开始修改前通
 | Four-platform Native Assets cutover | [archived task](../.trellis/tasks/archive/2026-07/07-10-native-assets-four-platform-cutover/design.md) |
 | Public v2 API cutover | [archived task](../.trellis/tasks/archive/2026-07/07-10-v2-public-http-api-cutover/design.md) |
 | Immutable release transaction | [archived task](../.trellis/tasks/archive/2026-07/07-10-immutable-release-candidate-transaction/design.md) |
-| Current governance audit | [source audit](../.trellis/tasks/07-10-trellis-architecture-spec-governance/research/architecture-governance-audit.md) |
+| Current governance audit | [source audit](../.trellis/tasks/archive/2026-07/07-10-trellis-architecture-spec-governance/research/architecture-governance-audit.md) |
 
 Key history is `95dad7a` (bounded-context language), `55dee2d` (four-platform integration proof), `90d55ec` (immutable release transaction), `dc5cd28` (pub-cache exact release ref), and tag commit `2bdfcce` (`v2.0.1`). The annotated `v2.0.1` tag records candidate `gha:29384993870:8331179239` with digest `7fcbe86664266b0b704a4c530367344a476f563700325f13f417e6fa77e44516`.
 
