@@ -572,6 +572,240 @@ void main() {
     );
   });
 
+  test(
+    'Android retries the package manager boot race before runtime starts',
+    () async {
+      final commands = <VerificationCommand>[];
+      final retryWaits = <Duration>[];
+      final proofTracker = ExternalRuntimeProofMarkerTracker();
+      var installAttempts = 0;
+      final runner = createFlutterRuntimeSmokeRunner(
+        (command) async {
+          commands.add(command);
+          if (command.arguments.contains('install')) {
+            installAttempts += 1;
+            if (installAttempts == 1) {
+              throw _packageManagerBootRaceFailure(command);
+            }
+          }
+          if (command.arguments.contains('logcat') &&
+              command.arguments.contains('-d')) {
+            proofTracker.observeLine(_runtimeProofMarkerLine);
+          }
+        },
+        deviceIdForTargetOS: (_) => 'emulator-5554',
+        proofTracker: proofTracker,
+        waitForAndroidInstallRetry: (delay) async {
+          retryWaits.add(delay);
+        },
+      );
+
+      await runner(
+        fixtureDirectory: Directory('/fixture/android'),
+        platform: const ExternalConsumerPlatform(
+          targetOS: 'android',
+          buildArguments: <String>[],
+        ),
+        fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
+        environment: const <String, String>{},
+      );
+
+      final installCommands = commands
+          .where((command) => command.arguments.contains('install'))
+          .toList(growable: false);
+      expect(installCommands, hasLength(2));
+      expect(installCommands[1].arguments, installCommands[0].arguments);
+      expect(retryWaits, <Duration>[const Duration(seconds: 2)]);
+      expect(commands[0].arguments, installCommands[0].arguments);
+      expect(commands[1].arguments, installCommands[1].arguments);
+      expect(
+        commands[2].arguments,
+        containsAllInOrder(<String>['logcat', '-c']),
+      );
+    },
+  );
+
+  test('Android does not retry an unrelated typed install failure', () async {
+    final commands = <VerificationCommand>[];
+    final retryWaits = <Duration>[];
+    final failure = VerificationCommandFailure(
+      executable: 'adb',
+      arguments: const <String>['install'],
+      message: 'Verification command failed in /fixture/android',
+      errorCode: 1,
+      stdoutTail: const <String>['Performing Streamed Install'],
+      stderrTail: const <String>[
+        'Failure [INSTALL_FAILED_INVALID_APK: Package is invalid]',
+      ],
+    );
+    final runner = createFlutterRuntimeSmokeRunner(
+      (command) async {
+        commands.add(command);
+        if (command.arguments.contains('install')) {
+          throw failure;
+        }
+      },
+      deviceIdForTargetOS: (_) => 'emulator-5554',
+      proofTracker: ExternalRuntimeProofMarkerTracker(),
+      waitForAndroidInstallRetry: (delay) async {
+        retryWaits.add(delay);
+      },
+    );
+
+    await expectLater(
+      runner(
+        fixtureDirectory: Directory('/fixture/android'),
+        platform: const ExternalConsumerPlatform(
+          targetOS: 'android',
+          buildArguments: <String>[],
+        ),
+        fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
+        environment: const <String, String>{},
+      ),
+      throwsA(same(failure)),
+    );
+
+    expect(
+      commands.where((command) => command.arguments.contains('install')),
+      hasLength(1),
+    );
+    expect(retryWaits, isEmpty);
+    expect(
+      commands.any((command) => command.arguments.contains('logcat')),
+      isFalse,
+    );
+  });
+
+  test('Android does not retry an untyped install failure', () async {
+    final commands = <VerificationCommand>[];
+    final retryWaits = <Duration>[];
+    final failure = ProcessException(
+      'adb',
+      const <String>['install'],
+      'untyped install failure',
+      1,
+    );
+    final runner = createFlutterRuntimeSmokeRunner(
+      (command) async {
+        commands.add(command);
+        if (command.arguments.contains('install')) {
+          throw failure;
+        }
+      },
+      deviceIdForTargetOS: (_) => 'emulator-5554',
+      proofTracker: ExternalRuntimeProofMarkerTracker(),
+      waitForAndroidInstallRetry: (delay) async {
+        retryWaits.add(delay);
+      },
+    );
+
+    await expectLater(
+      runner(
+        fixtureDirectory: Directory('/fixture/android'),
+        platform: const ExternalConsumerPlatform(
+          targetOS: 'android',
+          buildArguments: <String>[],
+        ),
+        fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
+        environment: const <String, String>{},
+      ),
+      throwsA(same(failure)),
+    );
+
+    expect(
+      commands.where((command) => command.arguments.contains('install')),
+      hasLength(1),
+    );
+    expect(retryWaits, isEmpty);
+  });
+
+  test(
+    'Android reports the final package manager boot race after three attempts',
+    () async {
+      final commands = <VerificationCommand>[];
+      final retryWaits = <Duration>[];
+      var installAttempts = 0;
+      final runner = createFlutterRuntimeSmokeRunner(
+        (command) async {
+          commands.add(command);
+          if (command.arguments.contains('install')) {
+            installAttempts += 1;
+            throw _packageManagerBootRaceFailure(
+              command,
+              attemptDiagnostic: 'install-attempt-$installAttempts',
+            );
+          }
+        },
+        deviceIdForTargetOS: (_) => 'emulator-5554',
+        proofTracker: ExternalRuntimeProofMarkerTracker(),
+        waitForAndroidInstallRetry: (delay) async {
+          retryWaits.add(delay);
+        },
+      );
+
+      await expectLater(
+        runner(
+          fixtureDirectory: Directory('/fixture/android'),
+          platform: const ExternalConsumerPlatform(
+            targetOS: 'android',
+            buildArguments: <String>[],
+          ),
+          fixtureUrl: Uri.parse('http://127.0.0.1:8080/healthz'),
+          environment: const <String, String>{},
+        ),
+        throwsA(
+          allOf(
+            isA<ProcessException>(),
+            isA<VerificationCommandFailure>()
+                .having(
+                  (failure) => failure.stdoutTail,
+                  'stdout tail',
+                  contains('install-attempt-3'),
+                )
+                .having(
+                  (failure) => failure.stderrTail,
+                  'stderr tail',
+                  containsAll(<String>[
+                    'android.content.pm.PackageManagerInternal.freeStorage',
+                    'on a null object reference',
+                    'install-attempt-3',
+                  ]),
+                )
+                .having(
+                  (failure) => failure.toString(),
+                  'terminal diagnostics',
+                  allOf(
+                    contains('3 attempts'),
+                    contains('emulator-5554'),
+                    contains(
+                      '/fixture/android/build/app/outputs/flutter-apk/'
+                      'app-release.apk',
+                    ),
+                    contains('install-attempt-3'),
+                  ),
+                ),
+          ),
+        ),
+      );
+
+      final installCommands = commands
+          .where((command) => command.arguments.contains('install'))
+          .toList(growable: false);
+      expect(installCommands, hasLength(3));
+      for (final command in installCommands.skip(1)) {
+        expect(command.arguments, installCommands.first.arguments);
+      }
+      expect(retryWaits, <Duration>[
+        const Duration(seconds: 2),
+        const Duration(seconds: 2),
+      ]);
+      expect(
+        commands.any((command) => command.arguments.contains('logcat')),
+        isFalse,
+      );
+    },
+  );
+
   test('Android runtime proof polls filtered logcat until delivery', () async {
     final commands = <VerificationCommand>[];
     final proofTracker = ExternalRuntimeProofMarkerTracker();
@@ -993,6 +1227,29 @@ const _runtimeProofMarkerLine =
     'flutter: NEXA_HTTP_RUNTIME_PROOF '
     '{"request_completed":true,"callback_received":true,'
     '"body_consumed":true,"body_released":true,"client_closed":true}';
+
+VerificationCommandFailure _packageManagerBootRaceFailure(
+  VerificationCommand command, {
+  String? attemptDiagnostic,
+}) {
+  return VerificationCommandFailure(
+    executable: command.executable,
+    arguments: command.arguments,
+    message: 'Verification command failed in ${command.workingDirectory}',
+    errorCode: 1,
+    stdoutTail: <String>[
+      'Performing Streamed Install',
+      if (attemptDiagnostic != null) attemptDiagnostic,
+    ],
+    stderrTail: <String>[
+      'java.lang.NullPointerException: Attempt to invoke virtual method',
+      'android.content.pm.PackageManagerInternal.freeStorage',
+      'on a null object reference',
+      'at com.android.server.StorageManagerService.allocateBytes',
+      if (attemptDiagnostic != null) attemptDiagnostic,
+    ],
+  );
+}
 
 Future<void> _writeMacosEntitlementFixtures(String fixturePath) async {
   final runnerDirectory = Directory(p.join(fixturePath, 'macos', 'Runner'));

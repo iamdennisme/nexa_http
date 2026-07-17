@@ -25,13 +25,72 @@ typedef ExternalDeviceIdResolver = String Function(String targetOS);
 
 typedef ExternalAndroidLogcatPollWait = Future<void> Function(Duration delay);
 
+typedef ExternalAndroidInstallRetryWait = Future<void> Function(Duration delay);
+
 Future<void> _waitForAndroidLogcatPoll(Duration delay) =>
     Future<void>.delayed(delay);
 
+Future<void> _waitForAndroidInstallRetry(Duration delay) =>
+    Future<void>.delayed(delay);
+
+const _androidInstallAttemptLimit = 3;
+const _androidInstallRetryDelay = Duration(seconds: 2);
 const _androidRuntimeProofPollLimit = 60;
 const _androidRuntimeProofPollInterval = Duration(seconds: 1);
 const _externalConsumerAndroidApplicationId =
     'com.example.nexa_http_external_consumer_fixture';
+
+Future<void> _installAndroidRuntimeApk({
+  required VerificationCommandRunner runCommand,
+  required Directory fixtureDirectory,
+  required String deviceId,
+  required Map<String, String> environment,
+  required ExternalAndroidInstallRetryWait waitForRetry,
+}) async {
+  final apkPath = _androidRuntimeApk(fixtureDirectory).path;
+  final command = VerificationCommand(
+    executable: 'adb',
+    arguments: <String>['-s', deviceId, 'install', '-t', '-r', apkPath],
+    workingDirectory: fixtureDirectory.path,
+    environment: environment,
+  );
+  for (var attempt = 1; attempt <= _androidInstallAttemptLimit; attempt += 1) {
+    try {
+      await runCommand(command);
+      return;
+    } on VerificationCommandFailure catch (error, stackTrace) {
+      if (!_isAndroidPackageManagerBootRace(error)) {
+        rethrow;
+      }
+      if (attempt == _androidInstallAttemptLimit) {
+        Error.throwWithStackTrace(
+          VerificationCommandFailure(
+            executable: command.executable,
+            arguments: command.arguments,
+            message:
+                'Android APK install failed after '
+                '$_androidInstallAttemptLimit attempts on device $deviceId '
+                'for $apkPath; final failure: ${error.message}',
+            errorCode: error.errorCode,
+            stdoutTail: error.stdoutTail,
+            stderrTail: error.stderrTail,
+          ),
+          stackTrace,
+        );
+      }
+      await waitForRetry(_androidInstallRetryDelay);
+    }
+  }
+}
+
+bool _isAndroidPackageManagerBootRace(VerificationCommandFailure failure) {
+  final diagnostics = <String>[
+    ...failure.stdoutTail,
+    ...failure.stderrTail,
+  ].join('\n');
+  return diagnostics.contains('PackageManagerInternal.freeStorage') &&
+      diagnostics.contains('null object reference');
+}
 
 final class ExternalRuntimeProofMarkerTracker {
   static const marker = 'NEXA_HTTP_RUNTIME_PROOF ';
@@ -120,6 +179,8 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
   required ExternalDeviceIdResolver deviceIdForTargetOS,
   required ExternalRuntimeProofMarkerTracker proofTracker,
   Map<String, String> baseEnvironment = const <String, String>{},
+  ExternalAndroidInstallRetryWait waitForAndroidInstallRetry =
+      _waitForAndroidInstallRetry,
   ExternalAndroidLogcatPollWait waitForAndroidLogcatPoll =
       _waitForAndroidLogcatPoll,
 }) {
@@ -146,20 +207,12 @@ ExternalRuntimeSmokeRunner createFlutterRuntimeSmokeRunner(
           ...baseEnvironment,
           ...environment,
         };
-        await runCommand(
-          VerificationCommand(
-            executable: 'adb',
-            arguments: <String>[
-              '-s',
-              deviceId,
-              'install',
-              '-t',
-              '-r',
-              _androidRuntimeApk(fixtureDirectory).path,
-            ],
-            workingDirectory: fixtureDirectory.path,
-            environment: commandEnvironment,
-          ),
+        await _installAndroidRuntimeApk(
+          runCommand: runCommand,
+          fixtureDirectory: fixtureDirectory,
+          deviceId: deviceId,
+          environment: commandEnvironment,
+          waitForRetry: waitForAndroidInstallRetry,
         );
         await runCommand(
           VerificationCommand(

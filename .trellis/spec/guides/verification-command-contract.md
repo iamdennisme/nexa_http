@@ -95,6 +95,12 @@ workspace_tools.dart check <check-id> <typed inputs>
 workspace_tools.dart check released-consumer --execution <id> --repo-url <url> --ref <real-ref> --fixture-url <url> --device <os>=<id>
 ```
 
+验证进程与 Android runtime adapter 的稳定 module contract 为：
+
+- `runVerificationCommand(VerificationCommand, {VerificationProcessRunner processRunner, VerificationProcessLineHandler? onStdoutLine, VerificationProcessLineHandler? onStderrLine}) -> Future<void>`。
+- `VerificationCommandFailure extends ProcessException`，额外暴露不可变的 `stdoutTail` 与 `stderrTail`。
+- `createFlutterRuntimeSmokeRunner(..., {ExternalAndroidInstallRetryWait waitForAndroidInstallRetry, ...}) -> ExternalRuntimeSmokeRunner`；wait 只用于确定命中 Android 安装启动竞态后的重试间隔。
+
 ### 3. Contracts
 
 - row report只接受`schema_version=2`，固定包含`suite_id`、`execution_id`、`planned_check_ids`、`completed_check_ids`、`status`、`prepared_artifacts`和`runtime_payloads`；schema v1直接拒绝，不提供兼容解析。
@@ -107,6 +113,9 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - workspace fingerprint扫描必须排除native crate的`target/`、`build/`、`.dart_tool/`生成树，保持O(source inputs)而不是O(build outputs × target count)。
 - `VerifiedCandidateSet` 保留原始 candidate directory 与 verified file handles；ABI/runtime consumer不得创建第二份 candidate set。
 - `check` 复用 Catalog definition及其dependency，但不得输出 gate coverage report。
+- 验证命令失败时必须分别保留 stdout/stderr 最后 100 行，同时把每一行立即转发给原有 live handler；failure 必须继续兼容现有 `ProcessException` catch。保留的 tail 只用于分类和终止诊断，不建立第二份日志。
+- `scripts/wait_android_package_service.sh` 的 `adb shell service check package` 只证明 package binder 可见，是 runtime 前的粗粒度门禁；它不证明 `PackageManagerInternal` 已能完成 APK 写入。真正的 install readiness 恢复只属于共享 Flutter runtime adapter。
+- 只有 typed command failure 的 stdout/stderr tail 合并后同时包含区分大小写的 `PackageManagerInternal.freeStorage` 与 `null object reference`，才允许对完全相同的 `adb -s <device> install -t -r <same-app-release.apk>` 最多执行 3 次，每次符合条件的后续尝试前等待 2 秒。重试不得重新 build、uninstall、换 profile、换设备、换 APK 或切换 artifact source；安装成功后仍必须完成原有 logcat/reverse/Activity/proof/force-stop 流程。
 - 架构切换必须在同一任务删除旧 command、alias、forwarder、workflow、tests和docs；不得提交“先兼容、后清理”的中间态。
 
 ### 4. Validation & Error Matrix
@@ -116,7 +125,9 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - report缺失、重复、`status != passed` 或 planned/completed membership漂移 -> aggregate失败。
 - proof缺字段、路径非绝对、digest格式错误、payload count不为1、lifecycle字段非true、target/asset/identity不匹配 -> row解析或aggregate失败。
 - Windows `dumpbin /exports` 的 banner/path 可能包含以 `nexa_http_` 开头的临时目录名；symbol parser只接受工具输出行尾的symbol token，不得把`Dump of file <path>`当成unexpected export。
-- Android emulator的`sys.boot_completed=1`不保证package manager已ready；Actions row必须先调用`scripts/wait_android_package_service.sh`有界等待`adb shell service check package`成功，超时直接失败，不得把后续install失败包装成SDK runtime失败。
+- Android emulator的`sys.boot_completed=1`不保证package binder可见；Actions row必须先调用`scripts/wait_android_package_service.sh`有界等待`adb shell service check package`成功，超时直接失败。
+- `service check package` 已返回 `found` 仍不保证内部 `PackageManagerInternal` install path ready。实际 `adb install` 只有命中上述两个精确片段才进入有界恢复；签名不匹配、诊断缺失或普通 `ProcessException` 必须第一次就原样失败且不等待，不得包装成 SDK runtime failure。
+- 同签名故障连续 3 次 -> 抛出仍兼容 `ProcessException` 的终止 failure，明确包含 attempt count、device、APK path、最终 exit code 及第三次 stdout/stderr tails；不得继续第四次尝试或隐藏最终 child failure。
 - Android Actions row使用轻量`aosp_atd` image；三target native build通过Catalog在`pre-emulator-launch-script`完成，避免emulator与Cargo争抢CPU。完整suite随后复用workspace fingerprint cache；发现第二次native build或prepared copy即为性能contract失败。
 - Android runtime必须复用consumer阶段唯一一次`flutter build apk --release`产生的`app-release.apk`；path/candidate consumer与released consumer共同调用`configureExternalConsumerFixture`，在build前让`android/app/src/main/AndroidManifest.xml`包含恰好一条`android.permission.INTERNET`，并共同调用`externalConsumerBuildArguments`注入`127.0.0.1` fixture URL，不能维护两份宿主配置或build参数。Runtime固定按`adb install -t -r`、清空目标device logcat、一次`adb reverse tcp:<port> tcp:<port>`、`adb shell am start -W`顺序执行；reverse端口必须直接投影自fixture URL并发生在Activity启动前。不得依赖emulator特殊宿主地址、调用`flutter run`或启动debug APK进入VM-service/debug attach路径。启动后只允许最多60次有界轮询同device的`flutter:I`日志；真实ATD冷启动曾在第30次之后才完成callback。仍无单一完整marker则失败，proof判定后best-effort force-stop fixture，cleanup失败不得冒充或覆盖proof结果。
 - Android release fixture的main manifest缺失、无`<manifest>`根元素或包含重复INTERNET permission -> consumer配置失败，唯一release build不得启动；不得回退debug/profile manifest。
@@ -129,8 +140,11 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 ### 5. Good/Base/Bad Cases
 
 - Good: CI 从 `matrix --suite` 读取execution rows，每个row只运行一次完整suite并上传report，最终aggregate验证精确联合。
+- Good: 首次安装命中已记录的 Android platform 启动竞态，2 秒后对同一设备和同一 release APK 重试成功，然后继续完整 runtime proof。
 - Base: 本地用 `check native-abi` 定位问题，planner仍先运行同execution的`native-build` dependency。
+- Base: package binder 与内部 package manager 都已 ready，唯一一次安装直接成功，不产生额外等待。
 - Bad: YAML手写Cargo/target/asset/check列表，或为旧命令保留deprecated alias/fallback。
+- Bad: workflow 对所有 `adb install` 失败做通用 retry，增加固定启动 sleep，或失败后 rebuild/uninstall/改用 debug APK。
 
 ### 6. Tests Required
 
@@ -143,6 +157,8 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 - `cargo test --workspace`
 - `verify-static --execution static-linux` 必须通过真实Catalog runner。
 - Android consumer测试必须在mocked `flutter create`后写入无网络权限的main manifest，并断言path/candidate与released runner在唯一release build前都将其变为恰好一条INTERNET permission。
+- Command failure测试必须真实启动会输出超过100行并非零退出的child process，断言每一行仍实时转发、每个stream只保留最后100行、tails不可变，且failure仍可被`ProcessException`捕获。
+- Android install测试必须覆盖首次精确签名失败后成功、typed非匹配失败、普通`ProcessException`和连续三次精确签名失败；断言相同install command、等待次数、终止上下文，以及安装成功前不存在logcat/reverse/start命令。
 - Runtime诊断测试必须断言六个phase在生成source中有序且位于proof前、failure marker先于stderr，并断言tracker的零proof错误包含本轮去重phase与failure。
 - CI contract test断言release workflow只有唯一transaction DAG、动态matrix、单一candidate artifact、四平台完整suite、report aggregate和唯一publisher；旧tag authority必须不存在。
 
@@ -159,6 +175,43 @@ workspace_tools.dart check released-consumer --execution <id> --repo-url <url> -
 
 ```yaml
 - run: dart run scripts/workspace_tools.dart verify-integration --execution "${{ matrix.execution_id }}" ... --report-out "reports/${{ matrix.execution_id }}.json"
+```
+
+#### Wrong：对所有安装错误做 workflow-local retry
+
+```yaml
+- run: for attempt in 1 2 3; do adb install app-release.apk && break || sleep 2; done
+```
+
+#### Correct：共享 adapter 只恢复已证明的 platform 竞态
+
+```dart
+for (var attempt = 1; attempt <= 3; attempt += 1) {
+  try {
+    await runCommand(theSameInstallCommand);
+    break;
+  } on VerificationCommandFailure catch (failure) {
+    final diagnostics = <String>[
+      ...failure.stdoutTail,
+      ...failure.stderrTail,
+    ].join('\n');
+    final isRecordedBootRace =
+        diagnostics.contains('PackageManagerInternal.freeStorage') &&
+        diagnostics.contains('null object reference');
+    if (!isRecordedBootRace) rethrow;
+    if (attempt == 3) {
+      throw VerificationCommandFailure(
+        executable: theSameInstallCommand.executable,
+        arguments: theSameInstallCommand.arguments,
+        message: 'Android APK install failed after 3 attempts ...',
+        errorCode: failure.errorCode,
+        stdoutTail: failure.stdoutTail,
+        stderrTail: failure.stderrTail,
+      );
+    }
+    await waitForAndroidInstallRetry(const Duration(seconds: 2));
+  }
+}
 ```
 
 ## Scenario: Immutable Release Transaction

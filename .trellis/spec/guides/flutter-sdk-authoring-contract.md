@@ -364,6 +364,8 @@ output.assets.code.add(
 - Candidate hook defines：`candidate_directory`与`candidate_ref`必须成对出现在`hooks.user_defines.<carrier>`；producer必须把absolute directory序列化为`file:` URI，hook通过`input.userDefines.path(...)`解析directory，通过`input.userDefines[...]`读取ref。
 - Consumer build projection：`externalConsumerBuildArguments({required ExternalConsumerPlatform platform, required Uri fixtureUrl}) -> List<String>`，path/candidate consumer与released consumer必须共同调用。
 - Consumer fixture配置：`configureExternalConsumerFixture(Directory fixtureDirectory, {required String targetOS}) -> Future<void>`；Android与macOS的宿主工程配置必须在`flutter create`后、`pub get`和唯一一次build前通过这个共享入口完成。
+- Verification command failure：`VerificationCommandFailure extends ProcessException`，通过`stdoutTail`与`stderrTail`向共享 runtime adapter 提供有界、可分类的child diagnostics。
+- Android runtime smoke：`createFlutterRuntimeSmokeRunner(..., {ExternalAndroidInstallRetryWait waitForAndroidInstallRetry, ...}) -> ExternalRuntimeSmokeRunner`；只有已记录的 package-manager boot race 能使用该wait boundary。
 - Target identity：`NexaHttpNativeTarget(targetOS, targetArchitecture, targetSdk, rustTargetTriple, sourceArtifactFileName, releaseAssetFileName, buildScriptName, integrationExecutionId, runner, nativeAssetName)`。
 - Runtime registration：`registerNexaHttpNativeBindings(NexaHttpNativeBindingsFactory(assetId, create))`；同 ID 幂等，不同 ID 冲突失败，bindings 按 isolate lazy once。
 - Native Asset identity：carrier 生成的 `CodeAsset` 必须使用项目唯一的 native asset name，并直接引用 preparation 返回的 `File`。
@@ -380,6 +382,7 @@ output.assets.code.add(
 - clean-host runtime成功必须实际观测单行`NEXA_HTTP_RUNTIME_PROOF`，且 request、callback、body consume/release、client close五个字段全为`true`；只有marker已完成时才允许忽略App主动退出后Flutter DDS teardown的`ProcessException`。
 - clean-host fixture必须依次输出`NEXA_HTTP_RUNTIME_PHASE binding_ready`、`app_mounted`、`client_built`、`request_started`、`response_received`、`client_closed`，最终才输出proof。Catch必须把错误通过JSON编码的`NEXA_HTTP_RUNTIME_FAILURE`写到stdout；`NexaHttpException`包含type/message/kind/uri/diagnostics，不能只依赖release Android不可见的stderr或泛化`toString()`。Tracker只把proof计入成功，但零proof错误必须附带本轮去重phase和failure，区分Dart isolate/Flutter mount/client construction/native callback/body/close卡点；phase/failure不能替代proof。
 - Android clean-host只允许一次`flutter build apk --release`，并在这次build中注入`127.0.0.1` fixture URL。Flutter app模板只在debug/profile manifest默认声明`android.permission.INTERNET`，因此path/candidate consumer与released consumer必须在build前共同调用fixture配置入口，把恰好一条`<uses-permission android:name="android.permission.INTERNET"/>`写入`android/app/src/main/AndroidManifest.xml`；不能依赖debug/profile manifest，也不能各自维护配置实现。两个consumer必须复用同一个build-argument projection，不能各自拼装define。Runtime row必须复用`app-release.apk`，按`adb install -t -r`、`adb logcat -c`、一次`adb reverse tcp:<fixture-port> tcp:<fixture-port>`、`adb shell am start -W`顺序启动；reverse端口直接来自fixture URL并发生在Activity启动前，不得依赖emulator特殊宿主地址、调用`flutter run`或启动debug APK进入VM-service/debug attach路径。启动后只对同device的`flutter:I`日志执行最多60次有界轮询；真实ATD冷启动可能在第30次之后才交付callback，仍要求恰好一条完整marker，不得扫描无关system日志或依赖固定sleep猜测日志已flush；proof判定结束后best-effort force-stop fixture，避免污染同device后续row。
+- Android readiness 分两层：workflow 的 `service check package` 只做有界 binder gate；共享 runtime adapter 在真实 `adb install -t -r` 处识别 `PackageManagerInternal.freeStorage` 加 `null object reference` 的已记录竞态。只有该 typed failure 能以2秒间隔对同一设备、同一 `app-release.apk` 最多尝试3次；其他安装错误立即失败。成功恢复只代表可以继续运行，最终仍必须取得完整 `NEXA_HTTP_RUNTIME_PROOF`，不得把 retry 本身当作 clean-host success。
 - Android fixture输出成功marker后不得主动`exit(0)`；由验证端观测marker后结束row。iOS/macOS/Windows可以在短暂flush窗口后退出，但任何平台的process exit code都不能替代marker。
 - uniqueness只扫描本轮最终distribution：iOS/macOS为唯一`.app`，Android emulator row为`android-x64` APK的`lib/x86_64`，Windows为runner distribution。不得递归扫描整个Xcode Products或把不同Android ABI计为重复payload。
 - Windows export解析只接受symbol工具输出行尾的真实token；`dumpbin` banner中的临时目录/App名称即使以`nexa_http_`开头也不是export。
@@ -393,7 +396,9 @@ output.assets.code.add(
 - Target tuple 无匹配项 -> `native target resolution` 失败，不允许 fallback 到 host architecture 或默认文件。
 - Preparation 返回文件不存在 -> `native packaging` 失败，错误包含 target tuple 和期望动作。
 - App 中出现两个导出 canonical `nexa_http_*` ABI 的 payload -> 验证失败，阻断合并和发布。
-- Android emulator已报告boot complete但package service未ready -> CI继续有界等待；超时阻断row，不启动clean-host runtime。
+- Android emulator已报告boot complete但package binder不可见 -> CI继续通过`wait_android_package_service.sh`有界等待；超时阻断row，不启动clean-host runtime。
+- Package binder已可见但真实install命中`PackageManagerInternal.freeStorage`与`null object reference` -> 对同一命令最多3次、间隔2秒恢复；第3次仍失败时报告attempt/device/APK/final tails并阻断row。
+- Install诊断缺失、只有一个签名片段、出现invalid APK/signature/storage/device等其他错误，或抛普通`ProcessException` -> 第一次立即失败、零等待；不得rebuild、uninstall、换profile或切换artifact source。
 - ABI verifier 检查的文件与 runtime smoke 加载的 artifact identity 不一致 -> 验证失败。
 - Workspace hook缺少或读到不匹配fingerprint -> 在共享cache中重建该tuple；不得读取旧integration目录或fallback到第二artifact source。
 - candidate directory/ref仅有一个、类型错误或路径不存在 -> hook直接失败；不得回退workspace/release source。
@@ -409,11 +414,13 @@ output.assets.code.add(
 
 - Good：hook 根据 target matrix 准备一个文件，将该文件作为 CodeAsset 打包；runtime smoke 打开并调用同一 artifact；App 内只有一份导出 public ABI 的 payload。
 - Good：Android fixture在唯一release build前由共享配置器把main manifest从零条INTERNET permission变为恰好一条，path/candidate与released consumer行为一致。
+- Good：package binder已可见但内部install path短暂未ready；共享adapter对同一release APK恢复后，继续原有logcat/reverse/start/proof/cleanup链路。
 - Base：workspace source build 与 release download 来源不同，但最终都收敛到同一个 target-keyed CodeAsset contract。
 - Bad：macOS 同时生成 Native Assets framework 和 CocoaPods resource bundle，runtime 固定打开后者。
 - Bad：Android/Windows 同时让 CodeAsset 和 `jniLibs`/CMake 各复制一份 native library。
 - Bad：为降低风险保留 `try Native Assets, catch then open legacy path`。
 - Bad：release APK依赖只存在于`src/debug`或`src/profile`的INTERNET permission，或两个consumer分别修改manifest导致规则漂移/重复。
+- Bad：把所有`adb install`错误都当作emulator readiness、在workflow加固定sleep/retry，或恢复后省略runtime proof。
 
 ### 6. Tests Required
 
@@ -426,7 +433,7 @@ output.assets.code.add(
 - Runtime phase test：生成fixture的六个phase必须按binding/mount/client/request/response/close顺序出现，proof在最后；catch的JSON failure marker必须先于stderr；tracker零proof错误必须只报告本轮去重phase与failure。
 - Workspace reuse test：Catalog producer与两个不同hook output请求返回同一个共享cache File，build invocation保持一次；source或target tuple变化会失效。
 - Hook config test：candidate user-defines的相对目录按workspace pubspec base path解析，absolute POSIX/Windows目录由consumer producer序列化为`file:` URI，directory/ref成对传给preparer；自定义环境变量不参与contract。
-- Android marker test：path/candidate与released consumer都模拟无INTERNET permission的Flutter main manifest，并断言唯一一次Flutter release APK build开始前manifest已包含恰好一条permission、build包含fixture define并产出`app-release.apk`；随后按install、清空logcat、`am start -W`、有界轮询、force-stop执行且不存在`flutter run`；覆盖延迟到达、旧marker、零marker、重复marker和结束后的fixture清理。
+- Android marker test：path/candidate与released consumer都模拟无INTERNET permission的Flutter main manifest，并断言唯一一次Flutter release APK build开始前manifest已包含恰好一条permission、build包含fixture define并产出`app-release.apk`；随后按install、清空logcat、`am start -W`、有界轮询、force-stop执行且不存在`flutter run`；覆盖首次精确竞态后成功、非匹配与untyped立即失败、三次耗尽、延迟到达、旧marker、零marker、重复marker和结束后的fixture清理。
 - Release gate：Android、iOS、macOS、Windows 全部通过候选 artifact runtime smoke 后才允许公开 release。
 - Legacy absence test：搜索并拒绝旧 resource bundle、固定 loader path、并行 `jniLibs`/CMake copy 和 fallback branch。
 
