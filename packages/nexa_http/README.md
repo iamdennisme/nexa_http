@@ -38,19 +38,19 @@ dependencies:
 
 ### Git setup
 
-Use a real published release tag. The example below uses `v2.0.2`.
+Use a real published release tag. The example below uses `v2.0.3`.
 
 ```yaml
 dependencies:
   nexa_http:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v2.0.2
+      ref: v2.0.3
       path: packages/nexa_http
   nexa_http_native_macos:
     git:
       url: https://github.com/iamdennisme/nexa_http.git
-      ref: v2.0.2
+      ref: v2.0.3
       path: packages/nexa_http_native_macos
 ```
 

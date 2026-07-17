@@ -1,3 +1,10 @@
+## 2.0.3
+
+- Preserve bounded stdout/stderr diagnostics for failed verification commands.
+- Retry only the recorded Android emulator package-manager install boot race,
+  using the same release APK for at most three attempts while still requiring
+  the full runtime lifecycle proof.
+
 ## 2.0.2
 
 - Centralize cross-platform proxy normalization while preserving each
