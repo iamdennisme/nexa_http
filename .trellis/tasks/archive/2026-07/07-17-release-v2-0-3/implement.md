@@ -29,8 +29,8 @@
 - [x] Verify rehearsal publisher was skipped and no `v2.0.3` tag, draft, prerelease or Release exists.
 - [x] Dispatch and monitor `publish=true` for the same SHA; require all gates, aggregate and unique publisher to succeed.
 - [x] Verify annotated tag target, stable Release, exact 11-asset names/states/digests, manifest and `SHA256SUMS` consistency.
-- [ ] Write `evidence.md`, update acceptance checkboxes, perform final quality check, archive task, record journal and push bookkeeping commits.
-- [ ] Confirm final `origin/main`, clean worktree, no active Trellis task and immutable `v2.0.2` state.
+- [x] Write `evidence.md`, update acceptance checkboxes, perform final quality check, archive task, record journal and push bookkeeping commits.
+- [x] Confirm final `origin/main`, clean worktree, no active Trellis task and immutable `v2.0.2` state.
 
 ## Metadata Files
 

@@ -78,7 +78,7 @@
 - [x] AC7 (`R7`): `publish=true` transaction 成功，`v2.0.3` annotated tag peel 到批准 SHA，Release 为 non-draft/non-prerelease。
 - [x] AC8 (`R7`): GitHub Release 精确包含 9 个 native assets、manifest 与 `SHA256SUMS`，共 11 个 uploaded assets，远端 digest 集合与发布 metadata 一致。
 - [x] AC9 (`R6`, `R7`): 每次 transaction 内四平台 reports 共用一个 candidate identity，且五个 runtime lifecycle 字段全部为 `true`。
-- [ ] AC10 (`R8`): 发布证据写入任务工件，任务归档、journal 与 bookkeeping commits 推送完成，最终 worktree clean 且无 active task。
+- [x] AC10 (`R8`): 发布证据写入任务工件，任务归档、journal 与 bookkeeping commits 推送完成，最终 worktree clean 且无 active task。
 
 ## Out Of Scope
 
