@@ -3,7 +3,7 @@
   "name": "decompose-rust-executor",
   "title": "Decompose Rust executor",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "nexa_http_native_core",

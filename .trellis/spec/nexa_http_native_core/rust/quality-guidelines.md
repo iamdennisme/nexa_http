@@ -169,7 +169,7 @@ nexa_http_native_core::export_nexa_http_ffi! {
 
 ### 1. Scope / Trigger
 
-- Trigger: 修改 `NexaHttpRuntime::execute_async`、`cancel_request`、inflight request state、Dart pending registry、`NativeCallable` disposal 或 `nexa_http_client_cancel_request` 的返回值处理。
+- Trigger: 修改 `NexaHttpRuntime::execute_async`、`runtime/inflight.rs`、`cancel_request`、Dart pending registry、`NativeCallable` disposal 或 `nexa_http_client_cancel_request` 的返回值处理。
 
 ### 2. Signatures
 
@@ -185,6 +185,7 @@ uint8_t nexa_http_client_cancel_request(uint64_t client_id, uint64_t request_id)
 ### 3. Contracts
 
 - cancel 与 completion 必须通过同一个 inflight state lock 决定 winner。
+- Executor 只能调用 `InflightRequests::{register, install_abort_handle, cancel, commit_callback, guard}`，不得匹配或重建 private state enum。
 - Completion 必须先把 `Active` 变为 `CallbackCommitted`，再构造 FFI-owned binary result 和调用 callback。
 - Cancel 看到 `Pending/Active` 时可以返回 `1`、抑制 callback并中止工作。
 - Cancel 看到 `CallbackCommitted` 或已离开可取消状态时必须返回 `0`；callback delivery保证只适用于成功dispatch且仍outstanding的合法request。
@@ -209,7 +210,8 @@ uint8_t nexa_http_client_cancel_request(uint64_t client_id, uint64_t request_id)
 
 ### 6. Tests Required
 
-- Rust unit: cancel先赢返回 `1` 且callback counter保持0。
+- Rust `runtime/inflight.rs` unit: Pending cancel保留到abort handle安装、Active cancel中止work、unknown cancel不接受、Callback Commit先赢。
+- Rust executor integration: cancel先赢返回 `1` 且callback counter保持0。
 - Rust unit: Callback Commit先赢的合法outstanding request在cancel返回 `0` 后callback恰好1次；unknown request返回 `0` 但无callback guarantee。
 - Rust unit: `CanceledPending` 在handle安装后被移除且不callback。
 - Dart registry: native cancel返回 `1` 时完成canceled并drain；返回 `0` 时保持callback outstanding。
@@ -229,9 +231,7 @@ return 1; // callback 可能已经开始。
 #### Correct
 
 ```rust
-match inflight.get_mut(&key) {
-    Some(InflightRequestState::Active(_)) => accept_cancel_and_suppress_callback(),
-    Some(InflightRequestState::CallbackCommitted) => return 0,
-    _ => return 0,
+pub fn cancel_request(&self, client_id: u64, request_id: u64) -> u8 {
+    u8::from(self.inflight.cancel(client_id, request_id))
 }
 ```
