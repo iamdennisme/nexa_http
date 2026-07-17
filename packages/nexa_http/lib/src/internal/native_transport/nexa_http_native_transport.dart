@@ -1,20 +1,24 @@
 import '../../api/request.dart';
 import '../../api/response.dart';
-import '../../data/mappers/native_http_client_config_mapper.dart';
-import '../../data/mappers/native_http_request_mapper.dart';
-import '../../data/sources/nexa_http_native_data_source.dart';
-import '../../native_bridge/nexa_http_native_data_source_factory.dart';
 import '../config/client_options.dart';
 import '../errors/nexa_http_failures.dart';
+import 'native_http_client_config_mapper.dart';
+import 'native_http_request_mapper.dart';
+import 'nexa_http_native_data_source.dart';
+import 'nexa_http_native_data_source_factory.dart';
 import 'nexa_http_response_mapper.dart';
+import 'nexa_http_testing_overrides.dart';
 
 final class NexaHttpNativeTransport {
   NexaHttpNativeTransport({
     required ClientOptions options,
-    required NexaHttpNativeDataSourceFactory dataSourceFactory,
+    NexaHttpNativeDataSourceFactory? dataSourceFactory,
     NexaHttpResponseMapper responseMapper = const NexaHttpResponseMapper(),
   }) : _options = options,
-       _dataSourceFactory = dataSourceFactory,
+       _dataSourceFactory =
+           dataSourceFactory ??
+           NexaHttpTestingOverrides.nativeDataSourceFactory ??
+           const NexaHttpNativeDataSourceFactory(),
        _responseMapper = responseMapper;
 
   final ClientOptions _options;

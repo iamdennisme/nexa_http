@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:nexa_http/src/data/mappers/native_http_request_mapper.dart';
+import 'package:nexa_http/src/internal/native_transport/native_http_request_mapper.dart';
 import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http/src/internal/config/client_options.dart';
 import 'package:test/test.dart';

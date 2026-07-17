@@ -1,6 +1,6 @@
 import '../../api/nexa_http_exception.dart';
-import '../../internal/errors/nexa_http_failures.dart';
-import '../dto/native_http_error_dto.dart';
+import '../errors/nexa_http_failures.dart';
+import 'native_http_error_dto.dart';
 
 final class NativeHttpErrorMapper {
   const NativeHttpErrorMapper._();

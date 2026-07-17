@@ -5,7 +5,7 @@ import 'dart:ffi' as ffi;
 import 'package:ffi/ffi.dart';
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:nexa_http/src/api/nexa_http_exception.dart';
-import 'package:nexa_http/src/data/sources/ffi_nexa_http_response_decoder.dart';
+import 'package:nexa_http/src/internal/native_transport/ffi_nexa_http_response_decoder.dart';
 import 'package:nexa_http/src/internal/body/response_body_owner.dart';
 import 'package:test/test.dart';
 

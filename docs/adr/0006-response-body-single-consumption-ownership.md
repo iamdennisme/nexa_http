@@ -35,7 +35,7 @@ Native Transport 当前可以把 native response bytes 以 zero-copy view 交给
 ## 当前来源
 
 - `packages/nexa_http/lib/src/api/response_body.dart`
-- `packages/nexa_http/lib/src/data/sources/ffi_nexa_http_response_decoder.dart`
+- `packages/nexa_http/lib/src/internal/native_transport/ffi_nexa_http_response_decoder.dart`
 - `packages/nexa_http/test/response_body_test.dart`
 - `.trellis/spec/nexa_http/dart/public-api.md`
 - `.trellis/spec/nexa_http/dart/native-transport.md`

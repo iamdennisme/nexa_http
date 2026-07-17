@@ -7,11 +7,11 @@ import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 import 'package:nexa_http/src/api/api.dart';
-import 'package:nexa_http/src/data/mappers/native_http_client_config_mapper.dart';
-import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
-import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
-import 'package:nexa_http/src/data/sources/ffi_nexa_http_native_data_source.dart';
-import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
+import 'package:nexa_http/src/internal/native_transport/native_http_client_config_mapper.dart';
+import 'package:nexa_http/src/internal/native_transport/native_http_client_config_dto.dart';
+import 'package:nexa_http/src/internal/native_transport/native_http_request_dto.dart';
+import 'package:nexa_http/src/internal/native_transport/ffi_nexa_http_native_data_source.dart';
+import 'package:nexa_http/src/internal/native_transport/nexa_http_native_data_source.dart';
 import 'package:nexa_http/src/internal/config/client_options.dart';
 import 'package:test/test.dart';
 

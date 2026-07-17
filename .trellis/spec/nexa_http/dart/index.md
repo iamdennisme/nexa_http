@@ -5,7 +5,7 @@
 ## Scope
 
 - `lib/nexa_http.dart` 与 `lib/src/api/` 的公开 HTTP 语义
-- `lib/src/internal/transport/`、`lib/src/data/` 与 `lib/src/native_bridge/` 的 Native Transport
+- `lib/src/internal/native_transport/` 的垂直 Native Transport module
 - package tests 中的 public surface、failure taxonomy、cancellation 和 body ownership contract
 
 ## 规范索引

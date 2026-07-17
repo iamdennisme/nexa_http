@@ -1,9 +1,7 @@
 import 'api/api.dart';
 import 'client/real_call.dart';
 import 'internal/config/client_options.dart';
-import 'internal/testing/nexa_http_testing_overrides.dart';
-import 'internal/transport/nexa_http_native_transport.dart';
-import 'native_bridge/nexa_http_native_data_source_factory.dart';
+import 'internal/native_transport/nexa_http_native_transport.dart';
 
 final class NexaHttpClient {
   factory NexaHttpClient({
@@ -23,12 +21,7 @@ final class NexaHttpClient {
   }
 
   NexaHttpClient._(this._options)
-    : _transport = NexaHttpNativeTransport(
-        options: _options,
-        dataSourceFactory:
-            NexaHttpTestingOverrides.nativeDataSourceFactory ??
-            const NexaHttpNativeDataSourceFactory(),
-      );
+    : _transport = NexaHttpNativeTransport(options: _options);
 
   final ClientOptions _options;
   final NexaHttpNativeTransport _transport;

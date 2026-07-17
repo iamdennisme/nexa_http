@@ -15,9 +15,17 @@ Request / ClientOptions
   -> public Response / NexaHttpException
 ```
 
-- [`nexa_http_native_transport.dart`](../../../../packages/nexa_http/lib/src/internal/transport/nexa_http_native_transport.dart) 拥有 Dart 侧 transport interface 与 lifecycle。
-- [`ffi_nexa_http_native_data_source.dart`](../../../../packages/nexa_http/lib/src/data/sources/ffi_nexa_http_native_data_source.dart) 只消费 internal bindings factory，不寻找动态库路径。
+- [`nexa_http_native_transport.dart`](../../../../packages/nexa_http/lib/src/internal/native_transport/nexa_http_native_transport.dart) 拥有 Dart 侧 transport interface 与 lifecycle。
+- [`ffi_nexa_http_native_data_source.dart`](../../../../packages/nexa_http/lib/src/internal/native_transport/ffi_nexa_http_native_data_source.dart) 只消费 internal bindings factory，不寻找动态库路径。
 - 平台差异停在 carrier registration、CodeAsset identity 和 Rust Platform Capability source，不分叉 Dart request execution model。
+
+## Module boundary
+
+- DTO/generated files、mapper、data source interface/FFI helpers、factory、transport facade、response payload/mapper和transport-only testing override统一位于扁平的 `lib/src/internal/native_transport/`。
+- `NexaHttpClient` 是feature外唯一production consumer，并且只能import `nexa_http_native_transport.dart` facade；默认bindings/data source factory选择由feature内部完成。
+- Feature不得反向import `client/` 或 `nexa_http_client.dart`，也不得用barrel、forwarder或子目录重建旧 `data` / `native_bridge` / `internal/transport` 拓扑。
+- `internal/body/response_body_owner.dart`、`internal/config/client_options.dart` 和 `internal/errors/nexa_http_failures.dart` 是public API/client与transport共用的中性边界，不能为追求目录集中而移入feature。
+- `RealCall` 拥有public Call状态和at-most-once cancellation forwarding；FFI data source/pending registry拥有request ID、native cancel acknowledgment和callback drain。两者是相邻但不同的状态机，不得合并成单一文件owner。
 
 ## Request and callback ownership
 
@@ -45,5 +53,6 @@ Request / ClientOptions
 - [`ffi_nexa_http_response_decoder_test.dart`](../../../../packages/nexa_http/test/ffi_nexa_http_response_decoder_test.dart) 覆盖 result free、empty snapshot 和 adopted owner handoff。
 - [`ffi_nexa_http_pending_request_registry_test.dart`](../../../../packages/nexa_http/test/ffi_nexa_http_pending_request_registry_test.dart) 与 [`ffi_nexa_http_native_data_source_test.dart`](../../../../packages/nexa_http/test/ffi_nexa_http_native_data_source_test.dart) 覆盖 cancellation acknowledgment、callback lifetime 和 dispose drain。
 - [`nexa_http_native_transport_test.dart`](../../../../packages/nexa_http/test/nexa_http_native_transport_test.dart) 与 response mapper tests 覆盖 transport/public 边界。
+- [`native_transport_dependency_test.dart`](../../../../packages/nexa_http/test/native_transport_dependency_test.dart) 扫描整个 `lib/` 的 `import` / `export` / `part` 与conditional implementation URI，拒绝legacy目录、feature外绕过facade、feature反向依赖client/package root和forwarding barrel。
 
 FFI contract 变化还必须同步 Rust core、四个平台 FFI crate、generated bindings 和 ABI contract tests。

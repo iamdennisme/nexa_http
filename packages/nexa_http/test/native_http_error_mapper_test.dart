@@ -1,6 +1,6 @@
 import 'package:nexa_http/nexa_http.dart';
-import 'package:nexa_http/src/data/dto/native_http_error_dto.dart';
-import 'package:nexa_http/src/data/mappers/native_http_error_mapper.dart';
+import 'package:nexa_http/src/internal/native_transport/native_http_error_dto.dart';
+import 'package:nexa_http/src/internal/native_transport/native_http_error_mapper.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -6,17 +6,17 @@ import 'package:ffi/ffi.dart';
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
 import '../../api/nexa_http_exception.dart';
-import '../../internal/errors/nexa_http_failures.dart';
-import '../../internal/transport/transport_response.dart';
-import '../dto/native_http_client_config_dto.dart';
-import '../dto/native_http_error_dto.dart';
-import '../mappers/native_http_error_mapper.dart';
-import '../dto/native_http_request_dto.dart';
+import '../errors/nexa_http_failures.dart';
 import 'ffi_nexa_http_client_config_encoder.dart';
 import 'ffi_nexa_http_pending_request_registry.dart';
 import 'ffi_nexa_http_request_encoder.dart';
 import 'ffi_nexa_http_response_decoder.dart';
+import 'native_http_client_config_dto.dart';
+import 'native_http_error_dto.dart';
+import 'native_http_error_mapper.dart';
+import 'native_http_request_dto.dart';
 import 'nexa_http_native_data_source.dart';
+import 'transport_response.dart';
 
 typedef BinaryResultFinalizerNative =
     Void Function(Pointer<NexaHttpBinaryResult> token);

@@ -1,9 +1,9 @@
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
-import '../api/nexa_http_exception.dart';
-import '../data/sources/ffi_nexa_http_native_data_source.dart';
-import '../data/sources/nexa_http_native_data_source.dart';
-import '../internal/errors/nexa_http_failures.dart';
+import '../../api/nexa_http_exception.dart';
+import '../errors/nexa_http_failures.dart';
+import 'ffi_nexa_http_native_data_source.dart';
+import 'nexa_http_native_data_source.dart';
 
 typedef NexaHttpBindingsResolver = NexaHttpBindings Function();
 typedef NexaHttpNativeDataSourceCreator =

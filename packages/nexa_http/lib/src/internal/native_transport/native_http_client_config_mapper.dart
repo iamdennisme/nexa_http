@@ -1,5 +1,5 @@
-import '../../internal/config/client_options.dart';
-import '../dto/native_http_client_config_dto.dart';
+import '../config/client_options.dart';
+import 'native_http_client_config_dto.dart';
 
 final class NativeHttpClientConfigMapper {
   const NativeHttpClientConfigMapper._();

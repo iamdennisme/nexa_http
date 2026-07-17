@@ -1,8 +1,8 @@
 import '../../api/nexa_http_exception.dart';
 import '../../api/request.dart';
 import '../../api/request_body.dart';
-import '../../internal/config/client_options.dart';
-import '../dto/native_http_request_dto.dart';
+import '../config/client_options.dart';
+import 'native_http_request_dto.dart';
 
 final class NativeHttpRequestMapper {
   const NativeHttpRequestMapper._();

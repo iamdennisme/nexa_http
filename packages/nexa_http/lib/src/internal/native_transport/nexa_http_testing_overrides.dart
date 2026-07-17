@@ -1,4 +1,4 @@
-import '../../native_bridge/nexa_http_native_data_source_factory.dart';
+import 'nexa_http_native_data_source_factory.dart';
 
 final class NexaHttpTestingOverrides {
   NexaHttpTestingOverrides._();

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import '../../internal/transport/transport_response.dart';
+import 'transport_response.dart';
 
 final class FfiNexaHttpPendingRequestRegistry {
   FfiNexaHttpPendingRequestRegistry({

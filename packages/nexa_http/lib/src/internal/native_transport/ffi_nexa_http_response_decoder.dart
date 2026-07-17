@@ -6,10 +6,10 @@ import 'package:ffi/ffi.dart';
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
 import '../../api/nexa_http_exception.dart';
-import '../../internal/body/response_body_owner.dart';
-import '../../internal/transport/transport_response.dart';
-import '../dto/native_http_error_dto.dart';
-import '../mappers/native_http_error_mapper.dart';
+import '../body/response_body_owner.dart';
+import 'native_http_error_dto.dart';
+import 'native_http_error_mapper.dart';
+import 'transport_response.dart';
 
 typedef BinaryResultRelease =
     void Function(Pointer<NexaHttpBinaryResult> resultPointer);

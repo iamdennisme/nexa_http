@@ -33,7 +33,7 @@ Request mapper、内部 DTO 和 transport handoff 保持同一个 canonical Dart
 ## 当前来源
 
 - `packages/nexa_http/lib/src/api/request_body.dart`
-- `packages/nexa_http/lib/src/data/sources/ffi_nexa_http_request_encoder.dart`
+- `packages/nexa_http/lib/src/internal/native_transport/ffi_nexa_http_request_encoder.dart`
 - `packages/nexa_http/test/request_body_test.dart`
 - `.trellis/spec/nexa_http/dart/public-api.md`
 - `.trellis/spec/nexa_http/dart/native-transport.md`

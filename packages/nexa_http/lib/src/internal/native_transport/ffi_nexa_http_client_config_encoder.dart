@@ -4,7 +4,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
 
-import '../dto/native_http_client_config_dto.dart';
+import 'native_http_client_config_dto.dart';
 
 final class FfiNexaHttpClientConfigEncoder {
   const FfiNexaHttpClientConfigEncoder._();

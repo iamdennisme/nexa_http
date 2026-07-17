@@ -1,5 +1,5 @@
-import 'package:nexa_http/src/data/sources/ffi_nexa_http_pending_request_registry.dart';
-import 'package:nexa_http/src/internal/transport/transport_response.dart';
+import 'package:nexa_http/src/internal/native_transport/ffi_nexa_http_pending_request_registry.dart';
+import 'package:nexa_http/src/internal/native_transport/transport_response.dart';
 import 'package:test/test.dart';
 
 void main() {

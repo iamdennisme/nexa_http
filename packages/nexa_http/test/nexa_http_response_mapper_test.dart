@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:nexa_http/nexa_http.dart';
 import 'package:nexa_http/src/internal/body/response_body_owner.dart';
-import 'package:nexa_http/src/internal/transport/nexa_http_response_mapper.dart';
-import 'package:nexa_http/src/internal/transport/transport_response.dart';
+import 'package:nexa_http/src/internal/native_transport/nexa_http_response_mapper.dart';
+import 'package:nexa_http/src/internal/native_transport/transport_response.dart';
 import 'package:test/test.dart';
 
 void main() {

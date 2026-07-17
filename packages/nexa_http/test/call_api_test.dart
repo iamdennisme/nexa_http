@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:nexa_http/nexa_http.dart';
-import 'package:nexa_http/src/data/dto/native_http_client_config_dto.dart';
-import 'package:nexa_http/src/data/dto/native_http_request_dto.dart';
-import 'package:nexa_http/src/data/sources/nexa_http_native_data_source.dart';
-import 'package:nexa_http/src/internal/testing/nexa_http_testing_overrides.dart';
-import 'package:nexa_http/src/internal/transport/transport_response.dart';
-import 'package:nexa_http/src/native_bridge/nexa_http_native_data_source_factory.dart';
+import 'package:nexa_http/src/internal/native_transport/native_http_client_config_dto.dart';
+import 'package:nexa_http/src/internal/native_transport/native_http_request_dto.dart';
+import 'package:nexa_http/src/internal/native_transport/nexa_http_native_data_source.dart';
+import 'package:nexa_http/src/internal/native_transport/nexa_http_testing_overrides.dart';
+import 'package:nexa_http/src/internal/native_transport/transport_response.dart';
+import 'package:nexa_http/src/internal/native_transport/nexa_http_native_data_source_factory.dart';
 import 'package:test/test.dart';
 
 import 'support/fake_native_bindings.dart';

@@ -1,6 +1,6 @@
-import '../dto/native_http_client_config_dto.dart';
-import '../dto/native_http_request_dto.dart';
-import '../../internal/transport/transport_response.dart';
+import 'native_http_client_config_dto.dart';
+import 'native_http_request_dto.dart';
+import 'transport_response.dart';
 
 typedef CancelNativeRequest = void Function();
 typedef RegisterCancelRequest =

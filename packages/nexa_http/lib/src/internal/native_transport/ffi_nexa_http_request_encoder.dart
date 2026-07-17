@@ -4,9 +4,9 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 import 'package:nexa_http_native_internal/nexa_http_native_internal.dart';
-import '../../internal/errors/nexa_http_failures.dart';
 
-import '../dto/native_http_request_dto.dart';
+import '../errors/nexa_http_failures.dart';
+import 'native_http_request_dto.dart';
 
 typedef NativeRequestBodyCopier =
     void Function(Uint8List source, Pointer<Uint8> destination);
