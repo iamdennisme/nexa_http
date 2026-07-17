@@ -621,3 +621,36 @@ Completed and archived proxy normalization, Rust executor decomposition, and Dar
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: Harden Android emulator install readiness
+
+**Date**: 2026-07-17
+**Task**: Harden Android emulator install readiness
+**Branch**: `main`
+
+### Summary
+
+Added bounded command diagnostics and exact-signature Android APK install recovery, verified local Catalog gates, pushed main, and passed CI plus a fresh Android rerun with complete runtime proof.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `42a4c042857d089bcbd5e05abe6d9536bab868d5` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
