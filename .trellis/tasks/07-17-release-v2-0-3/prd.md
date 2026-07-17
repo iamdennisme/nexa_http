@@ -73,11 +73,11 @@
 - [x] AC2 (`R1`, `R2`): CHANGELOG 准确描述唯一功能增量，三份 README、layering example 与 governance assertion 使用 `v2.0.3`，历史 `v2.0.2` 证据未被改写。
 - [x] AC3 (`R3`): Public API、runtime/native source、C ABI、bindings、target/artifact/carrier/release workflow 没有计划外 diff。
 - [x] AC4 (`R4`): Focused、完整 verification、release/governance、analyze 与最终 `verify-static` 全部通过。
-- [ ] AC5 (`R4`, `R5`): Release preparation commit 以普通 fast-forward push 到 `origin/main`，其完整 CI 和 `ci-gate` 成功，远端精确包含批准 SHA。
-- [ ] AC6 (`R6`): `publish=false` rehearsal 的 fragments、candidate、四平台 rows 与 aggregate 全部成功，publisher skipped 且没有新增 public state。
-- [ ] AC7 (`R7`): `publish=true` transaction 成功，`v2.0.3` annotated tag peel 到批准 SHA，Release 为 non-draft/non-prerelease。
-- [ ] AC8 (`R7`): GitHub Release 精确包含 9 个 native assets、manifest 与 `SHA256SUMS`，共 11 个 uploaded assets，远端 digest 集合与发布 metadata 一致。
-- [ ] AC9 (`R6`, `R7`): 每次 transaction 内四平台 reports 共用一个 candidate identity，且五个 runtime lifecycle 字段全部为 `true`。
+- [x] AC5 (`R4`, `R5`): Release preparation commit 以普通 fast-forward push 到 `origin/main`，其完整 CI 和 `ci-gate` 成功，远端精确包含批准 SHA。
+- [x] AC6 (`R6`): `publish=false` rehearsal 的 fragments、candidate、四平台 rows 与 aggregate 全部成功，publisher skipped 且没有新增 public state。
+- [x] AC7 (`R7`): `publish=true` transaction 成功，`v2.0.3` annotated tag peel 到批准 SHA，Release 为 non-draft/non-prerelease。
+- [x] AC8 (`R7`): GitHub Release 精确包含 9 个 native assets、manifest 与 `SHA256SUMS`，共 11 个 uploaded assets，远端 digest 集合与发布 metadata 一致。
+- [x] AC9 (`R6`, `R7`): 每次 transaction 内四平台 reports 共用一个 candidate identity，且五个 runtime lifecycle 字段全部为 `true`。
 - [ ] AC10 (`R8`): 发布证据写入任务工件，任务归档、journal 与 bookkeeping commits 推送完成，最终 worktree clean 且无 active task。
 
 ## Out Of Scope

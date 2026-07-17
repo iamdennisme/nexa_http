@@ -21,14 +21,14 @@
 - [x] Run focused command/Android adapter, release transaction, workflow and governance tests.
 - [x] Run the complete `test/verification` suite, `dart analyze` and final `verify-static --execution static-linux`; save the machine-readable report.
 - [x] Review the complete diff and prove that runtime/native/ABI/bindings/target/carrier/workflow/publication files have no unplanned changes.
-- [ ] Commit release preparation as one coherent work commit.
-- [ ] Fetch origin, prove fast-forward ancestry, push `main:main` without force and verify the exact remote SHA.
-- [ ] Wait for the exact pushed SHA's normal CI rows and final `ci-gate` to succeed.
-- [ ] Run local dispatch validation against that exact pushed SHA.
-- [ ] Dispatch and monitor `publish=false`; require transaction input, fragments, candidate assembly, four platform rows and aggregate to pass.
-- [ ] Verify rehearsal publisher was skipped and no `v2.0.3` tag, draft, prerelease or Release exists.
-- [ ] Dispatch and monitor `publish=true` for the same SHA; require all gates, aggregate and unique publisher to succeed.
-- [ ] Verify annotated tag target, stable Release, exact 11-asset names/states/digests, manifest and `SHA256SUMS` consistency.
+- [x] Commit release preparation as one coherent work commit.
+- [x] Fetch origin, prove fast-forward ancestry, push `main:main` without force and verify the exact remote SHA.
+- [x] Wait for the exact pushed SHA's normal CI rows and final `ci-gate` to succeed.
+- [x] Run local dispatch validation against that exact pushed SHA.
+- [x] Dispatch and monitor `publish=false`; require transaction input, fragments, candidate assembly, four platform rows and aggregate to pass.
+- [x] Verify rehearsal publisher was skipped and no `v2.0.3` tag, draft, prerelease or Release exists.
+- [x] Dispatch and monitor `publish=true` for the same SHA; require all gates, aggregate and unique publisher to succeed.
+- [x] Verify annotated tag target, stable Release, exact 11-asset names/states/digests, manifest and `SHA256SUMS` consistency.
 - [ ] Write `evidence.md`, update acceptance checkboxes, perform final quality check, archive task, record journal and push bookkeeping commits.
 - [ ] Confirm final `origin/main`, clean worktree, no active Trellis task and immutable `v2.0.2` state.
 
